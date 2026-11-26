@@ -33,8 +33,13 @@ package org.opensearch.index;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.QueryCachingPolicy;
@@ -138,6 +143,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -309,6 +315,147 @@ public class IndexModuleTests extends OpenSearchTestCase {
         indexService.close("simon says", false);
     }
 
+    public void testSetReaderWrapperStaysOutermost() throws IOException {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        module.addReaderWrapper(s -> r -> new TaggedWrapperReader(r, "inner"));
+        module.setReaderWrapper(s -> r -> new TaggedWrapperReader(r, "outer"));
+
+        IndexService indexService = newIndexService(module);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = indexService.getReaderWrapper();
+        assertNotNull(wrapper);
+        try (Directory dir = newDirectory(); DirectoryReader raw = openEmptyReader(dir); DirectoryReader wrapped = wrapper.apply(raw)) {
+            // setReaderWrapper stays outermost; the added wrapper is beneath it, directly over the raw reader.
+            DirectoryReader inner = TaggedWrapperReader.assertTagAndUnwrap(wrapped, "outer");
+            assertSame(raw, TaggedWrapperReader.assertTagAndUnwrap(inner, "inner"));
+        }
+        indexService.close("simon says", false);
+    }
+
+    public void testSetReaderWrapperStaysOutermostWhenRegisteredFirst() throws IOException {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        // Registration order between set and add must not affect layering: PluginsService.onIndexModule iterates
+        // plugins in load order, which is not under the plugins' control.
+        module.setReaderWrapper(s -> r -> new TaggedWrapperReader(r, "outer"));
+        module.addReaderWrapper(s -> r -> new TaggedWrapperReader(r, "inner"));
+
+        IndexService indexService = newIndexService(module);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = indexService.getReaderWrapper();
+        assertNotNull(wrapper);
+        try (Directory dir = newDirectory(); DirectoryReader raw = openEmptyReader(dir); DirectoryReader wrapped = wrapper.apply(raw)) {
+            // setReaderWrapper stays outermost; the added wrapper is beneath it, directly over the raw reader.
+            DirectoryReader inner = TaggedWrapperReader.assertTagAndUnwrap(wrapped, "outer");
+            assertSame(raw, TaggedWrapperReader.assertTagAndUnwrap(inner, "inner"));
+        }
+        indexService.close("simon says", false);
+    }
+
+    public void testAddReaderWrappersComposeInRegistrationOrder() throws IOException {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        module.addReaderWrapper(s -> r -> new TaggedWrapperReader(r, "inner"));
+        module.addReaderWrapper(s -> r -> new TaggedWrapperReader(r, "outer"));
+
+        IndexService indexService = newIndexService(module);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = indexService.getReaderWrapper();
+        assertNotNull(wrapper);
+        try (Directory dir = newDirectory(); DirectoryReader raw = openEmptyReader(dir); DirectoryReader wrapped = wrapper.apply(raw)) {
+            // First registered wraps the raw reader first, so it ends up innermost; the second is outermost.
+            DirectoryReader inner = TaggedWrapperReader.assertTagAndUnwrap(wrapped, "outer");
+            assertSame(raw, TaggedWrapperReader.assertTagAndUnwrap(inner, "inner"));
+        }
+        indexService.close("simon says", false);
+    }
+
+    public void testAddReaderWrapperAloneIsApplied() throws IOException {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        module.addReaderWrapper(s -> r -> new TaggedWrapperReader(r, "inner"));
+
+        IndexService indexService = newIndexService(module);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = indexService.getReaderWrapper();
+        assertNotNull(wrapper);
+        try (Directory dir = newDirectory(); DirectoryReader raw = openEmptyReader(dir); DirectoryReader wrapped = wrapper.apply(raw)) {
+            assertSame(raw, TaggedWrapperReader.assertTagAndUnwrap(wrapped, "inner"));
+        }
+        indexService.close("simon says", false);
+    }
+
+    public void testAddReaderWrapperReturningNullIsSkipped() throws IOException {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        module.addReaderWrapper(s -> null);
+
+        IndexService indexService = newIndexService(module);
+        // A factory that declines plus no outer wrapper leaves the reader wrapper null, matching indices without added wrappers.
+        assertNull(indexService.getReaderWrapper());
+        indexService.close("simon says", false);
+    }
+
+    public void testAddReaderWrapperRejectsNull() {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        expectThrows(IllegalArgumentException.class, () -> module.addReaderWrapper(null));
+    }
+
+    public void testTwoAddedReaderWrappersComposeBeneathSetReaderWrapper() throws IOException {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        module.addReaderWrapper(s -> r -> new TaggedWrapperReader(r, "first"));
+        // set deliberately between the two adds: registration interleaving must not change layering -- the set
+        // wrapper is always outermost and the added wrappers compose beneath it in registration order.
+        module.setReaderWrapper(s -> r -> new TaggedWrapperReader(r, "outer"));
+        module.addReaderWrapper(s -> r -> new TaggedWrapperReader(r, "second"));
+
+        IndexService indexService = newIndexService(module);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = indexService.getReaderWrapper();
+        assertNotNull(wrapper);
+        try (Directory dir = newDirectory(); DirectoryReader raw = openEmptyReader(dir); DirectoryReader wrapped = wrapper.apply(raw)) {
+            // outer (set) -> second (added last) -> first (added first) -> raw
+            DirectoryReader second = TaggedWrapperReader.assertTagAndUnwrap(wrapped, "outer");
+            DirectoryReader first = TaggedWrapperReader.assertTagAndUnwrap(second, "second");
+            assertSame(raw, TaggedWrapperReader.assertTagAndUnwrap(first, "first"));
+        }
+        indexService.close("simon says", false);
+    }
+
+    public void testSetReaderWrapperOnlyIsHandedToIndexUnchanged() throws IOException {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        CheckedFunction<DirectoryReader, DirectoryReader, IOException> securityStyle = r -> new TaggedWrapperReader(r, "outer");
+        module.setReaderWrapper(s -> securityStyle);
+
+        IndexService indexService = newIndexService(module);
+        // With no added wrappers the set wrapper instance is handed to the index unchanged. This identity
+        // preservation keeps pre-existing callers (IndexShard null check, plugin tests) unaffected.
+        assertSame(securityStyle, indexService.getReaderWrapper());
+        indexService.close("simon says", false);
+    }
+
+    public void testAddReaderWrapperFactoryThrowsFailsIndexCreation() {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        module.addReaderWrapper(s -> { throw new IllegalStateException("boom"); });
+
+        // The factory is resolved while the IndexService is being constructed, so a throwing factory fails index
+        // creation. The exception propagates unwrapped (IndexService applies the wrapper factory directly).
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> newIndexService(module));
+        assertEquals("boom", e.getMessage());
+    }
+
+    public void testAddReaderWrapperRejectsDuplicateFactory() {
+        IndexModule module = createIndexModule(indexSettings, emptyAnalysisRegistry);
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> factory = s -> r -> new TaggedWrapperReader(
+            r,
+            "dup"
+        );
+        module.addReaderWrapper(factory);
+        // Adding the same factory instance twice is rejected, mirroring addSearchOperationListener/addIndexOperationListener.
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> module.addReaderWrapper(factory));
+        assertThat(e.getMessage(), containsString("already added"));
+    }
+
+    public void testComposeReaderWrappersWithNoInputsYieldsNull() throws IOException {
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> factory = IndexModule.composeReaderWrappers(
+            Collections.emptyList(),
+            null
+        );
+        assertNotNull(factory);
+        assertNull(factory.apply(null));
+    }
+
     public void testRegisterIndexStore() throws IOException {
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -468,6 +615,7 @@ public class IndexModuleTests extends OpenSearchTestCase {
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addIndexOperationListener(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addSimilarity(null, null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.setReaderWrapper(null)).getMessage());
+        assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.addReaderWrapper(null)).getMessage());
         assertEquals(msg, expectThrows(IllegalStateException.class, () -> module.forceQueryCacheProvider(null)).getMessage());
     }
 
@@ -850,6 +998,50 @@ public class IndexModuleTests extends OpenSearchTestCase {
         @Override
         public DirectoryReader apply(DirectoryReader reader) {
             return null;
+        }
+    }
+
+    /** Opens a reader over a tiny in-memory index so reader wrappers have a real reader to wrap. */
+    private static DirectoryReader openEmptyReader(Directory dir) throws IOException {
+        try (IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            writer.addDocument(new Document());
+            writer.commit();
+        }
+        return DirectoryReader.open(dir);
+    }
+
+    /**
+     * A no-op {@link FilterDirectoryReader} that carries a {@code tag} so composition order can be asserted:
+     * {@link #assertTagAndUnwrap} verifies the outermost reader's tag and peels one layer via {@link #getDelegate()}.
+     */
+    private static final class TaggedWrapperReader extends FilterDirectoryReader {
+        private final String tag;
+
+        TaggedWrapperReader(DirectoryReader in, String tag) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return reader;
+                }
+            });
+            this.tag = tag;
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new TaggedWrapperReader(in, tag);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return in.getReaderCacheHelper();
+        }
+
+        /** Asserts {@code reader} is a {@link TaggedWrapperReader} with {@code expectedTag} and returns its delegate. */
+        static DirectoryReader assertTagAndUnwrap(DirectoryReader reader, String expectedTag) {
+            assertTrue(reader instanceof TaggedWrapperReader);
+            assertEquals(expectedTag, ((TaggedWrapperReader) reader).tag);
+            return ((TaggedWrapperReader) reader).getDelegate();
         }
     }
 

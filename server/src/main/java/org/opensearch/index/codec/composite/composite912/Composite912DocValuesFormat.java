@@ -67,6 +67,12 @@ public class Composite912DocValuesFormat extends DocValuesFormat {
     /** Filename extension for the composite index skip index doc values */
     public static final String SKIP_INDEX_DOC_VALUES_EXTENSION = "cidvs";
 
+    /** Sparse-field presence (IndexedDISI) codec name for Composite Doc Values Format */
+    public static final String DISI_DOC_VALUES_CODEC = "Composite912DocValuesDISI";
+
+    /** Filename extension for the composite index sparse-field presence doc values */
+    public static final String DISI_DOC_VALUES_EXTENSION = "cidvp";
+
     /** Initial version for the Composite90DocValuesFormat */
     public static final int VERSION_START = 0;
 

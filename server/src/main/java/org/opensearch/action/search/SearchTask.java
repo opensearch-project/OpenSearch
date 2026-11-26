@@ -53,6 +53,7 @@ public class SearchTask extends WorkloadGroupTask implements SearchBackpressureT
     // generating description in a lazy way since source can be quite big
     private final Supplier<String> descriptionSupplier;
     private SearchProgressListener progressListener = SearchProgressListener.NOOP;
+    private final boolean cancellationTimeoutFromRequest;
 
     public SearchTask(
         long id,
@@ -74,8 +75,26 @@ public class SearchTask extends WorkloadGroupTask implements SearchBackpressureT
         Map<String, String> headers,
         TimeValue cancelAfterTimeInterval
     ) {
+        this(id, type, action, descriptionSupplier, parentTaskId, headers, cancelAfterTimeInterval, false);
+    }
+
+    /**
+     * Only {@link SearchRequest#createTask} marks the task's timeout as the request's own; a task another {@code createTask} builds
+     * keeps the timeout it chose, such as {@link org.opensearch.search.SearchService#NO_TIMEOUT} for asynchronous search.
+     */
+    SearchTask(
+        long id,
+        String type,
+        String action,
+        Supplier<String> descriptionSupplier,
+        TaskId parentTaskId,
+        Map<String, String> headers,
+        TimeValue cancelAfterTimeInterval,
+        boolean cancellationTimeoutFromRequest
+    ) {
         super(id, type, action, null, parentTaskId, headers, cancelAfterTimeInterval);
         this.descriptionSupplier = descriptionSupplier;
+        this.cancellationTimeoutFromRequest = cancellationTimeoutFromRequest;
     }
 
     @Override
@@ -105,5 +124,10 @@ public class SearchTask extends WorkloadGroupTask implements SearchBackpressureT
     @Override
     public boolean shouldCancelChildrenOnCancellation() {
         return true;
+    }
+
+    @Override
+    public boolean isCancellationTimeoutFromRequest() {
+        return cancellationTimeoutFromRequest;
     }
 }

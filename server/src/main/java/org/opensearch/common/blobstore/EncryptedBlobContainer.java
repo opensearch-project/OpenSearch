@@ -47,6 +47,12 @@ public class EncryptedBlobContainer<T, U> implements BlobContainer {
     }
 
     @Override
+    public BlobMetadata getBlobMetadata(String blobName) throws IOException {
+        final BlobMetadata metadata = blobContainer.getBlobMetadata(blobName);
+        return new EncryptedBlobMetadata<>(metadata, cryptoHandler, getEncryptedHeaderContentSupplier(blobName));
+    }
+
+    @Override
     public InputStream readBlob(String blobName) throws IOException {
         InputStream inputStream = blobContainer.readBlob(blobName);
         return cryptoHandler.createDecryptingStream(inputStream);

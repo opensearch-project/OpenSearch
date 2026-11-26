@@ -25,6 +25,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.OpenSearchTestCase;
+import org.opensearch.test.VersionUtils;
 import org.opensearch.test.transport.MockTransportService;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
@@ -33,6 +34,7 @@ import org.opensearch.transport.TransportRequest;
 import org.opensearch.wlm.MutableWorkloadGroupFragment;
 import org.opensearch.wlm.MutableWorkloadGroupFragment.ResiliencyMode;
 import org.opensearch.wlm.ResourceType;
+import org.opensearch.wlm.WorkloadGroupThrottleSettings;
 import org.junit.After;
 import org.junit.Before;
 
@@ -43,8 +45,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Sends throttled create/update requests from a {@link Version#V_3_10_0} node to a pre-3.10 node over a real transport
- * connection, as when the cluster-manager has not been upgraded yet, and checks the error an operator would see.
+ * Sends throttled create/update requests from a {@link WorkloadGroupThrottleSettings#MIN_SUPPORTED_VERSION} node to a
+ * pre-throttling node over a real transport connection, as when the cluster-manager has not been upgraded yet, and checks
+ * the error an operator would see.
  */
 public class ThrottledRequestForwardingTests extends OpenSearchTestCase {
 
@@ -57,8 +60,8 @@ public class ThrottledRequestForwardingTests extends OpenSearchTestCase {
     @Before
     public void startNodes() {
         threadPool = new TestThreadPool(getTestName());
-        oldNode = startNode(Version.V_3_9_0);
-        newNode = startNode(Version.V_3_10_0);
+        oldNode = startNode(VersionUtils.getPreviousVersion(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION));
+        newNode = startNode(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION);
         newNode.connectToNode(oldNode.getLocalNode());
     }
 
@@ -120,7 +123,10 @@ public class ThrottledRequestForwardingTests extends OpenSearchTestCase {
         @SuppressWarnings("unchecked")
         Map<String, Object> rootCause = ((List<Map<String, Object>>) ((Map<String, Object>) body.get("error")).get("root_cause")).get(0);
         assertEquals("illegal_argument_exception", rootCause.get("type"));
-        assertEquals("cannot send workload group throttling to a node before version " + Version.V_3_10_0, rootCause.get("reason"));
+        assertEquals(
+            "cannot send workload group throttling to a node before version " + WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION,
+            rootCause.get("reason")
+        );
     }
 
     private static MutableWorkloadGroupFragment throttledFragment() {

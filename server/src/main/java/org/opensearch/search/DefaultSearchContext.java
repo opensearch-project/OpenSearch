@@ -43,6 +43,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.similarities.BooleanSimilarity;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.action.search.SearchType;
@@ -95,6 +96,7 @@ import org.opensearch.search.fetch.subphase.FetchFieldsContext;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.search.fetch.subphase.ScriptFieldsContext;
 import org.opensearch.search.fetch.subphase.highlight.SearchHighlightContext;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.ContextIndexSearcher;
 import org.opensearch.search.internal.PitReaderContext;
 import org.opensearch.search.internal.ReaderContext;
@@ -473,7 +475,16 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (aliasFilter != null) {
-            filters.add(aliasFilter);
+            if (request.getAliasFilter().getScoringMode() == AliasFilter.ScoringMode.NO_STATS) {
+                // Filter before scoring and score every hit the same, so no corpus statistics are read and documents
+                // outside the alias cannot affect a score.
+                query = new ConstantScoreQuery(new BooleanQuery.Builder().add(query, Occur.MUST).add(aliasFilter, Occur.FILTER).build());
+                // Rescoring, inner hits and the inner query of function_score or script_score score separately through
+                // this searcher, so give it a similarity that reads no corpus statistics as well.
+                searcher.setSimilarity(new BooleanSimilarity());
+            } else {
+                filters.add(aliasFilter);
+            }
         }
 
         if (sliceBuilder != null) {

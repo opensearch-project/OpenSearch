@@ -288,4 +288,49 @@ public class ConnectionProfileTests extends OpenSearchTestCase {
         assertEquals(3, profile.getNumConnectionsPerType(TransportRequestOptions.Type.BULK));
         assertEquals(0, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STREAM));
     }
+
+    public void testBuildSingleTypeProfile() {
+        TimeValue connectTimeout = TimeValue.timeValueSeconds(randomIntBetween(1, 10));
+        TimeValue handshakeTimeout = TimeValue.timeValueSeconds(randomIntBetween(1, 10));
+        int numConnections = randomIntBetween(1, 8);
+        ConnectionProfile profile = ConnectionProfile.buildSingleTypeProfile(
+            TransportRequestOptions.Type.STREAM,
+            numConnections,
+            connectTimeout,
+            handshakeTimeout,
+            TimeValue.MINUS_ONE,
+            false
+        );
+        assertEquals(numConnections, profile.getNumConnections());
+        assertEquals(numConnections, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STREAM));
+        for (TransportRequestOptions.Type type : EnumSet.complementOf(EnumSet.of(TransportRequestOptions.Type.STREAM))) {
+            assertEquals(0, profile.getNumConnectionsPerType(type));
+        }
+        assertEquals(connectTimeout, profile.getConnectTimeout());
+        assertEquals(handshakeTimeout, profile.getHandshakeTimeout());
+        assertFalse(profile.getCompressionEnabled());
+
+        // channel indices for the single type cover every connection
+        List<Integer> seen = new ArrayList<>();
+        ConnectionProfile.ConnectionTypeHandle handle = profile.getHandles().get(0);
+        List<Integer> channels = new ArrayList<>();
+        for (int i = 0; i < numConnections; i++) {
+            channels.add(i);
+        }
+        for (int i = 0; i < numConnections; i++) {
+            seen.add(handle.getChannel(channels));
+        }
+        assertEquals(new HashSet<>(channels), new HashSet<>(seen));
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ConnectionProfile.buildSingleTypeProfile(TransportRequestOptions.Type.STREAM, 0, null, null, null, null)
+        );
+    }
+
+    public void testBuildSingleChannelProfileIsOneConnection() {
+        ConnectionProfile profile = ConnectionProfile.buildSingleChannelProfile(TransportRequestOptions.Type.STREAM);
+        assertEquals(1, profile.getNumConnections());
+        assertEquals(1, profile.getNumConnectionsPerType(TransportRequestOptions.Type.STREAM));
+    }
 }

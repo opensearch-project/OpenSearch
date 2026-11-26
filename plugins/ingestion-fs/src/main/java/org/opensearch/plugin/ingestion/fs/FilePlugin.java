@@ -9,6 +9,7 @@
 package org.opensearch.plugin.ingestion.fs;
 
 import org.opensearch.index.IngestionConsumerFactory;
+import org.opensearch.index.IngestionWriterFactory;
 import org.opensearch.plugins.IngestionConsumerPlugin;
 import org.opensearch.plugins.Plugin;
 
@@ -38,5 +39,10 @@ public class FilePlugin extends Plugin implements IngestionConsumerPlugin {
     @Override
     public String getType() {
         return TYPE;
+    }
+
+    @Override
+    public Map<String, IngestionWriterFactory> getIngestionWriterFactories() {
+        return Map.of(TYPE, new FileWriterFactory());
     }
 }

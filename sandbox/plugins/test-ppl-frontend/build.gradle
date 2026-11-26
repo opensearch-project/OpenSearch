@@ -149,7 +149,7 @@ configurations.all {
   resolutionStrategy {
     // Align transitive versions with OpenSearch's managed versions
     force "com.google.guava:guava:${versions.guava}"
-    force 'com.google.guava:failureaccess:1.0.2'
+    force 'com.google.guava:failureaccess:1.0.3'
     force 'com.google.errorprone:error_prone_annotations:2.36.0'
     force 'org.checkerframework:checker-qual:3.43.0'
     force 'org.jspecify:jspecify:1.0.1'

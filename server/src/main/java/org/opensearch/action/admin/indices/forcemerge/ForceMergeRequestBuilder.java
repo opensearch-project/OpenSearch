@@ -89,4 +89,13 @@ public class ForceMergeRequestBuilder extends BroadcastOperationRequestBuilder<
         request.primaryOnly(primaryOnly);
         return this;
     }
+
+    /**
+     * Should the force merge upgrade Lucene segments written by an older Lucene version to the
+     * current Lucene version. Composes with {@link #setMaxNumSegments(int)}. Defaults to {@code false}.
+     */
+    public ForceMergeRequestBuilder setUpgrade(boolean upgrade) {
+        request.upgrade(upgrade);
+        return this;
+    }
 }

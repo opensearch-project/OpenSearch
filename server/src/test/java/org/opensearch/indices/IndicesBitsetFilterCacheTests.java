@@ -25,6 +25,7 @@ import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.Accountable;
 import org.opensearch.common.lucene.index.OpenSearchDirectoryReader;
+import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
@@ -45,6 +46,15 @@ public class IndicesBitsetFilterCacheTests extends OpenSearchTestCase {
         @Override
         public void onRemoval(ShardId shardId, Accountable accountable) {}
     };
+
+    /**
+     * Verifies that the cache size setting is registered, so it can be set in opensearch.yml.
+     */
+    public void testCacheSizeSettingIsRegistered() {
+        assertTrue(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.contains(IndicesBitsetFilterCache.INDICES_BITSET_FILTER_CACHE_SIZE_SETTING));
+        Settings settings = Settings.builder().put("indices.cache.bitset.size", "15%").build();
+        new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS).validate(settings, true);
+    }
 
     /**
      * Verifies that when the cache size setting is configured, the cache evicts entries

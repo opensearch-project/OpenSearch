@@ -66,6 +66,7 @@ import org.opensearch.action.admin.indices.flush.FlushRequest;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.opensearch.action.admin.indices.streamingingestion.state.ShardIngestionState;
 import org.opensearch.action.admin.indices.upgrade.post.UpgradeRequest;
+import org.opensearch.action.support.ListenerTimeouts;
 import org.opensearch.action.support.replication.PendingReplicationActions;
 import org.opensearch.action.support.replication.ReplicationResponse;
 import org.opensearch.cluster.metadata.DataStream;
@@ -147,6 +148,7 @@ import org.opensearch.index.engine.PrimaryOperationPolicy;
 import org.opensearch.index.engine.ReadOnlyEngine;
 import org.opensearch.index.engine.RefreshFailedEngineException;
 import org.opensearch.index.engine.SafeCommitInfo;
+import org.opensearch.index.engine.SearcherSupplierProvider;
 import org.opensearch.index.engine.Segment;
 import org.opensearch.index.engine.SegmentsStats;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
@@ -230,7 +232,6 @@ import org.opensearch.indices.replication.checkpoint.ReferencedSegmentsPublisher
 import org.opensearch.indices.replication.checkpoint.ReplicationCheckpoint;
 import org.opensearch.indices.replication.checkpoint.SegmentReplicationCheckpointPublisher;
 import org.opensearch.indices.replication.common.ReplicationTimer;
-import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
 import org.opensearch.search.suggest.completion.CompletionStats;
@@ -501,7 +502,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger,
             threadPool,
             this::getIndexer,
-            indexSettings.isAssignedOnRemoteNode(),
+            indexSettings.isTranslogDurableInRemoteStore(),
             () -> getRemoteTranslogUploadBufferInterval(remoteStoreSettings::getClusterRemoteTranslogBufferInterval)
         );
         this.mergedSegmentTransferTracker = new MergedSegmentTransferTracker();
@@ -990,12 +991,19 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                             engine.translogManager().rollTranslogGeneration();
                             engine.fillSeqNoGaps(newPrimaryTerm);
                             replicationTracker.updateLocalCheckpoint(currentRouting.allocationId().getId(), getLocalCheckpoint());
-                            primaryReplicaSyncer.accept(this, new ActionListener<ResyncTask>() {
+
+                            final TimeValue resyncTimeout = recoverySettings.getPrimaryResyncTimeout();
+                            // The listener below is wrapped by ListenerTimeouts.wrapWithTimeout, which uses a single
+                            // fire-once guard: exactly one of onResponse, onFailure, or the timeout consumer ever runs for
+                            // a given promotion. Because the resync is dispatched only after primaryReplicaResyncInProgress
+                            // was set to true, whichever of these three runs first always observes the flag as true, so the
+                            // compareAndSet(true, false) below is guaranteed to succeed and the assert holds.
+                            final ActionListener<ResyncTask> resyncListener = new ActionListener<>() {
                                 @Override
                                 public void onResponse(ResyncTask resyncTask) {
-                                    logger.info("primary-replica resync completed with {} operations", resyncTask.getResyncedOperations());
                                     boolean resyncCompleted = primaryReplicaResyncInProgress.compareAndSet(true, false);
                                     assert resyncCompleted : "primary-replica resync finished but was not started";
+                                    logger.info("primary-replica resync completed with {} operations", resyncTask.getResyncedOperations());
                                 }
 
                                 @Override
@@ -1008,7 +1016,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                         failShard("exception during primary-replica resync", e);
                                     }
                                 }
-                            });
+                            };
+
+                            // Watchdog for a lost resync response: if neither onResponse nor onFailure fires within
+                            // resyncTimeout, clear the flag so this promoted primary can still be relocated instead of being
+                            // stuck forever. Trade-off: because wrapWithTimeout shares one fire-once guard between the real
+                            // listener and the timeout, a genuine resync failure that only arrives after the timeout has
+                            // fired is swallowed here rather than failing the shard. This is accepted deliberately: failing a
+                            // primary that has otherwise served traffic healthily for the full timeout is worse than keeping
+                            // it, and in the common case a real failure completes well before the timeout and still fails the
+                            // shard via onFailure above.
+                            final ActionListener<ResyncTask> timeoutListener = ListenerTimeouts.wrapWithTimeout(
+                                threadPool,
+                                resyncTimeout,
+                                ThreadPool.Names.GENERIC,
+                                resyncListener,
+                                (l) -> {
+                                    if (primaryReplicaResyncInProgress.compareAndSet(true, false)) {
+                                        logger.error(
+                                            "[{}] primary-replica resync timed out after [{}], forcibly clearing "
+                                                + "primaryReplicaResyncInProgress flag to unblock primary relocation",
+                                            shardId,
+                                            resyncTimeout
+                                        );
+                                    }
+                                }
+                            );
+                            primaryReplicaSyncer.accept(this, timeoutListener);
+
                         } catch (final AlreadyClosedException e) {
                             // okay, the index was deleted
                         }
@@ -1070,6 +1105,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     private final AtomicBoolean primaryReplicaResyncInProgress = new AtomicBoolean();
+
+    /**
+     * Returns whether a primary-replica resync is currently in progress on this shard.
+     */
+    boolean isPrimaryReplicaResyncInProgress() {
+        return primaryReplicaResyncInProgress.get();
+    }
 
     /**
      * Completes the relocation. Operations are blocked and current operations are drained before changing state to
@@ -2035,11 +2077,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             logger.trace("force merge with {}", forceMerge);
         }
         Indexer engine = getIndexer();
+        // When an upgrade is requested without an explicit (positive) max_num_segments, we must pass
+        // Integer.MAX_VALUE so the engine takes the forceMerge(upgrade) path. A non-positive
+        // maxNumSegments routes to maybeMerge(), which runs natural merges only and never upgrades
+        // segments. Passing Integer.MAX_VALUE upgrades every old-Lucene segment one-for-one while the
+        // merge policy's delegate performs no consolidation (topology preserved). When max_num_segments
+        // is a positive value, upgrade composes with it: segments are upgraded and then merged down to
+        // at most that many segments.
+        int maxNumSegments = forceMerge.maxNumSegments();
+        if (forceMerge.upgrade() && maxNumSegments <= 0) {
+            maxNumSegments = Integer.MAX_VALUE;
+        }
         engine.forceMerge(
             forceMerge.flush(),
-            forceMerge.maxNumSegments(),
+            maxNumSegments,
             forceMerge.onlyExpungeDeletes(),
-            false,
+            forceMerge.upgrade(),
             false,
             forceMerge.forceMergeUUID()
         );
@@ -2100,6 +2153,24 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     /**
+     * Returns whether the remote segment store contains the supplied catalog snapshot or a later snapshot uploaded by
+     * this primary term.
+     */
+    public boolean isRemoteSegmentStoreAtOrAheadOf(CatalogSnapshot catalogSnapshot) throws IOException {
+        if (!indexSettings.isAssignedOnRemoteNode()) {
+            throw new IllegalStateException("Index is not assigned on Remote Node");
+        }
+        final RemoteSegmentMetadata remoteMetadata = getRemoteDirectory().readLatestMetadataFile();
+        if (remoteMetadata == null) {
+            return false;
+        }
+        final ReplicationCheckpoint requiredCheckpoint = computeReplicationCheckpoint(catalogSnapshot);
+        final ReplicationCheckpoint remoteCheckpoint = remoteMetadata.getReplicationCheckpoint();
+        return remoteCheckpoint.getPrimaryTerm() == requiredCheckpoint.getPrimaryTerm()
+            && requiredCheckpoint.isAheadOf(remoteCheckpoint) == false;
+    }
+
+    /**
      * Creates a new {@link IndexCommit} snapshot from the currently running engine. All resources referenced by this
      * commit won't be freed until the commit / snapshot is closed.
      *
@@ -2121,6 +2192,39 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         GatedCloseable<IndexCommit> indexCommit = acquireLastIndexCommit(flushFirst);
         getIndexer().refresh("Snapshot for Remote Store based Shard");
         return indexCommit;
+    }
+
+    /**
+     * Creates a new {@link CatalogSnapshot} pinned to the most recent commit of the currently running indexer.
+     * All files referenced by this snapshot won't be freed until the returned handle is closed.
+     * <p>
+     * This is the format-neutral replacement for {@link #acquireLastIndexCommit(boolean)}: it goes through the
+     * {@link Indexer} contract rather than {@link #applyOnEngine}, so it works for multi-format
+     * (catalog-based) indexers as well as Lucene-backed ones.
+     *
+     * @param flushFirst {@code true} if the shard should be flushed before the snapshot is taken
+     */
+    @ExperimentalApi
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshot(boolean flushFirst) throws EngineException, IOException {
+        final IndexShardState state = this.state; // one time volatile read
+        // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
+        if (state == IndexShardState.STARTED || state == IndexShardState.CLOSED) {
+            return getIndexer().acquireLastCommittedSnapshot(flushFirst);
+        } else {
+            throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
+        }
+    }
+
+    /**
+     * Same as {@link #acquireLastCommittedSnapshot(boolean)} but additionally triggers a refresh so that the
+     * remote store upload of the pinned commit is kicked off. Format-neutral replacement for
+     * {@link #acquireLastIndexCommitAndRefresh(boolean)}.
+     */
+    @ExperimentalApi
+    public GatedCloseable<CatalogSnapshot> acquireLastCommittedSnapshotAndRefresh(boolean flushFirst) throws EngineException, IOException {
+        GatedCloseable<CatalogSnapshot> catalogSnapshot = acquireLastCommittedSnapshot(flushFirst);
+        getIndexer().refresh("Snapshot for Remote Store based Shard");
+        return catalogSnapshot;
     }
 
     /**
@@ -2711,8 +2815,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public Engine.SearcherSupplier acquireSearcherSupplier(Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
-        final Indexer engine = getIndexer();
-        return applyOnEngine(engine, eng -> eng.acquireSearcherSupplier(this::wrapSearcher, scope));
+        return searcherSupplierProvider().acquireSearcherSupplier(this::wrapSearcher, scope);
     }
 
     public Engine.Searcher acquireSearcher(String source) {
@@ -2729,8 +2832,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private Engine.Searcher acquireSearcher(String source, Engine.SearcherScope scope) {
         readAllowed();
         markSearcherAccessed();
+        return Engine.acquireSearcher(source, searcherSupplierProvider().acquireSearcherSupplier(this::wrapSearcher, scope));
+    }
+
+    /** The indexer's searcher capability; an indexer without one cannot serve {@code _search}. */
+    private SearcherSupplierProvider searcherSupplierProvider() {
         final Indexer indexer = getIndexer();
-        return applyOnEngine(indexer, engine -> engine.acquireSearcher(source, scope, this::wrapSearcher));
+        if (indexer instanceof SearcherSupplierProvider provider) {
+            return provider;
+        }
+        throw SearcherSupplierProvider.searchNotSupported(shardId, indexer.getClass().getSimpleName() + " has no searcher");
     }
 
     /**
@@ -3476,8 +3587,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private boolean recoversTranslogFromPeer() {
         return shardRouting.primary() == false
             && shardRouting.isSearchOnly() == false
-            && indexSettings.isRemoteTranslogStoreEnabled() == false
-            && RemoteStoreNodeAttribute.isTranslogRepoConfigured(indexSettings.getNodeSettings()) == false;
+            && indexSettings.isTranslogDurableInRemoteStore() == false;
     }
 
     private void innerOpenEngineAndTranslog(LongSupplier globalCheckpointSupplier, boolean syncFromRemote) throws IOException {
@@ -3497,8 +3607,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 + recoveryState.getRecoverySource()
                 + "] but got "
                 + getRetentionLeases();
-        final boolean hydrateFromRemote = (indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded())
-            && recoversTranslogFromPeer() == false;
+        // Hydrating rewrites the Lucene commit from the remote segment infos, which drops operations that were
+        // acknowledged but not yet flushed. A remote translog replays them afterwards; a local translog is their only
+        // durable copy, so a primary that owns one keeps its commit instead.
+        final boolean hasRemoteSegments = indexSettings.isRemoteStoreEnabled() || this.isRemoteSeeded();
+        final boolean wouldLoseAcknowledgedOperations = shardRouting.primary() && indexSettings.isTranslogDurableInRemoteStore() == false;
+        final boolean hydrateFromRemote = hasRemoteSegments
+            && recoversTranslogFromPeer() == false
+            && wouldLoseAcknowledgedOperations == false;
         if (hydrateFromRemote) {
             hydrateFromRemoteStore(syncFromRemote);
         }
@@ -5830,6 +5946,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * Primary shards push out new segments only
      * after a refresh, so we don't want to wait for a search to trigger that cycle. Replicas will only refresh after receiving
      * a new set of segments.
+     * <p>
+     * Pull-based ingestion indices ignore search idle: they don't track translog locations, so the first search after
+     * an idle period can't wait for a pending refresh and would return stale results.
      */
     // TODO: Should we disable this as data will never get in sync if we use search idle for context aware segments.
     public final boolean isSearchIdleSupported() {
@@ -5838,6 +5957,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         // between child and parent IndexWriter.
         // task continues to upload to remote store periodically.
         if (isRemoteTranslogEnabled() || indexSettings.isAssignedOnRemoteNode() || indexSettings.isContextAwareEnabled()) {
+            return false;
+        }
+        if (indexSettings.getIndexMetadata().useIngestionSource()) {
             return false;
         }
         return indexSettings.isSegRepEnabledOrRemoteNode() == false || indexSettings.getNumberOfReplicas() == 0;

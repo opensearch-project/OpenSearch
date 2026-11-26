@@ -1,0 +1,1108 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.wlm;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.opensearch.action.support.ContextPreservingActionListener;
+import org.opensearch.cluster.ClusterChangedEvent;
+import org.opensearch.cluster.ClusterStateListener;
+import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.cluster.service.ClusterService;
+import org.opensearch.common.UUIDs;
+import org.opensearch.common.annotation.ExperimentalApi;
+import org.opensearch.common.lease.Releasable;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.settings.Setting;
+import org.opensearch.common.unit.TimeValue;
+import org.opensearch.common.util.concurrent.AbstractRunnable;
+import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.StreamInput;
+import org.opensearch.core.common.io.stream.StreamOutput;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.transport.TransportResponse;
+import org.opensearch.tasks.TaskManager;
+import org.opensearch.threadpool.Scheduler;
+import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.RemoteTransportException;
+import org.opensearch.transport.TransportException;
+import org.opensearch.transport.TransportRequest;
+import org.opensearch.transport.TransportRequestOptions;
+import org.opensearch.transport.TransportResponseHandler;
+import org.opensearch.transport.TransportService;
+import org.opensearch.wlm.SharedThrottleTracker.ExpiredPermit;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.LongSupplier;
+
+/**
+ * Cluster-level ({@code shared_limit}) throttle tier. Each throttle bucket has one authoritative in-flight counter on
+ * the node that owns it per a consistent-hash ring ({@link ThrottleOwnerSelector}). This service is both the
+ * coordinator-side client that acquires and releases shared permits and the owner-side host of the
+ * {@link SharedThrottleTracker} for the buckets this node owns.
+ * <p>
+ * The acquire is asynchronous so the calling thread never blocks on the round trip; when the coordinator owns the
+ * bucket itself it short-circuits to the local tracker with no network hop.
+ * <p>
+ * Fail-closed: if the owner gives no answer (timeout, disconnect, missing handler), the caller is told the shared tier
+ * is unavailable ({@link #isUnavailable}) and rejects the request (MONITOR still admits), so {@code shared_limit} is
+ * never silently exceeded. The cost is that overflow for an unreachable owner's buckets is rejected. With no eligible
+ * owner at all ({@link #hasEligibleOwner}), no node counts {@code shared_limit}, so {@link WorkloadGroupService}
+ * treats it as unset instead.
+ * <p>
+ * Release ordering: an acquire answered too late is reported unavailable by the coordinator's own timer, but its
+ * response handler stays registered and releases a late grant when it arrives. A release is therefore only ever sent
+ * after the owner granted, so it can never overtake the acquire and strand the permit. A permit whose release never
+ * arrives is purged when its coordinator leaves the cluster. At TTL expiry, the owner checks the coordinator's existing
+ * task manager: active searches renew their permits, and finished searches free their slots. A failed check extends
+ * the permit briefly, so admission and the periodic sweep can retry without a separate backoff timer.
+ */
+@ExperimentalApi
+public class WorkloadGroupSharedThrottleService implements ClusterStateListener {
+
+    static final String ACQUIRE_ACTION_NAME = "internal:wlm/throttle/shared/acquire";
+    static final String RELEASE_ACTION_NAME = "internal:wlm/throttle/shared/release";
+    static final String CHECK_TASKS_ACTION_NAME = "internal:wlm/throttle/shared/check_tasks";
+
+    // Fixed constants rather than cluster settings: internal coordination knobs an operator should not need to tune.
+    //
+    // How long a request waits for the owner's acquire reply before it is rejected as unavailable. Enforced by a
+    // coordinator-side timer, NOT a transport timeout: the response handler outlives it (up to ACQUIRE_REPLY_BACKSTOP),
+    // so a late grant is still seen and released after the owner granted it.
+    static final TimeValue ACQUIRE_TIMEOUT = TimeValue.timeValueMillis(200);
+    // Overrides ACQUIRE_TIMEOUT for tests. Deliberately not registered: a node rejects the key unless a test plugin
+    // registers it, so it is not an operator setting.
+    static final Setting<TimeValue> ACQUIRE_TIMEOUT_SETTING = Setting.timeSetting(
+        "wlm.workload_group.throttle.shared_acquire_timeout",
+        ACQUIRE_TIMEOUT,
+        Setting.Property.NodeScope
+    );
+    // Transport timeout of the acquire's response handler. Only bounds how long a reply that never comes (half-open
+    // connection) keeps the handler registered; a grant later than this falls back to the coordinator purge or the TTL.
+    static final TimeValue ACQUIRE_REPLY_BACKSTOP = TimeValue.timeValueSeconds(30);
+    // Timeout for the fire-and-forget RELEASE. Nothing waits on it and expiry checks are the backstop, so it is long; it is
+    // still bounded so a half-open connection can't pin the response handler.
+    // Intentional: an owner stalled longer than these 30s windows while still a member makes TransportService log one
+    // late-response WARN per pending acquire or release when it recovers, and an acquire it grants then has no handler left
+    // to release it, so that permit stays counted until its expiry check (about PERMIT_TTL). Accepted as rare: fault
+    // detection normally removes an owner stalled that long, moving its buckets, rather than adding a per-owner fast-fail.
+    static final TimeValue RELEASE_TIMEOUT = TimeValue.timeValueSeconds(30);
+    // Only expired permits trigger task checks. Short searches add no task lookup, renewal message, or scheduled timer.
+    // A checked permit stays counted until its task is confirmed finished; an active task renews it for another TTL.
+    static final long PERMIT_TTL_NANOS = TimeValue.timeValueMinutes(5).nanos();
+    // A full bucket also detects expired permits during admission, without waiting for the periodic sweep.
+    static final TimeValue SWEEP_INTERVAL = TimeValue.timeValueMinutes(5);
+    static final TimeValue CHECK_TIMEOUT = TimeValue.timeValueSeconds(5);
+    // Failed checks renew for this shorter TTL; the existing admission and sweep paths trigger the next check.
+    // Intentional: repeated failures can keep permits counted indefinitely while the coordinator remains in membership,
+    // preserving accounting for potentially active searches at the cost of extra 429s. A successful check resolves
+    // liveness; node removal purges the coordinator's permits.
+    static final TimeValue FAILED_CHECK_TTL = TimeValue.timeValueSeconds(30);
+    static final int MAX_TASKS_PER_CHECK = 500;
+    // Cap on expired permits waiting for a check. It holds only permits that outlived their TTL (long-running or leaked),
+    // so it should never fill; an overflowing permit is treated like a failed check (extended by FAILED_CHECK_TTL).
+    static final int MAX_QUEUED_CHECKS = 1_000;
+
+    private static final Logger logger = LogManager.getLogger(WorkloadGroupSharedThrottleService.class);
+
+    private final ClusterService clusterService;
+    private final ThreadPool threadPool;
+    private final TransportService transportService;
+    private final TaskManager taskManager;
+    private final SharedThrottleTracker tracker;
+    private final TimeValue acquireTimeout;
+    // Owner-side queue only for expired permits; no coordinator registry or per-search renewal timer.
+    private final BlockingQueue<ExpiredPermit> expiredChecks = new LinkedBlockingQueue<>(MAX_QUEUED_CHECKS);
+    private final AtomicBoolean checksScheduled = new AtomicBoolean();
+    private volatile Map<String, DiscoveryNode> coordinatorsByEphemeralId = Map.of();
+    private volatile boolean stopped;
+
+    // Immutable ring snapshot, swapped wholesale so readers never see a half-built ring.
+    private final AtomicReference<ThrottleOwnerSelector> ring = new AtomicReference<>();
+    // Set once the first cluster-state event has been compared in full. Written only on the cluster applier thread; read by
+    // owner-side admission, which trusts the coordinator's routing until it is set.
+    private volatile boolean ringInitialized;
+    private volatile Scheduler.Cancellable sweepTask;
+
+    public WorkloadGroupSharedThrottleService(ClusterService clusterService, ThreadPool threadPool, TransportService transportService) {
+        this(clusterService, threadPool, transportService, ACQUIRE_TIMEOUT_SETTING.get(clusterService.getSettings()));
+    }
+
+    // Package-private: lets unit tests choose the acquire timeout.
+    WorkloadGroupSharedThrottleService(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        TransportService transportService,
+        TimeValue acquireTimeout
+    ) {
+        this(clusterService, threadPool, transportService, acquireTimeout, System::nanoTime);
+    }
+
+    WorkloadGroupSharedThrottleService(
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        TransportService transportService,
+        TimeValue acquireTimeout,
+        LongSupplier nanoTimeSupplier
+    ) {
+        this.clusterService = clusterService;
+        this.threadPool = threadPool;
+        this.transportService = transportService;
+        this.taskManager = transportService.getTaskManager();
+        this.tracker = new SharedThrottleTracker(nanoTimeSupplier, this::checkExpiredPermits);
+        this.acquireTimeout = acquireTimeout;
+        // Start with an empty ring: there is no applied cluster state yet during node construction. The first
+        // clusterChanged populates it (see there).
+        this.ring.set(ThrottleOwnerSelector.fromDiscoveryNodes(DiscoveryNodes.EMPTY_NODES));
+        clusterService.addListener(this);
+        // These handlers do not trip the in-flight breaker: messages are small and bounded, and tripping it would turn one
+        // owner's heap pressure into fail-closed 429s for every bucket it owns and strand breaker-rejected releases.
+        transportService.registerRequestHandler(
+            ACQUIRE_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            false,
+            AcquirePermitRequest::new,
+            (request, channel, task) -> channel.sendResponse(handleAcquire(request))
+        );
+        transportService.registerRequestHandler(
+            RELEASE_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            false,
+            ReleasePermitRequest::new,
+            (request, channel, task) -> {
+                tracker.release(request.bucketKey, request.permitId);
+                channel.sendResponse(ReleasePermitResponse.INSTANCE);
+            }
+        );
+        transportService.registerRequestHandler(
+            CHECK_TASKS_ACTION_NAME,
+            ThreadPool.Names.SAME,
+            false,
+            false,
+            TaskCheckRequest::new,
+            (request, channel, task) -> channel.sendResponse(checkTasks(request))
+        );
+    }
+
+    /** Starts the periodic TTL sweep. Call exactly once, at node start: a second call would schedule a duplicate sweep. */
+    public void start() {
+        // Does not touch the ring: the initial cluster state may not be applied yet at node start.
+        sweepTask = threadPool.scheduleWithFixedDelay(() -> {
+            try {
+                tracker.sweepExpired();
+            } catch (Exception e) {
+                logger.warn("Shared throttle TTL sweep failed", e);
+            }
+        }, SWEEP_INTERVAL, ThreadPool.Names.GENERIC);
+    }
+
+    public void stop() {
+        stopped = true;
+        if (sweepTask != null) {
+            sweepTask.cancel();
+        }
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        // The first event must NOT be gated on nodesChanged(): the initial applied state already contains the local node,
+        // so on a single-node (or otherwise stable) cluster nodesChanged() is never true and the ring would stay empty,
+        // failing every shared acquire closed for the node's lifetime.
+        // After that, an event without node changes cannot change the eligible set and is skipped. nodesChanged() compares
+        // by ephemeral id, so a same-id restart still counts. Any future eligibility input that can change without a node
+        // change must bypass this early return.
+        if (ringInitialized && event.nodesChanged() == false) {
+            return;
+        }
+        final Map<String, DiscoveryNode> coordinators = new HashMap<>();
+        for (DiscoveryNode node : event.state().nodes()) {
+            coordinators.put(node.getEphemeralId(), node);
+        }
+        coordinatorsByEphemeralId = Map.copyOf(coordinators);
+        // Free a departed coordinator's permits now rather than after the TTL. Intentional: a coordinator removed while still
+        // alive (e.g. failed follower checks during a long GC) keeps running its in-flight searches, so the bucket can briefly
+        // admit up to that coordinator's share above shared_limit until they drain; their later releases are no-ops. Removal
+        // is by ephemeral id (a same-id restart purges the old incarnation) and independent of the ring comparison below,
+        // since any removed node, whatever its roles, may have been a coordinator.
+        if (event.nodesChanged() && event.nodesDelta().removed()) {
+            final Set<String> removed = new HashSet<>();
+            for (DiscoveryNode node : event.nodesDelta().removedNodes()) {
+                removed.add(node.getEphemeralId());
+            }
+            tracker.releaseAllFrom(removed);
+        }
+        // Compared by DiscoveryNode equality (ephemeral id) so a same-id restart replaces the stale node; rebuilt only when
+        // the eligible set actually differs.
+        Set<DiscoveryNode> candidate = ThrottleOwnerSelector.eligibleNodeSet(event.state().nodes());
+        if (ring.get().eligibleNodeSet().equals(candidate) == false) {
+            ring.set(ThrottleOwnerSelector.fromDiscoveryNodes(event.state().nodes()));
+        }
+        ringInitialized = true;
+    }
+
+    /**
+     * Whether any node can own a shared bucket. The ring is empty only when this node's applied cluster state has no data
+     * node on {@link WorkloadGroupThrottleSettings#MIN_SUPPORTED_VERSION} or later: every data node is down, or the
+     * cluster has none (one that only coordinates cross-cluster searches). Then no node counts {@code shared_limit}, so
+     * rejecting would protect nothing. Unlike an owner that exists but cannot be reached, which may still be counting
+     * running searches.
+     */
+    boolean hasEligibleOwner() {
+        return ring.get().isEmpty() == false;
+    }
+
+    /**
+     * Asynchronously acquires one shared permit for {@code bucketKey}, notifying {@code listener} with:
+     * <ul>
+     *   <li>{@code onResponse} with a {@link Releasable}: granted; close it when the request completes;</li>
+     *   <li>{@code onFailure} with a message-less marker: {@link #isDenial} (bucket at its shared limit) or
+     *       {@link #isUnavailable} (no authoritative answer from the owner). {@link WorkloadGroupService} composes the
+     *       user-facing 429, since this service only knows the opaque bucket key;</li>
+     *   <li>{@code onFailure} with any other {@link OpenSearchRejectedExecutionException}: the search pool rejected the
+     *       hand-off of a grant, which was already released. Never delivered when {@code proceedsOnDenial} is true.</li>
+     * </ul>
+     * <p>
+     * Threading: the local short-circuit notifies inline. A remote outcome after which the search continues (every grant,
+     * and every outcome when {@code proceedsOnDenial}) is delivered on the {@link ThreadPool.Names#SEARCH} pool, so the
+     * coordinator's pre-fan-out work does not run on the few network threads of one hot owner's connections. A refusal
+     * that becomes a 429 is delivered inline, so a throttled tenant's overflow does not queue ahead of other tenants'
+     * shard work (see {@code deliverRefusal}). If the search pool rejects the hand-off, refusals and MONITOR grants are
+     * delivered inline; any other grant is released and the rejection passed through.
+     *
+     * @param coordinatorTaskId the search task the permit is for, checked with the coordinator once the permit outlives its TTL
+     * @param proceedsOnDenial  whether the caller continues the search even when denied or unavailable (MONITOR)
+     */
+    void acquireAsync(
+        String bucketKey,
+        int sharedLimit,
+        long coordinatorTaskId,
+        boolean proceedsOnDenial,
+        ActionListener<Releasable> listener
+    ) {
+        final ThrottleOwnerSelector currentRing = ring.get();
+        final DiscoveryNode owner = currentRing.ownerFor(bucketKey).orElse(null);
+        if (owner == null) {
+            // Empty ring: no owner to ask. The caller checks hasEligibleOwner first, so this only covers a ring that
+            // emptied after that check.
+            listener.onFailure(unavailableMarker());
+            return;
+        }
+
+        final String permitId = permitId();
+
+        // Local-owner short-circuit; the post-acquire fence re-reads the live ring.
+        final DiscoveryNode localNode = clusterService.localNode();
+        final AcquirePermitRequest request = new AcquirePermitRequest(
+            bucketKey,
+            sharedLimit,
+            permitId,
+            PERMIT_TTL_NANOS,
+            localNode.getEphemeralId(),
+            coordinatorTaskId
+        );
+        if (owner.equals(localNode)) {
+            if (tracker.tryAcquire(request) == false) {
+                listener.onFailure(deniedMarker());
+            } else if (fenceIfOwnershipLost(bucketKey, permitId)) {
+                listener.onFailure(unavailableMarker());
+            } else {
+                listener.onResponse(releaseLocal(bucketKey, permitId));
+            }
+            return;
+        }
+
+        // Owner known to be disconnected (an in-memory lookup): report unavailable now rather than wait out the timer.
+        if (transportService.nodeConnected(owner) == false) {
+            listener.onFailure(unavailableMarker());
+            return;
+        }
+
+        final ActionListener<Releasable> contextListener = ContextPreservingActionListener.wrapPreservingContext(
+            listener,
+            threadPool.getThreadContext()
+        );
+        final RemoteAcquire acquire = new RemoteAcquire(owner, bucketKey, permitId, proceedsOnDenial, contextListener);
+        try {
+            acquire.timer = threadPool.schedule(acquire::onTimeout, acquireTimeout, ThreadPool.Names.GENERIC);
+        } catch (OpenSearchRejectedExecutionException e) {
+            // The scheduler is shutting down: nothing was sent, so there is nothing to release.
+            contextListener.onFailure(unavailableMarker());
+            return;
+        }
+        final TransportRequestOptions options = TransportRequestOptions.builder().withTimeout(ACQUIRE_REPLY_BACKSTOP).build();
+        transportService.sendRequest(owner, ACQUIRE_ACTION_NAME, request, options, acquire);
+    }
+
+    /**
+     * One remote acquire. Its outcome is decided exactly once, by the first of the owner's reply, a transport failure or
+     * the acquire timer; anything after that only cleans up (a late grant is released). Deciding drops the reference to
+     * the caller's listener, so a handler still registered after the timer fired does not pin the answered request.
+     */
+    final class RemoteAcquire implements TransportResponseHandler<AcquirePermitResponse> {
+        private final DiscoveryNode owner;
+        private final String bucketKey;
+        private final String permitId;
+        private final boolean proceedsOnDenial;
+        // The caller's listener until the outcome is decided, then null; claiming it is the decision.
+        private final AtomicReference<ActionListener<Releasable>> listener;
+        // Assigned before the request is sent, so every outcome sees it.
+        private volatile Scheduler.ScheduledCancellable timer;
+
+        RemoteAcquire(
+            DiscoveryNode owner,
+            String bucketKey,
+            String permitId,
+            boolean proceedsOnDenial,
+            ActionListener<Releasable> listener
+        ) {
+            this.owner = owner;
+            this.bucketKey = bucketKey;
+            this.permitId = permitId;
+            this.proceedsOnDenial = proceedsOnDenial;
+            this.listener = new AtomicReference<>(listener);
+        }
+
+        // Returns the caller's listener, or null if already decided; cancels the timer.
+        private ActionListener<Releasable> decide() {
+            final ActionListener<Releasable> claimed = listener.getAndSet(null);
+            if (claimed != null) {
+                final Scheduler.ScheduledCancellable pending = timer;
+                if (pending != null) {
+                    pending.cancel();
+                }
+            }
+            return claimed;
+        }
+
+        void onTimeout() {
+            final ActionListener<Releasable> claimed = listener.getAndSet(null);
+            if (claimed != null) {
+                // Intentionally no release: it could overtake the in-flight acquire and strand a later grant. A late grant
+                // is released by handleResponse once it arrives.
+                logger.debug(
+                    "Shared throttle acquire to owner [{}] for bucket [{}] timed out; shared tier unavailable",
+                    owner.getId(),
+                    bucketKey
+                );
+                deliverRefusal(claimed, unavailableMarker());
+            }
+        }
+
+        // Visible for tests: whether the outcome is still undecided.
+        boolean holdsListener() {
+            return listener.get() != null;
+        }
+
+        // Visible for tests.
+        Scheduler.ScheduledCancellable timer() {
+            return timer;
+        }
+
+        @Override
+        public AcquirePermitResponse read(StreamInput in) throws IOException {
+            return new AcquirePermitResponse(in);
+        }
+
+        @Override
+        public void handleResponse(AcquirePermitResponse response) {
+            final ActionListener<Releasable> claimed = decide();
+            if (claimed == null) {
+                // Already reported unavailable by the timer: give a late grant straight back (safe, it follows the grant).
+                if (response.granted) {
+                    sendRelease(owner, bucketKey, permitId);
+                }
+                return;
+            }
+            if (response.granted) {
+                final Releasable permit = releaseRemote(owner, bucketKey, permitId);
+                deliverOnSearch(() -> claimed.onResponse(permit), rejection -> {
+                    if (proceedsOnDenial) {
+                        claimed.onResponse(permit);
+                    } else {
+                        permit.close();
+                        claimed.onFailure(rejection);
+                    }
+                });
+                return;
+            }
+            // not_owner: our ring and the owner's disagree mid-rebalance, so there is no authoritative answer.
+            deliverRefusal(claimed, response.notOwner ? unavailableMarker() : deniedMarker());
+        }
+
+        @Override
+        public void handleException(TransportException exp) {
+            // A RemoteTransportException means a reply came back (an error, or one we could not read, which the native
+            // transport also wraps): the owner already processed the acquire, so a release now follows any grant and is a
+            // no-op otherwise. Any other failure gives no such ordering, so nothing is sent; the purge or TTL reclaims it.
+            if (exp instanceof RemoteTransportException) {
+                sendRelease(owner, bucketKey, permitId);
+            }
+            final ActionListener<Releasable> claimed = decide();
+            if (claimed != null) {
+                logger.debug(
+                    "Shared throttle acquire to owner [{}] for bucket [{}] failed; shared tier unavailable",
+                    owner.getId(),
+                    bucketKey
+                );
+                deliverRefusal(claimed, unavailableMarker());
+            }
+        }
+
+        // Inline when the caller turns it into a 429, otherwise on the search pool (inline if the pool rejects it).
+        // Intentional: an inline 429 runs on the network or timer thread, so a caller that starts new work from it (_msearch's
+        // next sub-search) may run that work's pre-fan-out there. Rare, and not worth a thread hop on every denial.
+        private void deliverRefusal(ActionListener<Releasable> claimed, Exception marker) {
+            if (proceedsOnDenial) {
+                deliverOnSearch(() -> claimed.onFailure(marker), rejection -> claimed.onFailure(marker));
+            } else {
+                claimed.onFailure(marker);
+            }
+        }
+
+        @Override
+        public String executor() {
+            return ThreadPool.Names.SAME;
+        }
+    }
+
+    // Runs outcome on the search pool; onRejection runs inline on the calling thread if the pool rejects it.
+    private void deliverOnSearch(Runnable outcome, Consumer<Exception> onRejection) {
+        threadPool.executor(ThreadPool.Names.SEARCH).execute(new AbstractRunnable() {
+            @Override
+            protected void doRun() {
+                outcome.run();
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                onRejection.accept(e);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn("Unexpected failure delivering shared throttle acquire outcome", e);
+            }
+        });
+    }
+
+    // Owner-side admission. Package-private for tests.
+    //
+    // Former-owner fence: a coordinator still on an old ring may keep routing here after the bucket moved, and granting
+    // would count against a stale counter while the new owner counts from zero, so a non-owner refuses with not_owner.
+    // The check is repeated after the acquire to narrow the race with a concurrent ring swap.
+    // Accepted: a coordinator removed from the cluster but still able to reach this owner (asymmetric partition) can be
+    // granted permits after its purge; those fall back to the TTL. Rare.
+    // A joining node gets acquires for its buckets from coordinators that applied its join before it applied its own first
+    // cluster state, and until then its ring is empty. The fence is skipped in that window: refusing would only fail those
+    // requests closed, since the joiner's tracker is empty anyway, and any over-admission is the bounded rebalance effect.
+    AcquirePermitResponse handleAcquire(AcquirePermitRequest request) {
+        if (ringInitialized && isStillOwner(request.bucketKey) == false) {
+            return AcquirePermitResponse.NOT_OWNER;
+        }
+        // Intentional: the owner trusts the coordinator's limit rather than re-resolving it, so while a shared_limit change
+        // propagates, coordinators that have not applied it yet enforce the old value. Short and self-correcting.
+        if (tracker.tryAcquire(request) == false) {
+            return AcquirePermitResponse.DENIED;
+        }
+        return ringInitialized && fenceIfOwnershipLost(request.bucketKey, request.permitId)
+            ? AcquirePermitResponse.NOT_OWNER
+            : AcquirePermitResponse.GRANTED;
+    }
+
+    // Re-checks ownership after a successful tracker acquire; if the bucket moved in between, returns the permit and true.
+    private boolean fenceIfOwnershipLost(String bucketKey, String permitId) {
+        if (isStillOwner(bucketKey)) {
+            return false;
+        }
+        tracker.release(bucketKey, permitId);
+        return true;
+    }
+
+    private boolean isStillOwner(String bucketKey) {
+        return isLocalOwner(ring.get(), bucketKey);
+    }
+
+    // DiscoveryNode equality is by ephemeral id, the identity the ring is rebuilt on.
+    private boolean isLocalOwner(ThrottleOwnerSelector selector, String bucketKey) {
+        final DiscoveryNode localNode = clusterService.localNode();
+        return selector.ownerFor(bucketKey).filter(localNode::equals).isPresent();
+    }
+
+    /**
+     * Checks permits whose TTL expired (found by the periodic sweep or by an acquire on a full bucket). Each check ends in
+     * exactly one outcome:
+     * <ul>
+     *   <li>task still registered on its coordinator: the permit is renewed for the full TTL;</li>
+     *   <li>task finished (which also covers a lost release): the permit is removed and its slot freed;</li>
+     *   <li>coordinator no longer in cluster membership: the permit is removed, as in the departed-coordinator purge;</li>
+     *   <li>check could not complete (coordinator still a member but not connected, RPC failure or timeout, executor
+     *       rejection, shutdown, or a full check queue): the permit is extended by {@link #FAILED_CHECK_TTL}.</li>
+     * </ul>
+     * The last outcome repeats for as long as its cause persists, but paced: an extended permit is checked again only when
+     * a later scan finds it expired, so at most once per {@link #FAILED_CHECK_TTL}, batched per coordinator. Retries end
+     * when a check succeeds or the coordinator leaves the cluster; until then the permit stays counted (extra 429s rather
+     * than over-admission).
+     */
+    private void checkExpiredPermits(List<ExpiredPermit> expired) {
+        if (stopped) {
+            retryChecks(expired);
+            return;
+        }
+        for (ExpiredPermit permit : expired) {
+            if (expiredChecks.offer(permit) == false) {
+                tracker.renewForRetry(permit, FAILED_CHECK_TTL.nanos());
+            }
+        }
+        scheduleChecks();
+    }
+
+    private void scheduleChecks() {
+        if (checksScheduled.compareAndSet(false, true) == false) {
+            return;
+        }
+        // Intentional: a drain triggered by admission inherits that request's ThreadContext (GENERIC preserves it), as
+        // ACQUIRE/RELEASE do; CHECK_TASKS only reads the coordinator's task manager.
+        try {
+            threadPool.executor(ThreadPool.Names.GENERIC).execute(new AbstractRunnable() {
+                @Override
+                protected void doRun() {
+                    try {
+                        drainChecks();
+                    } finally {
+                        finishChecks();
+                    }
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    retryQueuedChecks();
+                    finishChecks();
+                    logger.debug("Shared throttle task checks could not be scheduled", e);
+                }
+            });
+        } catch (Exception e) {
+            retryQueuedChecks();
+            finishChecks();
+            logger.debug("Shared throttle task checks could not be scheduled", e);
+        }
+    }
+
+    private void finishChecks() {
+        checksScheduled.set(false);
+        if (expiredChecks.isEmpty() == false) {
+            scheduleChecks();
+        }
+    }
+
+    private void retryQueuedChecks() {
+        ExpiredPermit expired;
+        while ((expired = expiredChecks.poll()) != null) {
+            tracker.renewForRetry(expired, FAILED_CHECK_TTL.nanos());
+        }
+    }
+
+    private void drainChecks() {
+        if (stopped) {
+            retryQueuedChecks();
+            return;
+        }
+        final Map<String, List<ExpiredPermit>> byCoordinator = new HashMap<>();
+        ExpiredPermit expired;
+        while ((expired = expiredChecks.poll()) != null) {
+            byCoordinator.computeIfAbsent(expired.coordinatorId(), ignored -> new ArrayList<>()).add(expired);
+        }
+        for (Entry<String, List<ExpiredPermit>> entry : byCoordinator.entrySet()) {
+            final DiscoveryNode coordinator = coordinatorsByEphemeralId.get(entry.getKey());
+            if (coordinator == null) {
+                // The coordinator incarnation is absent from the applied membership, matching removal cleanup.
+                entry.getValue().forEach(permit -> tracker.completeCheck(permit, false));
+                continue;
+            }
+            final List<ExpiredPermit> permits = entry.getValue();
+            for (int offset = 0; offset < permits.size(); offset += MAX_TASKS_PER_CHECK) {
+                checkCoordinator(coordinator, List.copyOf(permits.subList(offset, Math.min(offset + MAX_TASKS_PER_CHECK, permits.size()))));
+            }
+        }
+    }
+
+    private void checkCoordinator(DiscoveryNode coordinator, List<ExpiredPermit> expired) {
+        final long[] taskIds = new long[expired.size()];
+        for (int i = 0; i < taskIds.length; i++) {
+            taskIds[i] = expired.get(i).coordinatorTaskId();
+        }
+        final TaskCheckRequest request = new TaskCheckRequest(coordinator.getEphemeralId(), taskIds);
+        try {
+            if (coordinator.equals(clusterService.localNode())) {
+                completeChecks(expired, checkTasks(request));
+            } else if (transportService.nodeConnected(coordinator) == false) {
+                retryChecks(expired);
+            } else {
+                transportService.sendRequest(
+                    coordinator,
+                    CHECK_TASKS_ACTION_NAME,
+                    request,
+                    TransportRequestOptions.builder().withTimeout(CHECK_TIMEOUT).build(),
+                    new TransportResponseHandler<TaskCheckResponse>() {
+                        @Override
+                        public TaskCheckResponse read(StreamInput in) throws IOException {
+                            return new TaskCheckResponse(in);
+                        }
+
+                        @Override
+                        public void handleResponse(TaskCheckResponse response) {
+                            completeChecks(expired, response);
+                        }
+
+                        @Override
+                        public void handleException(TransportException e) {
+                            retryChecks(expired);
+                            logger.debug(() -> "Shared throttle task check to coordinator [" + coordinator.getId() + "] failed", e);
+                        }
+
+                        @Override
+                        public String executor() {
+                            return ThreadPool.Names.SAME;
+                        }
+                    }
+                );
+            }
+        } catch (Exception e) {
+            retryChecks(expired);
+            logger.debug(() -> "Shared throttle task check to coordinator [" + coordinator.getId() + "] failed", e);
+        }
+    }
+
+    TaskCheckResponse checkTasks(TaskCheckRequest request) {
+        if (clusterService.localNode().getEphemeralId().equals(request.coordinatorId) == false) {
+            throw new IllegalStateException("Shared throttle task check addressed to a different coordinator incarnation");
+        }
+        final boolean[] active = new boolean[request.taskIds.length];
+        for (int i = 0; i < request.taskIds.length; i++) {
+            // Cancellation is not completion: a cancelled task stays counted while still registered.
+            active[i] = taskManager.getTask(request.taskIds[i]) != null;
+        }
+        return new TaskCheckResponse(active);
+    }
+
+    private void completeChecks(List<ExpiredPermit> expired, TaskCheckResponse response) {
+        if (response.active.length != expired.size()) {
+            retryChecks(expired);
+            return;
+        }
+        for (int i = 0; i < response.active.length; i++) {
+            tracker.completeCheck(expired.get(i), response.active[i]);
+        }
+    }
+
+    // The "check could not complete" outcome described on checkExpiredPermits.
+    private void retryChecks(List<ExpiredPermit> expired) {
+        for (ExpiredPermit permit : expired) {
+            tracker.renewForRetry(permit, FAILED_CHECK_TTL.nanos());
+        }
+    }
+
+    // releaseOnce: a double close (e.g. from both a completion and a failure path) releases only once.
+    private Releasable releaseLocal(String bucketKey, String permitId) {
+        return Releasables.releaseOnce(() -> tracker.release(bucketKey, permitId));
+    }
+
+    // Closing does not wait for the owner to apply the release. SearchExecutionGate#execute closes the permit before
+    // notifying, so a follow-up acquire (an _msearch's next sub-search) can reach the owner first and see the bucket full,
+    // a rare false 429 under saturation. Accepted.
+    private Releasable releaseRemote(DiscoveryNode owner, String bucketKey, String permitId) {
+        return Releasables.releaseOnce(() -> sendRelease(owner, bucketKey, permitId));
+    }
+
+    // Fire-and-forget RELEASE to the bucket owner. A lost release is reclaimed by the expired permit's task check, so
+    // failures are only logged at debug.
+    private void sendRelease(DiscoveryNode owner, String bucketKey, String permitId) {
+        final TransportRequestOptions options = TransportRequestOptions.builder().withTimeout(RELEASE_TIMEOUT).build();
+        transportService.sendRequest(
+            owner,
+            RELEASE_ACTION_NAME,
+            new ReleasePermitRequest(bucketKey, permitId),
+            options,
+            new TransportResponseHandler<ReleasePermitResponse>() {
+                @Override
+                public ReleasePermitResponse read(StreamInput in) throws IOException {
+                    return new ReleasePermitResponse(in);
+                }
+
+                @Override
+                public void handleResponse(ReleasePermitResponse response) {}
+
+                @Override
+                public void handleException(TransportException exp) {
+                    // Accepted: not retried. If the connection to the owner briefly drops while both nodes stay in the
+                    // cluster, the permit stays counted until a task check, which can cause temporary false 429s for the bucket.
+                    logger.debug(
+                        "Shared throttle release to owner [{}] for bucket [{}] failed; expiry check will reclaim",
+                        owner.getId(),
+                        bucketKey
+                    );
+                }
+
+                @Override
+                public String executor() {
+                    return ThreadPool.Names.SAME;
+                }
+            }
+        );
+    }
+
+    private static String permitId() {
+        return UUIDs.base64UUID();
+    }
+
+    // Message-less markers; WorkloadGroupService composes the user-facing 429. "Denied": the bucket is at its shared limit.
+    private static OpenSearchRejectedExecutionException deniedMarker() {
+        return new DeniedMarkerException();
+    }
+
+    /** Whether {@code e} is this service's shared-limit denial, as opposed to e.g. a search-pool rejection. */
+    static boolean isDenial(Exception e) {
+        return e instanceof DeniedMarkerException;
+    }
+
+    // "Unavailable": no answer could be obtained from the bucket's owner.
+    private static RuntimeException unavailableMarker() {
+        return new UnavailableMarkerException();
+    }
+
+    /** Whether {@code e} means the shared tier could not answer (empty ring, owner unreachable, timeout, not_owner). */
+    static boolean isUnavailable(Exception e) {
+        return e instanceof UnavailableMarkerException;
+    }
+
+    private static final class UnavailableMarkerException extends RuntimeException {
+        @Override
+        public Throwable fillInStackTrace() {
+            return this;
+        }
+    }
+
+    private static final class DeniedMarkerException extends OpenSearchRejectedExecutionException {
+        @Override
+        public Throwable fillInStackTrace() {
+            return this;
+        }
+    }
+
+    /**
+     * Raw number of permit records this node holds for {@code bucketKey}, not filtered by expiry or ownership. Public
+     * only for cross-package tests ({@code WlmClusterThrottlingIT}).
+     */
+    public int ownedInFlight(String bucketKey) {
+        return tracker.inFlight(bucketKey);
+    }
+
+    // Visible for tests.
+    BlockingQueue<ExpiredPermit> queuedChecks() {
+        return expiredChecks;
+    }
+
+    // Visible for tests.
+    SharedThrottleTracker tracker() {
+        return tracker;
+    }
+
+    ThrottleOwnerSelector ring() {
+        return ring.get();
+    }
+
+    /**
+     * Every shared-throttle RPC body, request and response, is a name-keyed map rather than positional fields, so peers on
+     * different versions, or built from different commits of the same release (e.g. a blue/green deployment, which a
+     * {@code Version} gate cannot tell apart), stay interoperable without version gates: unknown keys are ignored.
+     * <p>
+     * Reading rules: fields that shipped with the first release (3.10) are read strictly ({@code require*}), so a
+     * malformed message fails while decoding rather than being guessed. A field added later must be read with a default
+     * that keeps the older behavior, or strictly behind a stream-version gate (the stream version is the negotiated
+     * minimum, so an older peer never takes the strict branch). Use only types {@code readGenericValue} knows (String,
+     * Integer, Long, Boolean, List, Map).
+     */
+    private static Map<String, Object> readBody(StreamInput in) throws IOException {
+        return in.readMap(StreamInput::readString, StreamInput::readGenericValue);
+    }
+
+    // Baseline fields: strict.
+
+    private static String requireString(Map<String, Object> body, String key) {
+        final Object value = body.get(key);
+        if (value instanceof String s) {
+            return s;
+        }
+        throw new IllegalStateException("wlm shared-throttle: key [" + key + "] missing or not a String [" + value + "]");
+    }
+
+    private static Number requireNumber(Map<String, Object> body, String key) {
+        final Object value = body.get(key);
+        if (value instanceof Number n) {
+            return n;
+        }
+        throw new IllegalStateException("wlm shared-throttle: key [" + key + "] missing or not a Number [" + value + "]");
+    }
+
+    private static boolean requireBoolean(Map<String, Object> body, String key) {
+        final Object value = body.get(key);
+        if (value instanceof Boolean b) {
+            return b;
+        }
+        throw new IllegalStateException("wlm shared-throttle: key [" + key + "] missing or not a Boolean [" + value + "]");
+    }
+
+    // A task check carries at most MAX_TASKS_PER_CHECK entries.
+    private static List<?> requireTaskCheckList(Map<String, Object> body, String key) throws IOException {
+        final Object value = body.get(key);
+        if (value instanceof List<?> list) {
+            if (list.size() > MAX_TASKS_PER_CHECK) {
+                throw new IOException("Invalid shared throttle task check size: " + list.size());
+            }
+            return list;
+        }
+        throw new IllegalStateException("wlm shared-throttle: key [" + key + "] missing or not a List [" + value + "]");
+    }
+
+    private static <T> T requireElement(Object value, Class<T> type, String key) {
+        if (type.isInstance(value)) {
+            return type.cast(value);
+        }
+        throw new IllegalStateException(
+            "wlm shared-throttle: key [" + key + "] holds an element that is not a " + type.getSimpleName() + " [" + value + "]"
+        );
+    }
+
+    private static void writeBody(StreamOutput out, Map<String, Object> body) throws IOException {
+        out.writeMap(body, StreamOutput::writeString, StreamOutput::writeGenericValue);
+    }
+
+    /**
+     * {@code owner -> coord}: which of these coordinator tasks are still registered. Task ids only, at most
+     * {@link #MAX_TASKS_PER_CHECK}, so the coordinator performs map lookups without constructing task information.
+     */
+    static final class TaskCheckRequest extends TransportRequest {
+        static final String KEY_COORDINATOR = "coordinator_node_id";
+        static final String KEY_TASK_IDS = "task_ids";
+
+        final String coordinatorId;
+        final long[] taskIds;
+
+        TaskCheckRequest(String coordinatorId, long[] taskIds) {
+            this.coordinatorId = coordinatorId;
+            this.taskIds = taskIds;
+        }
+
+        TaskCheckRequest(StreamInput in) throws IOException {
+            super(in);
+            final Map<String, Object> body = readBody(in);
+            this.coordinatorId = requireString(body, KEY_COORDINATOR);
+            final List<?> ids = requireTaskCheckList(body, KEY_TASK_IDS);
+            this.taskIds = new long[ids.size()];
+            for (int i = 0; i < taskIds.length; i++) {
+                taskIds[i] = requireElement(ids.get(i), Number.class, KEY_TASK_IDS).longValue();
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            writeBody(out, Map.of(KEY_COORDINATOR, coordinatorId, KEY_TASK_IDS, Arrays.stream(taskIds).boxed().toList()));
+        }
+    }
+
+    /** {@code coord -> owner}: whether each task is still registered, in request order. */
+    static final class TaskCheckResponse extends TransportResponse {
+        static final String KEY_ACTIVE = "active";
+
+        final boolean[] active;
+
+        TaskCheckResponse(boolean[] active) {
+            this.active = active;
+        }
+
+        TaskCheckResponse(StreamInput in) throws IOException {
+            final Map<String, Object> body = readBody(in);
+            final List<?> flags = requireTaskCheckList(body, KEY_ACTIVE);
+            this.active = new boolean[flags.size()];
+            for (int i = 0; i < active.length; i++) {
+                active[i] = requireElement(flags.get(i), Boolean.class, KEY_ACTIVE);
+            }
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            final List<Boolean> flags = new ArrayList<>(active.length);
+            for (boolean taskActive : active) {
+                flags.add(taskActive);
+            }
+            writeBody(out, Map.of(KEY_ACTIVE, flags));
+        }
+    }
+
+    /** {@code coord -> owner}: admit one request under {@code sharedLimit}. */
+    static final class AcquirePermitRequest extends TransportRequest {
+        static final String KEY_BUCKET = "bucket_key";
+        static final String KEY_SHARED_LIMIT = "shared_limit";
+        static final String KEY_PERMIT_ID = "permit_id";
+        // The coordinator's ephemeral id, for the purge on its removal and the expiry check.
+        static final String KEY_COORDINATOR = "coordinator_node_id";
+        // The coordinator's search task, checked with CHECK_TASKS once the permit outlives its TTL.
+        static final String KEY_COORDINATOR_TASK_ID = "coordinator_task_id";
+
+        final String bucketKey;
+        final int sharedLimit;
+        final String permitId;
+        // Not on the wire: the owner applies its own PERMIT_TTL_NANOS to every acquire it decodes. Only in-memory requests
+        // (tests, the local short-circuit) carry another value.
+        final long ttlNanos;
+        final String coordinatorId;
+        final long coordinatorTaskId;
+
+        AcquirePermitRequest(
+            String bucketKey,
+            int sharedLimit,
+            String permitId,
+            long ttlNanos,
+            String coordinatorId,
+            long coordinatorTaskId
+        ) {
+            this.bucketKey = bucketKey;
+            this.sharedLimit = sharedLimit;
+            this.permitId = permitId;
+            this.ttlNanos = ttlNanos;
+            this.coordinatorId = coordinatorId;
+            this.coordinatorTaskId = coordinatorTaskId;
+        }
+
+        AcquirePermitRequest(StreamInput in) throws IOException {
+            super(in);
+            final Map<String, Object> body = readBody(in);
+            this.bucketKey = requireString(body, KEY_BUCKET);
+            this.sharedLimit = requireNumber(body, KEY_SHARED_LIMIT).intValue();
+            this.permitId = requireString(body, KEY_PERMIT_ID);
+            this.ttlNanos = PERMIT_TTL_NANOS;
+            this.coordinatorId = requireString(body, KEY_COORDINATOR);
+            this.coordinatorTaskId = requireNumber(body, KEY_COORDINATOR_TASK_ID).longValue();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeMap(
+                Map.of(
+                    KEY_BUCKET,
+                    bucketKey,
+                    KEY_SHARED_LIMIT,
+                    sharedLimit,
+                    KEY_PERMIT_ID,
+                    permitId,
+                    KEY_COORDINATOR,
+                    coordinatorId,
+                    KEY_COORDINATOR_TASK_ID,
+                    coordinatorTaskId
+                ),
+                StreamOutput::writeString,
+                StreamOutput::writeGenericValue
+            );
+        }
+    }
+
+    /** {@code owner -> coord}: granted, denied, or {@code not_owner} (the answering node no longer owns the bucket). */
+    static final class AcquirePermitResponse extends TransportResponse {
+        static final String KEY_GRANTED = "granted";
+        static final String KEY_NOT_OWNER = "not_owner";
+
+        static final AcquirePermitResponse GRANTED = new AcquirePermitResponse(true, false);
+        static final AcquirePermitResponse DENIED = new AcquirePermitResponse(false, false);
+        static final AcquirePermitResponse NOT_OWNER = new AcquirePermitResponse(false, true);
+
+        final boolean granted;
+        final boolean notOwner;
+
+        AcquirePermitResponse(boolean granted, boolean notOwner) {
+            assert (granted && notOwner) == false : "a grant cannot also be a not-owner refusal";
+            this.granted = granted;
+            this.notOwner = notOwner;
+        }
+
+        AcquirePermitResponse(StreamInput in) throws IOException {
+            final Map<String, Object> body = readBody(in);
+            this.granted = requireBoolean(body, KEY_GRANTED);
+            this.notOwner = requireBoolean(body, KEY_NOT_OWNER);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            writeBody(out, Map.of(KEY_GRANTED, granted, KEY_NOT_OWNER, notOwner));
+        }
+    }
+
+    /** {@code coord -> owner}: fire-and-forget, drop a previously granted permit. */
+    static final class ReleasePermitRequest extends TransportRequest {
+        static final String KEY_BUCKET = "bucket_key";
+        static final String KEY_PERMIT_ID = "permit_id";
+
+        final String bucketKey;
+        final String permitId;
+
+        ReleasePermitRequest(String bucketKey, String permitId) {
+            this.bucketKey = bucketKey;
+            this.permitId = permitId;
+        }
+
+        ReleasePermitRequest(StreamInput in) throws IOException {
+            super(in);
+            final Map<String, Object> body = readBody(in);
+            this.bucketKey = requireString(body, KEY_BUCKET);
+            this.permitId = requireString(body, KEY_PERMIT_ID);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeMap(
+                Map.of(KEY_BUCKET, bucketKey, KEY_PERMIT_ID, permitId),
+                StreamOutput::writeString,
+                StreamOutput::writeGenericValue
+            );
+        }
+    }
+
+    /** {@code owner -> coord}: acknowledges a release. No fields yet; a map body, so a later version can add some. */
+    static final class ReleasePermitResponse extends TransportResponse {
+        static final ReleasePermitResponse INSTANCE = new ReleasePermitResponse();
+
+        private ReleasePermitResponse() {}
+
+        ReleasePermitResponse(StreamInput in) throws IOException {
+            readBody(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            writeBody(out, Map.of());
+        }
+    }
+}

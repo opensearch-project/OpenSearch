@@ -140,6 +140,7 @@ public class MatchOnlyTextFieldMapper extends TextFieldMapper {
         public MatchOnlyTextFieldMapper build(BuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
             MatchOnlyTextFieldType tft = buildFieldType(fieldType, context);
+            storeIfSourceIsDerived(fieldType, context);
             return new MatchOnlyTextFieldMapper(
                 name,
                 fieldType,

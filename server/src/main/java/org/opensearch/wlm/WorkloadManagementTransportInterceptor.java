@@ -56,9 +56,9 @@ public class WorkloadManagementTransportInterceptor implements TransportIntercep
         @Override
         public void messageReceived(T request, TransportChannel channel, Task task) throws Exception {
             if (isSearchWorkloadRequest(task)) {
+                // Reject before tagging, so onTaskCompleted does not count a rejected task as a completion.
+                workloadGroupService.rejectIfNeeded(threadPool.getThreadContext().getHeader(WorkloadGroupTask.WORKLOAD_GROUP_ID_HEADER));
                 ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
-                final String workloadGroupId = ((WorkloadGroupTask) (task)).getWorkloadGroupId();
-                workloadGroupService.rejectIfNeeded(workloadGroupId);
             }
             actualHandler.messageReceived(request, channel, task);
         }

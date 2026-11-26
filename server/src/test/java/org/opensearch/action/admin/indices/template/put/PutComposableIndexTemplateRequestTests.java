@@ -32,19 +32,27 @@
 
 package org.opensearch.action.admin.indices.template.put;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.cluster.metadata.AliasMetadata;
+import org.opensearch.cluster.metadata.ComponentTemplate;
 import org.opensearch.cluster.metadata.ComposableIndexTemplate;
 import org.opensearch.cluster.metadata.ComposableIndexTemplateTests;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.Template;
+import org.opensearch.common.io.stream.BytesStreamOutput;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.io.stream.Writeable;
+import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.test.AbstractWireSerializingTestCase;
+import org.opensearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -124,5 +132,52 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
         assertThat(validationErrors.size(), is(1));
         String error = validationErrors.get(0);
         assertThat(error, is("index template priority must be >= 0"));
+    }
+
+    public void testAScoringModeIsNotSentToANodeThatPredatesIt() throws IOException {
+        Template template = template("scoped", "no_stats");
+        for (Writeable request : List.of(composableRequest(template), componentRequest(template))) {
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION));
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
+                assertThat(e.getMessage(), containsString("[scoring_mode] on alias [scoped]"));
+            }
+        }
+    }
+
+    public void testTemplateAliasesStillGoToANodeThatPredatesTheScoringMode() throws IOException {
+        final Version older = VersionUtils.getPreviousVersion(AliasFilter.SCORING_MODE_VERSION);
+        Template template = template("plain", null);
+        PutComposableIndexTemplateAction.Request composable = composableRequest(template);
+        assertEquals(composable, copyWriteable(composable, writableRegistry(), PutComposableIndexTemplateAction.Request::new, older));
+        PutComponentTemplateAction.Request component = componentRequest(template);
+        assertEquals(
+            component.componentTemplate(),
+            copyWriteable(component, writableRegistry(), PutComponentTemplateAction.Request::new, older).componentTemplate()
+        );
+    }
+
+    public void testTemplateAliasesKeepTheScoringModeOnTheCurrentVersion() throws IOException {
+        PutComposableIndexTemplateAction.Request read = copyWriteable(
+            composableRequest(template("scoped", "no_stats")),
+            writableRegistry(),
+            PutComposableIndexTemplateAction.Request::new
+        );
+        assertEquals("no_stats", read.indexTemplate().template().aliases().get("scoped").scoringMode());
+    }
+
+    private static Template template(String alias, String scoringMode) {
+        AliasMetadata metadata = AliasMetadata.builder(alias).filter("{\"match_all\":{}}").scoringMode(scoringMode).build();
+        return new Template(Settings.EMPTY, null, Collections.singletonMap(alias, metadata));
+    }
+
+    private static PutComposableIndexTemplateAction.Request composableRequest(Template template) {
+        return new PutComposableIndexTemplateAction.Request("t").indexTemplate(
+            new ComposableIndexTemplate(Collections.singletonList("t-*"), template, null, null, null, null, null)
+        );
+    }
+
+    private static PutComponentTemplateAction.Request componentRequest(Template template) {
+        return new PutComponentTemplateAction.Request("t").componentTemplate(new ComponentTemplate(template, 1L, null));
     }
 }

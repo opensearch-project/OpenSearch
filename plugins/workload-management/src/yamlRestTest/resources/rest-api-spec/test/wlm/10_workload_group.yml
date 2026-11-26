@@ -163,6 +163,113 @@
   - match: { acknowledged: true }
 
 ---
+"test shared throttling field on the WorkloadGroup API":
+  - skip:
+      version: " - 3.9.99"
+      reason: "shared throttling was added to workload groups in 3.10"
+
+  - do:
+      cluster.put_settings:
+        flat_settings: true
+        body:
+          transient:
+            wlm.workload_group.mode: "enabled"
+
+  - do:
+      create_workload_group_context:
+        body:
+          {
+            "name": "shared_throttled",
+            "resiliency_mode": "enforced",
+            "resource_limits": {
+              "cpu": 0.1
+            },
+            "throttling": {
+              "shared_limit": 2
+            }
+          }
+
+  - match: { throttling.shared_limit: 2 }
+  - is_false: throttling.node_limit
+
+  - do:
+      get_workload_group_context:
+        name: "shared_throttled"
+
+  - match: { workload_groups.0.throttling.shared_limit: 2 }
+  - is_false: workload_groups.0.throttling.node_limit
+
+  - do:
+      update_workload_group_context:
+        name: "shared_throttled"
+        body:
+          {
+            "throttling": {
+              "node_limit": 1
+            }
+          }
+
+  - match: { throttling.node_limit: 1 }
+  - match: { throttling.shared_limit: 2 }
+
+  - do:
+      update_workload_group_context:
+        name: "shared_throttled"
+        body:
+          {
+            "throttling": {
+              "node_limit": null
+            }
+          }
+
+  - is_false: throttling.node_limit
+  - match: { throttling.shared_limit: 2 }
+
+  - do:
+      catch: /must be non-negative/
+      update_workload_group_context:
+        name: "shared_throttled"
+        body:
+          {
+            "throttling": {
+              "shared_limit": -1
+            }
+          }
+
+  - do:
+      catch: /Effective throttle ceiling is 0/
+      update_workload_group_context:
+        name: "shared_throttled"
+        body:
+          {
+            "throttling": {
+              "shared_limit": 0
+            }
+          }
+
+  - do:
+      update_workload_group_context:
+        name: "shared_throttled"
+        body:
+          {
+            "throttling": {
+              "shared_limit": null
+            }
+          }
+
+  - do:
+      get_workload_group_context:
+        name: "shared_throttled"
+
+  - is_false: workload_groups.0.throttling
+
+  - do:
+      delete_workload_group_context:
+        name: "shared_throttled"
+
+  - match: { acknowledged: true }
+
+---
 "test throttling field on the WorkloadGroup API":
   - skip:
       version: " - 3.9.99"

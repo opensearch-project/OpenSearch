@@ -779,6 +779,54 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         assertFalse(isAllActiveIngestionEnabled);
     }
 
+    public void testIngestionSourceWriteSettings() {
+        Settings.Builder base = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.INGESTION_SOURCE_TYPE_SETTING.getKey(), "kafka")
+            .put(IndexMetadata.INDEX_REPLICATION_TYPE_SETTING.getKey(), ReplicationType.SEGMENT)
+            .put("index.ingestion_source.param.topic", "orders");
+
+        // read-only by default
+        IngestionSource readOnly = IndexMetadata.builder("idx")
+            .settings(Settings.builder().put(base.build()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build()
+            .getIngestionSource();
+        assertFalse(readOnly.isWriteEnabled());
+        assertEquals(Map.of(), readOnly.getWriteParams());
+
+        // write settings are read, and producer-only params stay apart from the shared ones
+        IngestionSource writeEnabled = IndexMetadata.builder("idx")
+            .settings(
+                Settings.builder()
+                    .put(base.build())
+                    .put(IndexMetadata.INGESTION_SOURCE_WRITE_ENABLED_SETTING.getKey(), true)
+                    .put("index.ingestion_source.write.param.linger.ms", "5")
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build()
+            .getIngestionSource();
+        assertTrue(writeEnabled.isWriteEnabled());
+        assertEquals(Map.of("linger.ms", "5"), writeEnabled.getWriteParams());
+        assertEquals(Map.of("topic", "orders"), writeEnabled.params());
+
+        // both are dynamic, so they can change on a live index
+        assertTrue(IndexMetadata.INGESTION_SOURCE_WRITE_ENABLED_SETTING.isDynamic());
+        assertTrue(
+            IndexMetadata.INGESTION_SOURCE_WRITE_PARAMS_SETTING.getConcreteSetting("index.ingestion_source.write.param.x").isDynamic()
+        );
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> IndexMetadata.INGESTION_SOURCE_WRITE_ENABLED_SETTING.get(
+                Settings.builder().put(IndexMetadata.INGESTION_SOURCE_WRITE_ENABLED_SETTING.getKey(), "maybe").build()
+            )
+        );
+        assertTrue(e.getMessage().contains("only [true] or [false] are allowed"));
+    }
+
     public void testPrimaryTermsMapXContentRoundTrip() throws IOException {
         int numShards = randomFrom(2, 4, 8);
         IndexMetadata.Builder builder = IndexMetadata.builder("test-primary-terms-map")

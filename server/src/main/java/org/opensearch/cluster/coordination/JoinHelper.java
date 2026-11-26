@@ -159,7 +159,8 @@ public class JoinHelper {
             allocationService,
             logger,
             rerouteService,
-            remoteStoreNodeService
+            remoteStoreNodeService,
+            transportService::nodeConnected
         ) {
 
             private final long term = currentTermSupplier.getAsLong();

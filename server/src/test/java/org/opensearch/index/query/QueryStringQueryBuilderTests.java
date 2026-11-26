@@ -1475,13 +1475,14 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
 
     public void testWithPrefixStopWords() throws Exception {
         Query query = new QueryStringQueryBuilder("the* quick fox").field(TEXT_FIELD_NAME).analyzer("stop").toQuery(createShardContext());
+        // Since Lucene 10.6 (apache/lucene#16446) the analyzed "quick fox" chunk is kept as one nested clause
+        BooleanQuery terms = new BooleanQuery.Builder().add(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), Occur.SHOULD)
+            .add(new TermQuery(new Term(TEXT_FIELD_NAME, "fox")), Occur.SHOULD)
+            .build();
         BooleanQuery expected = new BooleanQuery.Builder().add(
             new PrefixQuery(new Term(TEXT_FIELD_NAME, "the"), MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE),
             Occur.SHOULD
-        )
-            .add(new TermQuery(new Term(TEXT_FIELD_NAME, "quick")), Occur.SHOULD)
-            .add(new TermQuery(new Term(TEXT_FIELD_NAME, "fox")), Occur.SHOULD)
-            .build();
+        ).add(terms, Occur.SHOULD).build();
         assertEquals(expected, query);
     }
 

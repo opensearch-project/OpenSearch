@@ -999,18 +999,36 @@ public final class IndexSettings {
         Property.Dynamic
     );
 
+    /**
+     * Whether this index stores data using pluggable (multi-format) data formats rather than
+     * Lucene alone.
+     * <p>
+     * {@link Property#Final} prevents this being changed via the update-settings API on a live
+     * index, but restore creates a <i>new</i> index, so {@code Final} alone does not stop a
+     * restore-time override. {@link Property#UnmodifiableOnRestore} closes that gap: flipping
+     * this on restore would pair multi-format data files with a Lucene-only engine, producing an
+     * index that cannot be opened.
+     */
     public static final Setting<Boolean> PLUGGABLE_DATAFORMAT_ENABLED_SETTING = Setting.boolSetting(
         "index.pluggable.dataformat.enabled",
         false,
         Property.IndexScope,
-        Property.Final
+        Property.Final,
+        Property.UnmodifiableOnRestore
     );
 
+    /**
+     * Which pluggable data format this index uses. Carries
+     * {@link Property#UnmodifiableOnRestore} for the same reason as
+     * {@link #PLUGGABLE_DATAFORMAT_ENABLED_SETTING}: the restored data files are in a specific
+     * format and the engine must be opened against that same format.
+     */
     public static final Setting<String> PLUGGABLE_DATAFORMAT_VALUE_SETTING = Setting.simpleString(
         "index.pluggable.dataformat",
         "",
         Property.IndexScope,
-        Property.Final
+        Property.Final,
+        Property.UnmodifiableOnRestore
     );
 
     private final Index index;
@@ -1719,10 +1737,22 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns if remote translog store is enabled for this index.
+     * Returns if remote translog store is enabled for this index. Reads only the index setting, so it is false for a
+     * migrating shard whose translog is already remote; use {@link #isTranslogDurableInRemoteStore()} for durability
+     * decisions.
      */
     public boolean isRemoteTranslogStoreEnabled() {
         return remoteStoreTranslogRepository != null && remoteStoreTranslogRepository.isEmpty() == false;
+    }
+
+    /**
+     * Whether the remote store rather than the local file holds the durable copy of an operation. The node attribute
+     * is consulted too, because a migrating shard's translog becomes remote before the setting is stamped on it; this
+     * is the pair {@code IndicesService#getTranslogFactorySupplier} uses to install the remote translog factory. Not
+     * {@link #isAssignedOnRemoteNode()}, which a segment repository alone satisfies.
+     */
+    public boolean isTranslogDurableInRemoteStore() {
+        return isRemoteTranslogStoreEnabled() || RemoteStoreNodeAttribute.isTranslogRepoConfigured(getNodeSettings());
     }
 
     /**

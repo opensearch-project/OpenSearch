@@ -68,7 +68,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.opensearch.cluster.action.shard.ShardStateAction.FOLLOW_UP_REROUTE_PRIORITY_SETTING;
 import static org.opensearch.cluster.routing.allocation.ConstraintTypes.CLUSTER_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID;
 import static org.opensearch.cluster.routing.allocation.ConstraintTypes.CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID;
 import static org.opensearch.cluster.routing.allocation.ConstraintTypes.INDEX_PRIMARY_SHARD_BALANCE_CONSTRAINT_ID;
@@ -190,6 +189,13 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> CLUSTER_ALLOCATION_FILTER_AWARE_BALANCE = Setting.boolSetting(
+        "cluster.routing.allocation.balance.cluster_allocation_filter_aware.enable",
+        true,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final Setting<TimeValue> ALLOCATOR_TIMEOUT_SETTING = Setting.timeSetting(
         "cluster.routing.allocation.balanced_shards_allocator.allocator_timeout",
         TimeValue.MINUS_ONE,
@@ -238,6 +244,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
     private volatile boolean preferPrimaryShardBalance;
     private volatile boolean preferPrimaryShardRebalance;
+    private volatile boolean clusterAllocationFilterAwareBalanceEnabled;
     private volatile float preferPrimaryShardRebalanceBuffer;
     private volatile float indexBalanceFactor;
     private volatile float shardBalanceFactor;
@@ -266,6 +273,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         setPrimaryConstraintThresholdSetting(PRIMARY_CONSTRAINT_THRESHOLD_SETTING.get(settings));
         setPreferPrimaryShardBalance(PREFER_PRIMARY_SHARD_BALANCE.get(settings));
         setPreferPrimaryShardRebalance(PREFER_PRIMARY_SHARD_REBALANCE.get(settings));
+        setClusterAllocationFilterAwareBalanceEnabled(CLUSTER_ALLOCATION_FILTER_AWARE_BALANCE.get(settings));
         setShardMovementStrategy(SHARD_MOVEMENT_STRATEGY_SETTING.get(settings));
         setAllocatorTimeout(ALLOCATOR_TIMEOUT_SETTING.get(settings));
         setFollowUpRerouteTaskPriority(FOLLOW_UP_REROUTE_PRIORITY_SETTING.get(settings));
@@ -276,6 +284,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.addSettingsUpdateConsumer(SHARD_BALANCE_FACTOR_SETTING, this::updateShardBalanceFactor);
         clusterSettings.addSettingsUpdateConsumer(PRIMARY_SHARD_REBALANCE_BUFFER, this::updatePreferPrimaryShardBalanceBuffer);
         clusterSettings.addSettingsUpdateConsumer(PREFER_PRIMARY_SHARD_REBALANCE, this::setPreferPrimaryShardRebalance);
+        clusterSettings.addSettingsUpdateConsumer(
+            CLUSTER_ALLOCATION_FILTER_AWARE_BALANCE,
+            this::setClusterAllocationFilterAwareBalanceEnabled
+        );
         clusterSettings.addSettingsUpdateConsumer(THRESHOLD_SETTING, this::setThreshold);
         clusterSettings.addSettingsUpdateConsumer(PRIMARY_CONSTRAINT_THRESHOLD_SETTING, this::setPrimaryConstraintThresholdSetting);
         clusterSettings.addSettingsUpdateConsumer(IGNORE_THROTTLE_FOR_REMOTE_RESTORE, this::setIgnoreThrottleInRestore);
@@ -368,6 +380,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.weightFunction.updateRebalanceConstraint(CLUSTER_PRIMARY_SHARD_REBALANCE_CONSTRAINT_ID, preferPrimaryShardRebalance);
     }
 
+    private void setClusterAllocationFilterAwareBalanceEnabled(boolean clusterAllocationFilterAwareBalanceEnabled) {
+        this.clusterAllocationFilterAwareBalanceEnabled = clusterAllocationFilterAwareBalanceEnabled;
+    }
+
     private void setThreshold(float threshold) {
         this.threshold = threshold;
     }
@@ -409,6 +425,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             threshold,
             preferPrimaryShardBalance,
             preferPrimaryShardRebalance,
+            clusterAllocationFilterAwareBalanceEnabled,
             ignoreThrottleInRestore,
             this::allocatorTimedOut
         );
@@ -435,6 +452,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             threshold,
             preferPrimaryShardBalance,
             preferPrimaryShardRebalance,
+            clusterAllocationFilterAwareBalanceEnabled,
             ignoreThrottleInRestore,
             () -> false // as we don't need to check if timed out or not while just understanding ShardAllocationDecision
         );
@@ -795,7 +813,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             float threshold,
             boolean preferPrimaryBalance
         ) {
-            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance, false, false, () -> false);
+            super(logger, allocation, shardMovementStrategy, weight, threshold, preferPrimaryBalance, false, false, false, () -> false);
         }
     }
 

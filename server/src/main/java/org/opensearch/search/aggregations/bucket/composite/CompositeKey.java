@@ -32,6 +32,7 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -47,7 +48,14 @@ import java.util.Arrays;
 public class CompositeKey implements Writeable {
     private final Comparable[] values;
 
-    CompositeKey(Comparable... values) {
+    /**
+     * Constructs a key directly from its component values. The array is
+     * used as is, not copied, so it must not be modified afterwards.
+     *
+     * @opensearch.experimental
+     */
+    @ExperimentalApi
+    public CompositeKey(Comparable... values) {
         this.values = values;
     }
 

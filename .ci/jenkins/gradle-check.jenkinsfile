@@ -15,7 +15,7 @@ def secret_dockerhub_readonly = [
     [envVar: 'DOCKER_PASSWORD', secretRef: 'op://opensearch-release-secrets/dockerhub-production-readonly-credentials/password']
 ]
 
-lib = library(identifier: 'jenkins@12.0.0', retriever: modernSCM([
+lib = library(identifier: 'jenkins@lf-jenkins-20261123', retriever: modernSCM([
     $class: 'GitSCMSource',
     remote: 'https://github.com/opensearch-project/opensearch-build-libraries.git',
 ]))
@@ -64,7 +64,7 @@ pipeline {
         choice(
             name: 'AGENT_LABEL',
             description: '<Optional> Choose which jenkins agent to run gradle check on. Defaults to the first entry here.',
-            choices: ['Jenkins-Agent-Ubuntu2404-X64-M8a8xlarge-Single-Host', 'Jenkins-Agent-Ubuntu2404-X64-M7a8xlarge-Single-Host', 'Jenkins-Agent-Windows2019-X64-C524xlarge-Single-Host'],
+            choices: ['Jenkins-Agent-Ubuntu2404-X64-M8a8xlarge-Single-Host'],
         )
     }
     triggers {
@@ -79,7 +79,7 @@ pipeline {
                 [key: 'pr_owner', value: '$.pr_owner'],
                 [key: 'gradle_check_command', value: '$.gradle_check_command']
             ],
-            tokenCredentialId: 'jenkins-gradle-check-generic-webhook-token',
+            tokenCredentialId: 'jenkins-gradle-check-generic-webhook-token-prod',
             causeString: 'Triggered by PR on OpenSearch core repository',
             printContributedVariables: false,
             printPostContent: false

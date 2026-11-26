@@ -108,3 +108,12 @@ Commit message titles should be limited to 50 characters, followed by a blank li
 ## Pull Requests
 
 Always push to the user's fork. Never push to the upstream `opensearch-project/OpenSearch` repo. Never push directly to `main`. If a user fork does not exist, ask the contributor to create one.
+
+## Issues
+
+When opening an issue outside the web UI (e.g. `gh issue create` or the API), follow the matching form in `.github/ISSUE_TEMPLATE/` (`bug_template.yml`, `feature_request.yml`, or `meta.yml`) so automation can triage it:
+
+- Use the form's title prefix (`[BUG]`, `[Feature Request]`, `[META]`) and apply its type label (`bug`, `enhancement`, or `Meta`).
+- Write each form field as a `### <field label>` heading with the same wording as the form, in the same order.
+- Under `### Related component`, put exactly one of the form's dropdown options on its own line, e.g. `Search:Query Capabilities`. Do not add qualifiers or punctuation; use `Other` if nothing fits. The triage workflow turns this value into a label.
+- Do not create new labels.

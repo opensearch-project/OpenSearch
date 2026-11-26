@@ -36,13 +36,11 @@ import org.opensearch.action.support.ActionFilters;
 import org.opensearch.action.support.HandledTransportAction;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
-import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
-import org.opensearch.wlm.WorkloadGroupService;
 import org.opensearch.wlm.WorkloadGroupTask;
 
 /**
@@ -56,7 +54,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
     private final SearchTransportService searchTransportService;
     private final SearchPhaseController searchPhaseController;
     private final ThreadPool threadPool;
-    private final WorkloadGroupService workloadGroupService;
+    private final SearchExecutionGate searchExecutionGate;
 
     @Inject
     public TransportSearchScrollAction(
@@ -66,31 +64,27 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
         SearchTransportService searchTransportService,
         SearchPhaseController searchPhaseController,
         ThreadPool threadPool,
-        WorkloadGroupService workloadGroupService
+        SearchExecutionGate searchExecutionGate
     ) {
         super(SearchScrollAction.NAME, transportService, actionFilters, (Writeable.Reader<SearchScrollRequest>) SearchScrollRequest::new);
         this.clusterService = clusterService;
         this.searchTransportService = searchTransportService;
         this.searchPhaseController = searchPhaseController;
         this.threadPool = threadPool;
-        this.workloadGroupService = workloadGroupService;
+        this.searchExecutionGate = searchExecutionGate;
     }
 
     @Override
     protected void doExecute(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
-        // Released on every exit below, including the catch.
-        ActionListener<SearchResponse> throttledListener = listener;
+        if (task instanceof WorkloadGroupTask workloadGroupTask) {
+            workloadGroupTask.setWorkloadGroupId(threadPool.getThreadContext());
+        }
+        // Scroll pages are admitted too, or ?scroll= would bypass the limit.
+        searchExecutionGate.execute(task, request, listener, admittedListener -> executeScroll(task, request, admittedListener));
+    }
+
+    private void executeScroll(Task task, SearchScrollRequest request, ActionListener<SearchResponse> listener) {
         try {
-
-            if (task instanceof WorkloadGroupTask) {
-                ((WorkloadGroupTask) task).setWorkloadGroupId(threadPool.getThreadContext());
-                // Scroll continuations share the node budget, or ?scroll= would bypass node_limit.
-                Releasable throttlePermit = workloadGroupService.acquireThrottleOrReject((WorkloadGroupTask) task, () -> false);
-                if (throttlePermit != null) {
-                    throttledListener = WorkloadGroupService.releaseThrottlePermitBeforeCompletion(throttledListener, throttlePermit);
-                }
-            }
-
             ParsedScrollId scrollId = request.parseScrollId();
             Runnable action;
             switch (scrollId.getType()) {
@@ -103,7 +97,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                         request,
                         (SearchTask) task,
                         scrollId,
-                        throttledListener
+                        listener
                     );
                     break;
                 case ParsedScrollId.QUERY_AND_FETCH_TYPE: // TODO can we get rid of this?
@@ -115,7 +109,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
                         request,
                         (SearchTask) task,
                         scrollId,
-                        throttledListener
+                        listener
                     );
                     break;
                 default:
@@ -123,7 +117,7 @@ public class TransportSearchScrollAction extends HandledTransportAction<SearchSc
             }
             action.run();
         } catch (Exception e) {
-            throttledListener.onFailure(e);
+            listener.onFailure(e);
         }
     }
 }

@@ -32,6 +32,19 @@ import static org.opensearch.index.remote.RemoteStorePressureSettings.REMOTE_REF
 public class RemoteStoreRefreshListenerIT extends AbstractRemoteStoreMockRepositoryIntegTestCase {
 
     public void testRemoteRefreshRetryOnFailure() throws Exception {
+        verifyRefreshRetriesUntilTheRepositoryCatchesUp();
+    }
+
+    /**
+     * Uploading segments is the only thing a {@code segments_only} node does remotely, so a failing upload has to be
+     * retried there as it is anywhere else, with no remote translog holding the operations in the meantime.
+     */
+    public void testRemoteRefreshRetryOnFailureInSegmentsOnlyMode() throws Exception {
+        segmentsOnly = true;
+        verifyRefreshRetriesUntilTheRepositoryCatchesUp();
+    }
+
+    private void verifyRefreshRetriesUntilTheRepositoryCatchesUp() throws Exception {
         Path location = randomRepoPath().toAbsolutePath();
         setup(location, randomDoubleBetween(0.1, 0.15, true), "metadata", 10L);
         client().admin()

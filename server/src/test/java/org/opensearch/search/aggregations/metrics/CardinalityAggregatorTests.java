@@ -44,6 +44,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
@@ -55,8 +56,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.NumericUtils;
 import org.opensearch.common.CheckedConsumer;
 import org.opensearch.common.geo.GeoPoint;
+import org.opensearch.common.hash.MurmurHash3;
+import org.opensearch.common.lease.Releasables;
+import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.BitMixer;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
 import org.opensearch.index.mapper.KeywordFieldMapper;
@@ -83,10 +89,13 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.LongFunction;
+import java.util.function.LongUnaryOperator;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singleton;
 import static org.opensearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
+import static org.opensearch.test.InternalAggregationTestCase.emptyReduceContextBuilder;
 import static org.mockito.Mockito.when;
 
 public class CardinalityAggregatorTests extends AggregatorTestCase {
@@ -229,6 +238,110 @@ public class CardinalityAggregatorTests extends AggregatorTestCase {
         MappedFieldType fieldType
     ) throws IOException {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+    }
+
+    public void testExternallyBuiltSketchReducesWithLongField() throws IOException {
+        assertExternallyBuiltSketchReduces(
+            new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.LONG),
+            v -> new SortedNumericDocValuesField("field", v),
+            BitMixer::mix64
+        );
+    }
+
+    public void testExternallyBuiltSketchReducesWithDoubleField() throws IOException {
+        assertExternallyBuiltSketchReduces(
+            new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE),
+            v -> new SortedNumericDocValuesField("field", NumericUtils.doubleToSortableLong(v / 8.0)),
+            v -> BitMixer.mix64(Double.doubleToLongBits(v / 8.0))
+        );
+    }
+
+    public void testExternallyBuiltSketchReducesWithKeywordField() throws IOException {
+        assertExternallyBuiltSketchReduces(
+            new KeywordFieldMapper.KeywordFieldType("field"),
+            v -> new SortedSetDocValuesField("field", new BytesRef("value-" + v)),
+            v -> {
+                BytesRef bytes = new BytesRef("value-" + v);
+                return MurmurHash3.hash128(bytes.bytes, bytes.offset, bytes.length, 0, new MurmurHash3.Hash128()).h1;
+            }
+        );
+    }
+
+    /**
+     * Checks that a sketch built outside the aggregator, at the request's precision and with the aggregator's hash for
+     * each value, reduces with an aggregator's result to the cardinality of the union of their values. Covers the default
+     * precision with few values, where both sketches stay in linear counting, and a low precision threshold with many
+     * values, where both switch to HyperLogLog registers.
+     */
+    private void assertExternallyBuiltSketchReduces(
+        MappedFieldType fieldType,
+        LongFunction<IndexableField> docValue,
+        LongUnaryOperator hash
+    ) throws IOException {
+        final CardinalityAggregationBuilder defaultPrecision = new CardinalityAggregationBuilder("_name").field("field");
+        assertExternallyBuiltSketchReduces(
+            defaultPrecision,
+            fieldType,
+            docValue,
+            hash,
+            randomIntBetween(1, 50),
+            AbstractHyperLogLogPlusPlus.LINEAR_COUNTING
+        );
+        final CardinalityAggregationBuilder lowPrecision = new CardinalityAggregationBuilder("_name").field("field")
+            .precisionThreshold(100);
+        assertExternallyBuiltSketchReduces(
+            lowPrecision,
+            fieldType,
+            docValue,
+            hash,
+            randomIntBetween(2_000, 5_000),
+            AbstractHyperLogLogPlusPlus.HYPERLOGLOG
+        );
+    }
+
+    private void assertExternallyBuiltSketchReduces(
+        CardinalityAggregationBuilder aggregationBuilder,
+        MappedFieldType fieldType,
+        LongFunction<IndexableField> docValue,
+        LongUnaryOperator hash,
+        int valueCount,
+        boolean expectedAlgorithm
+    ) throws IOException {
+        final int precision = aggregationBuilder.precisionThreshold() == null
+            ? HyperLogLogPlusPlus.DEFAULT_PRECISION
+            : HyperLogLogPlusPlus.precisionFromThreshold(aggregationBuilder.precisionThreshold());
+
+        // The aggregator sees values [0, aggregated) and the external sketch sees [externalStart, externalEnd). Starting
+        // the external range below aggregated makes them overlap, so the union is [0, max(aggregated, externalEnd)).
+        final int aggregated = valueCount;
+        final int externalStart = randomIntBetween(0, aggregated - 1);
+        final int externalEnd = externalStart + valueCount;
+
+        testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
+            for (long v = 0; v < aggregated; v++) {
+                iw.addDocument(singleton(docValue.apply(v)));
+            }
+        }, aggregatorResult -> {
+            HyperLogLogPlusPlus externalSketch = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
+            HyperLogLogPlusPlus union = new HyperLogLogPlusPlus(precision, BigArrays.NON_RECYCLING_INSTANCE, 1);
+            try {
+                for (long v = externalStart; v < externalEnd; v++) {
+                    externalSketch.collect(0, hash.applyAsLong(v));
+                }
+                for (long v = 0; v < Math.max(aggregated, externalEnd); v++) {
+                    union.collect(0, hash.applyAsLong(v));
+                }
+                InternalCardinality external = new InternalCardinality("_name", externalSketch, null);
+                InternalCardinality reduced = (InternalCardinality) aggregatorResult.reduce(
+                    List.of(aggregatorResult, external),
+                    emptyReduceContextBuilder().forFinalReduction()
+                );
+                assertEquals(expectedAlgorithm, union.getAlgorithm(0));
+                assertEquals(union.cardinality(0), reduced.getValue());
+            } finally {
+                Releasables.close(externalSketch, union);
+            }
+        }, fieldType);
     }
 
     public void testDynamicPruningDisabledWhenExceedingThreshold() throws IOException {

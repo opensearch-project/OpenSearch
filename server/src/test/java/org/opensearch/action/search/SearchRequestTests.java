@@ -57,6 +57,7 @@ import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
 import org.opensearch.test.rest.FakeRestRequest;
+import org.opensearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -78,7 +79,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         if (randomBoolean()) {
             return request;
         }
-        // clusterAlias and absoluteStartMillis do not have public getters/setters hence we randomize them only in this test specifically.
+        // clusterAlias and absoluteStartMillis are set only by subSearchRequest, hence we randomize them only in this test specifically.
         return SearchRequest.subSearchRequest(
             request,
             request.indices(),
@@ -135,6 +136,36 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         );
         SearchRequest searchRequest = SearchRequest.subSearchRequest(request, Strings.EMPTY_ARRAY, "", 0, randomBoolean());
         assertNull(searchRequest.validate());
+    }
+
+    public void testGetLocalClusterAlias() throws IOException {
+        assertNull(new SearchRequest().getLocalClusterAlias());
+
+        String clusterAlias = randomAlphaOfLengthBetween(5, 10);
+        SearchRequest remoteSubRequest = SearchRequest.subSearchRequest(
+            new SearchRequest(),
+            Strings.EMPTY_ARRAY,
+            clusterAlias,
+            randomNonNegativeLong(),
+            randomBoolean()
+        );
+        assertEquals(clusterAlias, remoteSubRequest.getLocalClusterAlias());
+        assertEquals(clusterAlias, new SearchRequest(remoteSubRequest).getLocalClusterAlias());
+        // the mark travels to the cluster that runs the sub-request, which is the only reason reading it there is useful
+        SearchRequest deserialized = copyWriteable(remoteSubRequest, namedWriteableRegistry, SearchRequest::new);
+        assertEquals(clusterAlias, deserialized.getLocalClusterAlias());
+    }
+
+    public void testGetLocalClusterAliasOfLocalSubRequest() {
+        // the sub-request for the local half of a multi-cluster search is created with an empty alias, which is still not null
+        SearchRequest localSubRequest = SearchRequest.subSearchRequest(
+            new SearchRequest(),
+            Strings.EMPTY_ARRAY,
+            RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
+            randomNonNegativeLong(),
+            randomBoolean()
+        );
+        assertEquals("", localSubRequest.getLocalClusterAlias());
     }
 
     public void testSerialization() throws Exception {

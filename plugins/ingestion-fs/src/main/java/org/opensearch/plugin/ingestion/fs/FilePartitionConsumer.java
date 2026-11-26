@@ -14,13 +14,13 @@ import org.opensearch.common.SuppressForbidden;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.LineNumberReader;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +39,8 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
     private BufferedReader reader = null;
     private long currentLineInReader = 0;
     private long lastReadLine = -1;
+    // the start of a line whose newline has not been written yet
+    private final StringBuilder partialLine = new StringBuilder();
 
     /**
      * Initialize a FilePartitionConsumer that will read messages from provided file and index documents.
@@ -81,21 +83,23 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
             if (reader == null) {
                 reader = new BufferedReader(new FileReader(shardFile));
                 currentLineInReader = 0;
+                partialLine.setLength(0);
             }
 
             if (startLine < currentLineInReader) {
                 reader.close();
                 reader = new BufferedReader(new FileReader(shardFile));
                 currentLineInReader = 0;
+                partialLine.setLength(0);
             }
 
-            while (currentLineInReader < startLine && reader.readLine() != null) {
+            while (currentLineInReader < startLine && readCompleteLine() != null) {
                 lastReadLine = currentLineInReader;
                 currentLineInReader++;
             }
 
             String line;
-            while (results.size() < maxLines && (line = reader.readLine()) != null) {
+            while (results.size() < maxLines && (line = readCompleteLine()) != null) {
                 FileOffset offset = new FileOffset(currentLineInReader);
                 FileMessage message = new FileMessage(line.getBytes(StandardCharsets.UTF_8), System.currentTimeMillis());
                 results.add(new ReadResult<>(offset, message));
@@ -110,6 +114,24 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
         return results;
     }
 
+    // returns the next newline-terminated line, or null at end of file; an unterminated tail is kept for the next poll
+    private String readCompleteLine() throws IOException {
+        int c;
+        while ((c = reader.read()) != -1) {
+            if (c == '\n') {
+                int end = partialLine.length();
+                if (end > 0 && partialLine.charAt(end - 1) == '\r') {
+                    end--;
+                }
+                String line = partialLine.substring(0, end);
+                partialLine.setLength(0);
+                return line;
+            }
+            partialLine.append((char) c);
+        }
+        return null;
+    }
+
     @Override
     public IngestionShardPointer earliestPointer() {
         return new FileOffset(0);
@@ -121,15 +143,16 @@ public class FilePartitionConsumer implements IngestionShardConsumer<FileOffset,
             return new FileOffset(0);
         }
 
-        try (
-            LineNumberReader lineNumberReader = new LineNumberReader(
-                new InputStreamReader(new FileInputStream(shardFile), StandardCharsets.UTF_8)
-            )
-        ) {
-            while (lineNumberReader.readLine() != null) {
-                // do nothing
+        // counts newline bytes, so a last line without a newline is not counted until it is complete
+        try (InputStream in = new BufferedInputStream(new FileInputStream(shardFile))) {
+            long lines = 0;
+            int b;
+            while ((b = in.read()) != -1) {
+                if (b == '\n') {
+                    lines++;
+                }
             }
-            return new FileOffset(lineNumberReader.getLineNumber());
+            return new FileOffset(lines);
         } catch (IOException e) {
             throw new RuntimeException("Failed to compute latest pointer", e);
         }

@@ -46,7 +46,7 @@ apply plugin: 'opensearch.internal-cluster-test'
 apply from: "$rootDir/gradle/fips.gradle"
 
 ext {
-  guava_version = "33.4.0-jre"
+  guava_version = versions.guava
 }
 
 opensearchplugin {
@@ -62,7 +62,7 @@ dependencies {
   implementation "com.google.cloud:google-cloud-core-http:2.60.0"
 
   runtimeOnly "com.google.guava:guava:${guava_version}"
-  runtimeOnly "com.google.guava:failureaccess:1.0.2"
+  runtimeOnly "com.google.guava:failureaccess:1.0.3"
 
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}" // 2.0.16 in bom
   runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}" // 1.18.0 in bom
@@ -148,20 +148,12 @@ tasks.named("dependencyLicenses").configure {
 thirdPartyAudit {
   ignoreViolations(
     // uses internal java api: sun.misc.Unsafe
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
     'com.google.protobuf.MessageSchema',
     'com.google.protobuf.UnsafeUtil',
     'com.google.protobuf.UnsafeUtil$1',

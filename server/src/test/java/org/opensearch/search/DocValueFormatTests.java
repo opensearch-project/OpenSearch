@@ -52,6 +52,18 @@ import static org.opensearch.search.aggregations.bucket.GeoTileUtils.longEncode;
 
 public class DocValueFormatTests extends OpenSearchTestCase {
 
+    public void testDateLongMinValueParse() {
+        DocValueFormat format = new DocValueFormat.DateTime(
+            DateFormatter.forPattern("strict_date_optional_time||epoch_millis"),
+            ZoneOffset.UTC,
+            Resolution.MILLISECONDS
+        );
+        for (boolean roundUp : new boolean[] { false, true }) {
+            assertEquals(Long.MIN_VALUE, format.parseLong(Long.toString(Long.MIN_VALUE), roundUp, () -> 0L));
+        }
+        assertEquals(Long.MIN_VALUE + 1_000L, format.parseLong(Long.MIN_VALUE + "||+1s", false, () -> 0L));
+    }
+
     public void testSerialization() throws Exception {
         List<Entry> entries = new ArrayList<>();
         entries.add(new Entry(DocValueFormat.class, DocValueFormat.BOOLEAN.getWriteableName(), in -> DocValueFormat.BOOLEAN));

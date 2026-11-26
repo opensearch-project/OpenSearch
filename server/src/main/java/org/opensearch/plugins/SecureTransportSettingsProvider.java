@@ -19,6 +19,7 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import javax.net.ssl.TrustManagerFactory;
 
+import java.security.cert.X509Certificate;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Optional;
@@ -61,10 +62,37 @@ public interface SecureTransportSettingsProvider {
         boolean dualModeEnabled();
 
         /**
-         * Provides the instance of {@link KeyManagerFactory}
+         * Provides the instance of {@link KeyManagerFactory}. A provider that supports
+         * {@link SecureTransportSettingsProvider#addReloadListener} returns the factory of the current transport context,
+         * so a listener gets the reloaded key material.
          * @return instance of {@link KeyManagerFactory}
          */
         Optional<KeyManagerFactory> keyManagerFactory();
+
+        /**
+         * Provides the {@link KeyManagerFactory} for the client side of the transport. It differs from
+         * {@link #keyManagerFactory()} only when the transport uses separate client and server certificates.
+         * @return instance of {@link KeyManagerFactory}
+         */
+        default Optional<KeyManagerFactory> clientKeyManagerFactory() {
+            return keyManagerFactory();
+        }
+
+        /**
+         * Whether the transport verifies the peer host name against its certificate, as the transport itself uses it
+         * @return the value, or empty to use {@code transport.ssl.enforce_hostname_verification}
+         */
+        default Optional<Boolean> enforceHostnameVerification() {
+            return Optional.empty();
+        }
+
+        /**
+         * Whether the transport resolves the peer address to a host name for the host name check
+         * @return the value, or empty to use {@code transport.ssl.resolve_hostname}
+         */
+        default Optional<Boolean> resolveHostname() {
+            return Optional.empty();
+        }
 
         /**
          * Provides the SSL provider (JDK, OpenSsl, ...) if supported by transport
@@ -95,6 +123,15 @@ public interface SecureTransportSettingsProvider {
          * @return instance of {@link TrustManagerFactory}
          */
         Optional<TrustManagerFactory> trustManagerFactory();
+
+        /**
+         * Provides the {@link TrustManagerFactory} for the client side of the transport. It differs from
+         * {@link #trustManagerFactory()} only when the transport uses separate client and server certificates.
+         * @return instance of {@link TrustManagerFactory}
+         */
+        default Optional<TrustManagerFactory> clientTrustManagerFactory() {
+            return trustManagerFactory();
+        }
     }
 
     /**
@@ -107,6 +144,24 @@ public interface SecureTransportSettingsProvider {
      * @throws SSLException if the context cannot be fetched
      */
     default Optional<SSLContext> buildSecureTransportContext(Settings settings) throws SSLException {
+        return Optional.empty();
+    }
+
+    /**
+     * If supported, registers a listener that runs after the transport certificates were reloaded and checked. When it
+     * runs, {@link SecureTransportParameters#keyManagerFactory()} and {@link SecureTransportParameters#trustManagerFactory()}
+     * already return the new key material.
+     * @param listener the listener
+     */
+    default void addReloadListener(Runnable listener) {}
+
+    /**
+     * If supported, tells whether a peer certificate chain belongs to a node of this cluster, by the rules the transport
+     * layer uses for inter-node requests.
+     * @param chain the peer certificate chain, end-entity certificate first
+     * @return if supported, true for a node certificate
+     */
+    default Optional<Boolean> isNodeCertificate(X509Certificate[] chain) {
         return Optional.empty();
     }
 

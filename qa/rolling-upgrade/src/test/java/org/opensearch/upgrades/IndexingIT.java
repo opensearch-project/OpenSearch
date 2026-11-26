@@ -104,15 +104,17 @@ public class IndexingIT extends AbstractRollingTestCase {
               to primary while remaining *replicaCount* records belongs to replica copies
               */
             Request segrepStatsRequest = new Request("GET", "/_cat/segments/" + index + "?s=shard,segment,primaryOrReplica");
-            segrepStatsRequest.addParameter("h", "index,shard,primaryOrReplica,segment,docs.count");
+            segrepStatsRequest.addParameter("h", "index,shard,primaryOrReplica,segment,docs.count,searchable");
             Response segrepStatsResponse = client().performRequest(segrepStatsRequest);
             List<String> responseList = Streams.readAllLines(segrepStatsResponse.getEntity().getContent());
             logger.info("--> _cat/segments response\n {}", responseList.toString().replace(',', '\n'));
-            // Filter response for rows with zero doc count
+            // Filter response for rows with zero doc count, and for segments that are not searchable.
             List<String> filteredList = new ArrayList<>();
             for(String row: responseList) {
-                String count = row.split(" +")[4];
-                if (count.equals("0") == false) {
+                String[] columns = row.split(" +");
+                String count = columns[4];
+                String searchable = columns[5];
+                if (count.equals("0") == false && searchable.equals("true")) {
                     filteredList.add(row);
                 }
             }

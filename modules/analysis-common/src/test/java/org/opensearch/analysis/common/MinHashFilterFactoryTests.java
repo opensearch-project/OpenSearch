@@ -119,6 +119,41 @@ public class MinHashFilterFactoryTests extends OpenSearchTokenStreamTestCase {
         assertStreamHasNumberOfTokens(tokenFilterWithHashSetSize.create(tokenizerWithHashSetSize), 2);
     }
 
+    public void testHashProductLimit() throws IOException {
+        getTestAnalysisFromSettings(minHashSettings(16, 512, 2));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> getTestAnalysisFromSettings(minHashSettings(16, 512, 3))
+        );
+        assertEquals(
+            "[min_hash] hash_count * bucket_count * hash_set_size must be less than or equal to: [16384] but was [16 * 512 * 3]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> getTestAnalysisFromSettings(minHashSettings(4000, 4000, 1)));
+        assertEquals(
+            "[min_hash] hash_count * bucket_count * hash_set_size must be less than or equal to: [16384] but was [4000 * 4000 * 1]",
+            e.getMessage()
+        );
+
+        e = expectThrows(IllegalArgumentException.class, () -> getTestAnalysisFromSettings(minHashSettings(1 << 21, 1 << 21, 1 << 21)));
+        assertEquals(
+            "[min_hash] hash_count * bucket_count * hash_set_size must be less than or equal to: [16384] but was [2097152 * 2097152 * 2097152]",
+            e.getMessage()
+        );
+    }
+
+    private Settings minHashSettings(int hashCount, int bucketCount, int hashSetSize) {
+        return Settings.builder()
+            .put("index.analysis.filter.test_min_hash.type", "min_hash")
+            .put("index.analysis.filter.test_min_hash.hash_count", hashCount)
+            .put("index.analysis.filter.test_min_hash.bucket_count", bucketCount)
+            .put("index.analysis.filter.test_min_hash.hash_set_size", hashSetSize)
+            .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
+            .build();
+    }
+
     private static OpenSearchTestCase.TestAnalysis getTestAnalysisFromSettings(Settings settingsWithBucketCount) throws IOException {
         return AnalysisTestsHelper.createTestAnalysisFromSettings(settingsWithBucketCount, new CommonAnalysisModulePlugin());
     }

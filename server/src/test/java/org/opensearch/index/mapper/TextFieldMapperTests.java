@@ -1132,9 +1132,22 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     public void testDefaultStoredFieldForDerivedSource() throws IOException {
         MapperService mapperService = createDerivedSourceMapperService();
-        merge(mapperService, fieldMapping(b -> b.field("type", "text").field("store", false)));
+        merge(mapperService, fieldMapping(b -> b.field("type", textFieldName).field("store", false)));
         TextFieldMapper textFieldMapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
         assertTrue(textFieldMapper.fieldType.stored());
+    }
+
+    public void testDerivedSourceRoundTrip() throws IOException {
+        MapperService mapperService = createDerivedSourceMapperService();
+        merge(mapperService, fieldMapping(b -> b.field("type", textFieldName)));
+        TextFieldMapper mapper = (TextFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "some text")));
+        withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), reader -> {
+            XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+            mapper.deriveSource(builder, reader.leaves().get(0).reader(), 0);
+            builder.endObject();
+            assertEquals("{\"field\":\"some text\"}", builder.toString());
+        });
     }
 
     public void testMultiFieldTextNotStoredForDerivedSource() throws IOException {

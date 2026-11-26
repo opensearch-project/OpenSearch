@@ -95,7 +95,9 @@ import org.opensearch.action.admin.cluster.repositories.verify.TransportVerifyRe
 import org.opensearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
 import org.opensearch.action.admin.cluster.reroute.ClusterRerouteAction;
 import org.opensearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
+import org.opensearch.action.admin.cluster.settings.ClusterDescribeSettingsAction;
 import org.opensearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
+import org.opensearch.action.admin.cluster.settings.TransportClusterDescribeSettingsAction;
 import org.opensearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
 import org.opensearch.action.admin.cluster.shards.CatShardsAction;
 import org.opensearch.action.admin.cluster.shards.ClusterSearchShardsAction;
@@ -205,6 +207,8 @@ import org.opensearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.PitSegmentsAction;
 import org.opensearch.action.admin.indices.segments.TransportIndicesSegmentsAction;
 import org.opensearch.action.admin.indices.segments.TransportPitSegmentsAction;
+import org.opensearch.action.admin.indices.settings.describe.IndicesDescribeSettingsAction;
+import org.opensearch.action.admin.indices.settings.describe.TransportIndicesDescribeSettingsAction;
 import org.opensearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.opensearch.action.admin.indices.settings.get.TransportGetSettingsAction;
 import org.opensearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
@@ -358,6 +362,7 @@ import org.opensearch.rest.action.admin.cluster.RestClearVotingConfigExclusionsA
 import org.opensearch.rest.action.admin.cluster.RestCloneSnapshotAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterDeleteWeightedRoutingAction;
+import org.opensearch.rest.action.admin.cluster.RestClusterDescribeSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterGetWeightedRoutingAction;
 import org.opensearch.rest.action.admin.cluster.RestClusterHealthAction;
@@ -432,6 +437,7 @@ import org.opensearch.rest.action.admin.indices.RestGetSettingsAction;
 import org.opensearch.rest.action.admin.indices.RestIndexDeleteAliasesAction;
 import org.opensearch.rest.action.admin.indices.RestIndexPutAliasAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesAliasesAction;
+import org.opensearch.rest.action.admin.indices.RestIndicesDescribeSettingsAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesSegmentsAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesShardStoresAction;
 import org.opensearch.rest.action.admin.indices.RestIndicesStatsAction;
@@ -538,6 +544,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.function.Consumer;
@@ -696,6 +703,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
         actions.register(GetTermVersionAction.INSTANCE, TransportGetTermVersionAction.class);
         actions.register(ClusterHealthAction.INSTANCE, TransportClusterHealthAction.class);
+        actions.register(ClusterDescribeSettingsAction.INSTANCE, TransportClusterDescribeSettingsAction.class);
         actions.register(ClusterUpdateSettingsAction.INSTANCE, TransportClusterUpdateSettingsAction.class);
         actions.register(ClusterRerouteAction.INSTANCE, TransportClusterRerouteAction.class);
         actions.register(ClusterSearchShardsAction.INSTANCE, TransportClusterSearchShardsAction.class);
@@ -764,6 +772,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ClearIndicesCacheAction.INSTANCE, TransportClearIndicesCacheAction.class);
         actions.register(GetAliasesAction.INSTANCE, TransportGetAliasesAction.class);
         actions.register(GetSettingsAction.INSTANCE, TransportGetSettingsAction.class);
+        actions.register(IndicesDescribeSettingsAction.INSTANCE, TransportIndicesDescribeSettingsAction.class);
 
         actions.register(IndexAction.INSTANCE, TransportIndexAction.class);
         actions.register(GetAction.INSTANCE, TransportGetAction.class);
@@ -915,6 +924,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterStateAction(settingsFilter));
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());
+        registerHandler.accept(new RestClusterDescribeSettingsAction());
         registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter));
         registerHandler.accept(new RestClusterRerouteAction(settingsFilter));
         registerHandler.accept(new RestClusterSearchShardsAction());
@@ -957,6 +967,7 @@ public class ActionModule extends AbstractModule {
 
         registerHandler.accept(new RestUpdateSettingsAction());
         registerHandler.accept(new RestGetSettingsAction());
+        registerHandler.accept(new RestIndicesDescribeSettingsAction());
 
         registerHandler.accept(new RestAnalyzeAction());
         registerHandler.accept(new RestGetIndexTemplateAction());
@@ -1246,6 +1257,20 @@ public class ActionModule extends AbstractModule {
          */
         public boolean isActionRegistered(String actionName) {
             return registeredActionNames.contains(actionName);
+        }
+
+        /**
+         * Returns an immutable snapshot of the action names registered on this node.
+         * Includes core and plugin actions, dynamic actions, and named routes with their legacy action names.
+         * Transport handlers registered outside this registry are not included.
+         * <p>
+         * Later registrations and removals do not change the returned set. Concurrent changes may or may not
+         * be reflected in the snapshot; it is not an atomic view of registration operations.
+         *
+         * @return registered action names in lexicographic order
+         */
+        public Set<String> getRegisteredActionNames() {
+            return Collections.unmodifiableSet(new TreeSet<>(registeredActionNames));
         }
 
         /**

@@ -51,7 +51,6 @@ import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.BufferedChecksum;
 import org.apache.lucene.store.BufferedChecksumIndexInput;
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -66,6 +65,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Version;
 import org.opensearch.ExceptionsHelper;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.common.annotation.PublicApi;
@@ -416,15 +416,47 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         java.util.concurrent.locks.Lock lock = lockDirectory ? metadataLock.writeLock() : metadataLock.readLock();
         lock.lock();
         try (Closeable ignored = lockDirectory ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : () -> {}) {
-
-            final SegmentInfos segmentInfos = readSegmentsInfo(commit, directory);
-            final CatalogSnapshot catalogSnapshot = fromSegmentInfos(segmentInfos, shardFormatDirectoryResolver());
-            return new MetadataSnapshot(catalogSnapshot, directory, logger);
+            return new MetadataSnapshot(catalogSnapshotFrom(commit), directory, logger);
         } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
             markStoreCorrupted(ex);
             throw ex;
         } finally {
             lock.unlock();
+        }
+    }
+
+    /**
+     * Reads {@code segments_N} for the given commit, or the latest commit when {@code commit} is {@code null},
+     * and builds the {@link CatalogSnapshot} view of it. The caller owns locking and corruption handling.
+     */
+    private CatalogSnapshot catalogSnapshotFrom(@Nullable IndexCommit commit) throws IOException {
+        return fromSegmentInfos(readSegmentsInfo(commit, directory), shardFormatDirectoryResolver());
+    }
+
+    /**
+     * Builds the {@link CatalogSnapshot} view of the given Lucene {@link IndexCommit}, or of the latest commit
+     * when {@code commit} is {@code null}.
+     * <p>
+     * Callers holding only an {@link IndexCommit} need this to reach the catalog-based APIs, such as
+     * {@link #getMetadata(CatalogSnapshot)}. Reading through {@link #readSegmentsInfo} rather than Lucene
+     * directly is what makes a torn or truncated commit surface as a {@link CorruptIndexException} and mark the
+     * store corrupt, matching {@link #getMetadata(IndexCommit)}.
+     *
+     * @throws CorruptIndexException if the commit cannot be read as a valid Lucene commit.
+     * @throws IOException on any other I/O error.
+     */
+    @ExperimentalApi
+    public CatalogSnapshot toCatalogSnapshot(@Nullable IndexCommit commit) throws IOException {
+        ensureOpen();
+        failIfCorrupted();
+        metadataLock.readLock().lock();
+        try {
+            return catalogSnapshotFrom(commit);
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
+            markStoreCorrupted(ex);
+            throw ex;
+        } finally {
+            metadataLock.readLock().unlock();
         }
     }
 
@@ -758,7 +790,21 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public IndexInput openVerifyingInput(String filename, IOContext context, StoreFileMetadata metadata) throws IOException {
         assert metadata.writtenBy() != null;
-        return new VerifyingIndexInput(directory().openInput(filename, context));
+        final IndexInput input = directory().openInput(filename, context);
+        boolean success = false;
+        try {
+            // Mirror createVerifyingOutput: each data format verifies with its own algorithm. Lucene reads its
+            // codec footer; formats without one, such as Parquet, digest the whole file and compare against the
+            // checksum recorded in the store metadata.
+            final DataFormatAwareStoreDirectory dfasd = DataFormatAwareStoreDirectory.unwrap(directory);
+            final IndexInput verifying = dfasd != null ? dfasd.createVerifyingInput(metadata, input) : new LuceneVerifyingIndexInput(input);
+            success = true;
+            return verifying;
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(input);
+            }
+        }
     }
 
     public static void verify(IndexInput input) throws IOException {
@@ -1435,7 +1481,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     }
                     if (readFileAsHash) {
                         // additional safety we checksum the entire file we read the hash for...
-                        final VerifyingIndexInput verifyingIndexInput = new VerifyingIndexInput(in);
+                        final LuceneVerifyingIndexInput verifyingIndexInput = new LuceneVerifyingIndexInput(in);
                         hashFile(fileHash, new InputStreamIndexInput(verifyingIndexInput, length), length);
                         checksum = digestToString(verifyingIndexInput.verify());
                     } else {
@@ -1483,7 +1529,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                                 in
                             );
                         }
-                        final VerifyingIndexInput verifyingIndexInput = new VerifyingIndexInput(in);
+                        final LuceneVerifyingIndexInput verifyingIndexInput = new LuceneVerifyingIndexInput(in);
                         hashFile(fileHash, new InputStreamIndexInput(verifyingIndexInput, length), length);
                         checksum = digestToString(verifyingIndexInput.verify());
                     } catch (Exception ex) {
@@ -1935,131 +1981,23 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
-     * Index input that calculates checksum as data is read from the input.
-     * <p>
-     * This class supports random access (it is possible to seek backward and forward) in order to accommodate retry
-     * mechanism that is used in some repository plugins (S3 for example). However, the checksum is only calculated on
-     * the first read. All consecutive reads of the same data are not used to calculate the checksum.
+     * Verifying input for Lucene files, which carry their checksum in a codec footer. The digest covers the file
+     * body and the trailing eight bytes supply the expected value, mirroring what
+     * {@link LuceneVerifyingIndexOutput} does on the write side.
      *
      * @opensearch.internal
      */
-    static class VerifyingIndexInput extends ChecksumIndexInput {
-        private final IndexInput input;
-        private final Checksum digest;
-        private final long checksumPosition;
-        private final byte[] checksum = new byte[8];
-        private long verifiedPosition = 0;
+    public static class LuceneVerifyingIndexInput extends VerifyingIndexInput {
 
-        VerifyingIndexInput(IndexInput input) {
+        public LuceneVerifyingIndexInput(IndexInput input) {
             this(input, new BufferedChecksum(new CRC32()));
         }
 
-        VerifyingIndexInput(IndexInput input, Checksum digest) {
-            super("VerifyingIndexInput(" + input + ")");
-            this.input = input;
-            this.digest = digest;
-            checksumPosition = input.length() - 8;
+        public LuceneVerifyingIndexInput(IndexInput input, Checksum digest) {
+            super(input, digest, input.length() - STORED_CHECKSUM_LENGTH);
         }
 
         @Override
-        public byte readByte() throws IOException {
-            long pos = input.getFilePointer();
-            final byte b = input.readByte();
-            pos++;
-            if (pos > verifiedPosition) {
-                if (pos <= checksumPosition) {
-                    digest.update(b);
-                } else {
-                    checksum[(int) (pos - checksumPosition - 1)] = b;
-                }
-                verifiedPosition = pos;
-            }
-            return b;
-        }
-
-        @Override
-        public void readBytes(byte[] b, int offset, int len) throws IOException {
-            long pos = input.getFilePointer();
-            input.readBytes(b, offset, len);
-            if (pos + len > verifiedPosition) {
-                // Conversion to int is safe here because (verifiedPosition - pos) can be at most len, which is integer
-                int alreadyVerified = (int) Math.max(0, verifiedPosition - pos);
-                if (pos < checksumPosition) {
-                    if (pos + len < checksumPosition) {
-                        digest.update(b, offset + alreadyVerified, len - alreadyVerified);
-                    } else {
-                        int checksumOffset = (int) (checksumPosition - pos);
-                        if (checksumOffset - alreadyVerified > 0) {
-                            digest.update(b, offset + alreadyVerified, checksumOffset - alreadyVerified);
-                        }
-                        System.arraycopy(b, offset + checksumOffset, checksum, 0, len - checksumOffset);
-                    }
-                } else {
-                    // Conversion to int is safe here because checksumPosition is (file length - 8) so
-                    // (pos - checksumPosition) cannot be bigger than 8 unless we are reading after the end of file
-                    assert pos - checksumPosition < 8;
-                    System.arraycopy(b, offset, checksum, (int) (pos - checksumPosition), len);
-                }
-                verifiedPosition = pos + len;
-            }
-        }
-
-        @Override
-        public long getChecksum() {
-            return digest.getValue();
-        }
-
-        @Override
-        public void seek(long pos) throws IOException {
-            if (pos < verifiedPosition) {
-                // going within verified region - just seek there
-                input.seek(pos);
-            } else {
-                if (verifiedPosition > getFilePointer()) {
-                    // portion of the skip region is verified and portion is not
-                    // skipping the verified portion
-                    input.seek(verifiedPosition);
-                    // and checking unverified
-                    super.seek(pos);
-                } else {
-                    super.seek(pos);
-                }
-            }
-        }
-
-        @Override
-        public void close() throws IOException {
-            input.close();
-        }
-
-        @Override
-        public long getFilePointer() {
-            return input.getFilePointer();
-        }
-
-        @Override
-        public long length() {
-            return input.length();
-        }
-
-        @Override
-        public IndexInput clone() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public IndexInput slice(String sliceDescription, long offset, long length) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        public long getStoredChecksum() {
-            try {
-                return CodecUtil.readBELong(new ByteArrayDataInput(checksum));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        }
-
         public long verify() throws CorruptIndexException, IOException {
             long storedChecksum = getStoredChecksum();
             if (getChecksum() == storedChecksum) {
@@ -2073,7 +2011,52 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 this
             );
         }
+    }
 
+    /**
+     * Verifying input for data formats that do not carry a Lucene codec footer, such as Parquet.
+     * <p>
+     * {@link LuceneVerifyingIndexInput} treats the last eight bytes of the file as the expected checksum and
+     * digests only the bytes before them. A Parquet file has no such trailer, so applying that layout both digests
+     * the wrong byte range and reads real data as the expected value. This input instead digests every byte and
+     * compares the result against the checksum the format registered in the store metadata, mirroring what
+     * {@link DataFormatVerifyingIndexOutput} does on the write side.
+     *
+     * @opensearch.internal
+     */
+    @ExperimentalApi
+    public static class DataFormatVerifyingIndexInput extends VerifyingIndexInput {
+
+        private final StoreFileMetadata metadata;
+
+        public DataFormatVerifyingIndexInput(StoreFileMetadata metadata, IndexInput input) {
+            // checksumPosition == length: there is no trailing checksum, so every byte feeds the digest.
+            super(input, new BufferedChecksum(new CRC32()), input.length());
+            this.metadata = metadata;
+        }
+
+        @Override
+        public long verify() throws CorruptIndexException, IOException {
+            if (length() != metadata.length()) {
+                throw new CorruptIndexException(
+                    "verification failed: length [" + length() + "] does not match expected length [" + metadata.length() + "]",
+                    this
+                );
+            }
+            // Guard against verifying a partially consumed input, which would digest only a prefix of the file.
+            if (verifiedPosition() != length()) {
+                throw new CorruptIndexException(
+                    "verification failed: only [" + verifiedPosition() + "] of [" + length() + "] bytes were read",
+                    this
+                );
+            }
+            final long actualChecksum = getChecksum();
+            final String actual = Store.digestToString(actualChecksum);
+            if (metadata.checksum().equals(actual) == false) {
+                throw new CorruptIndexException("verification failed : calculated=" + actual + " expected=" + metadata.checksum(), this);
+            }
+            return actualChecksum;
+        }
     }
 
     public void deleteQuiet(String... files) {

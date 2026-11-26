@@ -108,7 +108,7 @@ public class IngestionSourceTests extends OpenSearchTestCase {
             .setErrorStrategy(DROP)
             .build();
         String expected =
-            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='RESET_BY_OFFSET', value=1000}',error_strategy='DROP', params={key=value}, maxPollSize=1000, pollTimeout=1000, numProcessorThreads=1, blockingQueueSize=100, allActiveIngestion=false, pointerBasedLagUpdateInterval=10s, mapperType='DEFAULT', mapperSettings={}, decoderType='xcontent', decoderSettings={}, warmupConfig=WarmupConfig[timeout=-1, lagThreshold=100], sourcePartitionStrategy='simple'}";
+            "IngestionSource{type='type',pointer_init_reset='PointerInitReset{type='RESET_BY_OFFSET', value=1000}',error_strategy='DROP', params={key=value}, maxPollSize=1000, pollTimeout=1000, numProcessorThreads=1, blockingQueueSize=100, allActiveIngestion=false, pointerBasedLagUpdateInterval=10s, mapperType='DEFAULT', mapperSettings={}, decoderType='xcontent', decoderSettings={}, warmupConfig=WarmupConfig[timeout=-1, lagThreshold=100], sourcePartitionStrategy='simple', writeEnabled=false, writeParams={}}";
         assertEquals(expected, source.toString());
     }
 
@@ -338,5 +338,62 @@ public class IngestionSourceTests extends OpenSearchTestCase {
         ).build();
         assertEquals(moduloSource, moduloSource2);
         assertEquals(moduloSource.hashCode(), moduloSource2.hashCode());
+    }
+
+    public void testWriteSettingsDefaults() {
+        IngestionSource source = new IngestionSource.Builder("type").build();
+        assertFalse(source.isWriteEnabled());
+        assertEquals(Map.of(), source.getWriteParams());
+    }
+
+    public void testWriteSettingsSetGetAndCopy() {
+        IngestionSource source = new IngestionSource.Builder("type").setWriteEnabled(true)
+            .setWriteParams(new HashMap<>(Map.of("linger.ms", "5")))
+            .build();
+        assertTrue(source.isWriteEnabled());
+        assertEquals(Map.of("linger.ms", "5"), source.getWriteParams());
+
+        IngestionSource copy = new IngestionSource.Builder(source).build();
+        assertEquals(source, copy);
+        assertEquals(source.hashCode(), copy.hashCode());
+    }
+
+    public void testWriteSettingsAffectEquals() {
+        IngestionSource readOnly = new IngestionSource.Builder("type").build();
+        IngestionSource writeEnabled = new IngestionSource.Builder("type").setWriteEnabled(true).build();
+        IngestionSource withWriteParams = new IngestionSource.Builder("type").setWriteParams(Map.of("linger.ms", "5")).build();
+        assertNotEquals(readOnly, writeEnabled);
+        assertNotEquals(readOnly.hashCode(), writeEnabled.hashCode());
+        assertNotEquals(readOnly, withWriteParams);
+        assertNotEquals(readOnly.hashCode(), withWriteParams.hashCode());
+    }
+
+    public void testWriterParamsAddTheWriteParamsToTheParams() {
+        IngestionSource source = new IngestionSource.Builder("type").setParams(new HashMap<>(Map.of("topic", "orders")))
+            .setWriteParams(Map.of("linger.ms", "5"))
+            .build();
+        assertEquals(Map.of("topic", "orders", "linger.ms", "5"), source.getWriterParams());
+        // the reader's params are unchanged
+        assertEquals(Map.of("topic", "orders"), source.params());
+    }
+
+    public void testAWriteParamThatIsAlsoAParamIsRejected() {
+        IngestionSource source = new IngestionSource.Builder("type").setParams(new HashMap<>(Map.of("topic", "orders")))
+            .setWriteParams(Map.of("topic", "other"))
+            .build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, source::getWriterParams);
+        assertEquals(
+            "[index.ingestion_source.write.param.topic] is already set as [index.ingestion_source.param.topic]: "
+                + "write params can only add settings, so that writes go to the stream the index reads",
+            e.getMessage()
+        );
+    }
+
+    public void testWriteParamsAreCopiedFromTheBuilder() {
+        Map<String, Object> writeParams = new HashMap<>(Map.of("linger.ms", "5"));
+        IngestionSource source = new IngestionSource.Builder("type").setWriteParams(writeParams).build();
+
+        writeParams.put("acks", "all");
+        assertEquals(Map.of("linger.ms", "5"), source.getWriteParams());
     }
 }

@@ -67,6 +67,10 @@
       "primary_only": {
         "type" : "boolean",
         "description" : "Specify whether the operation should only perform on primary shards. Defaults to false."
+      },
+      "upgrade": {
+        "type" : "boolean",
+        "description" : "Specify whether the operation should upgrade Lucene segments written by an older Lucene version to the current version. Composes with max_num_segments. Defaults to false."
       }
     }
   }

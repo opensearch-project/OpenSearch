@@ -311,28 +311,55 @@ public class DataFormatAwareRemoteDirectoryTests extends OpenSearchTestCase {
     // ═══════════════════════════════════════════════════════════════
 
     public void testFileLength_LuceneFile() throws IOException {
-        List<BlobMetadata> blobList = List.of(new PlainBlobMetadata("_0.cfs", 1234));
-        when(baseBlobContainer.listBlobsByPrefixInSortedOrder(eq("_0.cfs"), eq(1), any())).thenReturn(blobList);
+        when(baseBlobContainer.getBlobMetadata("_0.cfs")).thenReturn(new PlainBlobMetadata("_0.cfs", 1234));
 
         long length = directory.fileLength("_0.cfs");
         assertEquals(1234, length);
+        verify(baseBlobContainer).getBlobMetadata("_0.cfs");
+        verify(parquetBlobContainer, never()).getBlobMetadata(anyString());
+        verify(baseBlobContainer, never()).listBlobsByPrefixInSortedOrder(anyString(), anyInt(), any());
     }
 
     public void testFileLength_ParquetFile() throws IOException {
-
-        List<BlobMetadata> blobList = List.of(new PlainBlobMetadata("_0.parquet", 5678));
-        when(parquetBlobContainer.listBlobsByPrefixInSortedOrder(eq("_0.parquet"), eq(1), any())).thenReturn(blobList);
+        when(parquetBlobContainer.getBlobMetadata("_0.parquet")).thenReturn(new PlainBlobMetadata("_0.parquet", 5678));
 
         // Register format so resolveFormat routes to parquet container
         directory.getFormatBlobRouter().orElseThrow().registerBlobFormat("_0.parquet", "parquet");
         long length = directory.fileLength("_0.parquet");
         assertEquals(5678, length);
+        verify(parquetBlobContainer).getBlobMetadata("_0.parquet");
+        verify(baseBlobContainer, never()).getBlobMetadata(anyString());
+        verify(parquetBlobContainer, never()).listBlobsByPrefixInSortedOrder(anyString(), anyInt(), any());
     }
 
     public void testFileLength_FileNotFound() throws IOException {
-        when(baseBlobContainer.listBlobsByPrefixInSortedOrder(eq("nonexistent"), eq(1), any())).thenReturn(Collections.emptyList());
+        NoSuchFileException failure = new NoSuchFileException("nonexistent");
+        when(baseBlobContainer.getBlobMetadata("nonexistent")).thenThrow(failure);
 
-        expectThrows(NoSuchFileException.class, () -> directory.fileLength("nonexistent"));
+        assertSame(failure, expectThrows(NoSuchFileException.class, () -> directory.fileLength("nonexistent")));
+    }
+
+    public void testFileLength_ParquetFileNotFound() throws IOException {
+        NoSuchFileException failure = new NoSuchFileException("_0.parquet");
+        when(parquetBlobContainer.getBlobMetadata("_0.parquet")).thenThrow(failure);
+        directory.getFormatBlobRouter().orElseThrow().registerBlobFormat("_0.parquet", "parquet");
+
+        assertSame(failure, expectThrows(NoSuchFileException.class, () -> directory.fileLength("_0.parquet")));
+        verify(baseBlobContainer, never()).getBlobMetadata(anyString());
+    }
+
+    public void testFileLength_MetadataLookupFailure() throws IOException {
+        IOException failure = new IOException("metadata lookup failed");
+        when(baseBlobContainer.getBlobMetadata("_0.cfs")).thenThrow(failure);
+
+        assertSame(failure, expectThrows(IOException.class, () -> directory.fileLength("_0.cfs")));
+    }
+
+    public void testFileLength_NoContainer() {
+        directory.getFormatBlobRouter().orElseThrow().registerBlobFormat("_0.arrow", "arrow");
+
+        NoSuchFileException failure = expectThrows(NoSuchFileException.class, () -> directory.fileLength("_0.arrow"));
+        assertEquals("No container for format arrow, file _0.arrow", failure.getMessage());
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -463,8 +490,7 @@ public class DataFormatAwareRemoteDirectoryTests extends OpenSearchTestCase {
 
     public void testFileLength_FileMetadata_Lucene() throws IOException {
         FileMetadata fm = new FileMetadata("lucene", "_0.cfs");
-        List<BlobMetadata> blobList = List.of(new PlainBlobMetadata("_0.cfs", 1234));
-        when(baseBlobContainer.listBlobsByPrefixInSortedOrder(eq("_0.cfs"), eq(1), any())).thenReturn(blobList);
+        when(baseBlobContainer.getBlobMetadata("_0.cfs")).thenReturn(new PlainBlobMetadata("_0.cfs", 1234));
 
         long length = directory.fileLength(fm.file());
         assertEquals(1234, length);
@@ -472,8 +498,7 @@ public class DataFormatAwareRemoteDirectoryTests extends OpenSearchTestCase {
 
     public void testFileLength_FileMetadata_Parquet() throws IOException {
         FileMetadata fm = new FileMetadata("parquet", "_0.parquet");
-        List<BlobMetadata> blobList = List.of(new PlainBlobMetadata("_0.parquet", 5678));
-        when(parquetBlobContainer.listBlobsByPrefixInSortedOrder(eq("_0.parquet"), eq(1), any())).thenReturn(blobList);
+        when(parquetBlobContainer.getBlobMetadata("_0.parquet")).thenReturn(new PlainBlobMetadata("_0.parquet", 5678));
 
         directory.getFormatBlobRouter().orElseThrow().registerBlobFormat("_0.parquet", "parquet");
         long length = directory.fileLength(fm.file());
@@ -482,7 +507,7 @@ public class DataFormatAwareRemoteDirectoryTests extends OpenSearchTestCase {
 
     public void testFileLength_FileMetadata_NotFound() throws IOException {
         FileMetadata fm = new FileMetadata("lucene", "nonexistent");
-        when(baseBlobContainer.listBlobsByPrefixInSortedOrder(eq("nonexistent"), eq(1), any())).thenReturn(Collections.emptyList());
+        when(baseBlobContainer.getBlobMetadata("nonexistent")).thenThrow(new NoSuchFileException("nonexistent"));
 
         expectThrows(NoSuchFileException.class, () -> directory.fileLength(fm.file()));
     }
@@ -807,6 +832,7 @@ public class DataFormatAwareRemoteDirectoryTests extends OpenSearchTestCase {
     public void testFileLength_NameMismatch_ThrowsNoSuchFile() throws IOException {
         // Returns a blob but name doesn't match
         List<BlobMetadata> blobList = List.of(new PlainBlobMetadata("_0.cfs_DIFFERENT", 1234));
+        when(baseBlobContainer.getBlobMetadata("_0.cfs")).thenCallRealMethod();
         when(baseBlobContainer.listBlobsByPrefixInSortedOrder(eq("_0.cfs"), eq(1), any())).thenReturn(blobList);
 
         expectThrows(NoSuchFileException.class, () -> directory.fileLength("_0.cfs"));
@@ -815,6 +841,7 @@ public class DataFormatAwareRemoteDirectoryTests extends OpenSearchTestCase {
     public void testFileLength_FileMetadata_NameMismatch_ThrowsNoSuchFile() throws IOException {
         FileMetadata fm = new FileMetadata("lucene", "_0.cfs");
         List<BlobMetadata> blobList = List.of(new PlainBlobMetadata("_0.cfs_DIFFERENT", 1234));
+        when(baseBlobContainer.getBlobMetadata("_0.cfs")).thenCallRealMethod();
         when(baseBlobContainer.listBlobsByPrefixInSortedOrder(eq("_0.cfs"), eq(1), any())).thenReturn(blobList);
 
         expectThrows(NoSuchFileException.class, () -> directory.fileLength(fm.file()));

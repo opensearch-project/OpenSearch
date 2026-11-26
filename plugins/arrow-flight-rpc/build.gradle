@@ -58,8 +58,8 @@ dependencies {
   runtimeOnly "io.grpc:grpc-protobuf-lite:${versions.grpc}"
   runtimeOnly "io.grpc:grpc-protobuf:${versions.grpc}"
 
-  runtimeOnly "com.google.guava:failureaccess:1.0.2"
-  runtimeOnly('com.google.guava:guava:33.3.1-jre') {
+  runtimeOnly "com.google.guava:failureaccess:1.0.3"
+  runtimeOnly("com.google.guava:guava:${versions.guava}") {
     attributes {
       attribute(Attribute.of('org.gradle.jvm.environment', String), 'standard-jvm')
     }
@@ -203,18 +203,10 @@ tasks.named('thirdPartyAudit').configure {
   )
   ignoreViolations(
     // Guava internal classes
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
+    'com.google.common.util.concurrent.AbstractFutureState$UnsafeAtomicHelper',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
   )
 }

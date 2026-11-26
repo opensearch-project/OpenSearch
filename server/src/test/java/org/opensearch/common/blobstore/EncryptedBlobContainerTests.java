@@ -278,6 +278,25 @@ public class EncryptedBlobContainerTests extends OpenSearchTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    public void testGetBlobMetadataWrapsDelegateMetadata() throws IOException {
+        BlobContainer blobContainer = mock(BlobContainer.class);
+        CryptoHandler<Object, Object> cryptoHandler = mock(CryptoHandler.class);
+        EncryptedBlobContainer<Object, Object> encryptedBlobContainer = new EncryptedBlobContainer<>(blobContainer, cryptoHandler);
+        BlobMetadata metadata = new PlainBlobMetadata("blob", 100);
+        Object cryptoContext = new Object();
+        when(blobContainer.getBlobMetadata("blob")).thenReturn(metadata);
+        when(cryptoHandler.loadEncryptionMetadata(any())).thenReturn(cryptoContext);
+        when(cryptoHandler.estimateDecryptedLength(cryptoContext, metadata.length())).thenReturn(80L);
+
+        BlobMetadata result = encryptedBlobContainer.getBlobMetadata("blob");
+
+        assertTrue(result instanceof EncryptedBlobMetadata);
+        assertEquals("blob", result.name());
+        assertEquals(80L, result.length());
+        verify(blobContainer).getBlobMetadata("blob");
+    }
+
+    @SuppressWarnings("unchecked")
     public void testListBlobsByPrefixInSortedOrderReturnsNull() throws IOException {
         BlobContainer blobContainer = mock(BlobContainer.class);
         CryptoHandler<Object, Object> cryptoHandler = mock(CryptoHandler.class);

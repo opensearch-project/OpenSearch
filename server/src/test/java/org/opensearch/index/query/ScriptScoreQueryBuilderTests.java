@@ -88,6 +88,13 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
 
         ScriptScoreQueryBuilder parsed = (ScriptScoreQueryBuilder) parseQuery(json);
         assertEquals(json, 2, parsed.getMinScore(), 0.0001);
+        assertEquals("doc['field'].value", parsed.script().getIdOrCode());
+    }
+
+    public void testScriptGetter() {
+        Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "1", Collections.emptyMap());
+        ScriptScoreQueryBuilder queryBuilder = new ScriptScoreQueryBuilder(matchAllQuery(), script);
+        assertSame(script, queryBuilder.script());
     }
 
     public void testIllegalArguments() {

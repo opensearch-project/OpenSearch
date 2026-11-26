@@ -116,7 +116,7 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
         }
         // throttling postdates settings, so it needs its own gate. Absent decodes to null ("keep existing"), not EMPTY,
         // which on an update fragment means "clear all throttling".
-        if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
+        if (in.getVersion().onOrAfter(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION)) {
             throttling = Settings.readOptionalSettingsFromStream(in);
         } else {
             throttling = null;
@@ -297,8 +297,8 @@ public class MutableWorkloadGroupFragment extends AbstractDiffable<MutableWorklo
             out.writeBoolean(false);
             out.writeMap(Map.of(), StreamOutput::writeString, StreamOutput::writeString);
         }
-        // Mirrors the read path: only 3.10+ peers expect a throttling bag on the wire.
-        if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
+        // Mirrors the read path: only peers that support throttling expect a throttling bag on the wire.
+        if (out.getVersion().onOrAfter(WorkloadGroupThrottleSettings.MIN_SUPPORTED_VERSION)) {
             Settings.writeOptionalSettingsToStream(throttling, out);
         }
     }

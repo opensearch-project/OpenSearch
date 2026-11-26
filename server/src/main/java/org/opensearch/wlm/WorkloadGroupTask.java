@@ -44,6 +44,7 @@ public class WorkloadGroupTask extends CancellableTask {
     private boolean isWorkloadGroupSet = false;
     private volatile String throttlePrincipal;
     private volatile boolean throttleCounted;
+    private volatile boolean admissionRejected;
 
     public WorkloadGroupTask(long id, String type, String action, String description, TaskId parentTaskId, Map<String, String> headers) {
         this(id, type, action, description, parentTaskId, headers, NO_TIMEOUT, System::nanoTime);
@@ -121,7 +122,7 @@ public class WorkloadGroupTask extends CancellableTask {
     }
 
     /**
-     * Marks this task's work as accounted for against a node-level throttle bucket, so a nested coordinator search on the
+     * Marks this task's work as accounted for against a throttle bucket, so a nested coordinator search on the
      * same node inherits the charge rather than taking a second permit (which would make the request compete with itself).
      * Set when this task took a permit, inherited its parent's charge, or was admitted over the limit in monitor mode;
      * never set when no throttle applies. Not cleared on release (the task is short-lived), and release is driven by the returned
@@ -139,6 +140,19 @@ public class WorkloadGroupTask extends CancellableTask {
      */
     public boolean isThrottleCounted() {
         return throttleCounted;
+    }
+
+    /**
+     * Marks this task as refused by search admission, so {@link WorkloadGroupService#onTaskCompleted} does not count it as a
+     * completion.
+     */
+    void markAdmissionRejected() {
+        this.admissionRejected = true;
+    }
+
+    /** Whether search admission refused this task. */
+    boolean isAdmissionRejected() {
+        return admissionRejected;
     }
 
     public long getElapsedTime() {

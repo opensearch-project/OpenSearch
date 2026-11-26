@@ -47,6 +47,7 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.CheckedTriFunction;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.TriFunction;
 import org.opensearch.common.annotation.ExperimentalApi;
@@ -276,6 +277,9 @@ public final class IndexModule {
     private final EngineConfigFactory engineConfigFactory;
     private final SetOnce<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> indexReaderWrapper =
         new SetOnce<>();
+    private final List<
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> additionalIndexReaderWrappers =
+            new ArrayList<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private final Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
@@ -498,7 +502,7 @@ public final class IndexModule {
     /**
      * Sets the factory for creating new {@link DirectoryReader} wrapper instances.
      * The factory ({@link Function}) is called once the IndexService is fully constructed.
-     * NOTE: this method can only be called once per index. Multiple wrappers are not supported.
+     * NOTE: this method can only be called once per index. To register additional wrappers use {@link #addReaderWrapper}.
      * <p>
      * The {@link CheckedFunction} is invoked each time a {@link Engine.Searcher} is requested to do an operation,
      * for example search, and must return a new directory reader wrapping the provided directory reader or if no
@@ -517,6 +521,71 @@ public final class IndexModule {
     ) {
         ensureNotFrozen();
         this.indexReaderWrapper.set(indexReaderWrapperFactory);
+    }
+
+    /**
+     * Registers an additional {@link DirectoryReader} wrapper factory. Any number of wrappers may be added, and
+     * they are applied to the reader in registration order. The wrapper installed with {@link #setReaderWrapper},
+     * if any, is applied last so it stays outermost: this matters for wrappers that enforce document- or
+     * field-level security, which must see everything the added wrappers expose. Each factory may return
+     * {@code null} to decline wrapping for a given index.
+     * The reader returned by each wrapper must satisfy the same contract as {@link #setReaderWrapper}.
+     * When no added factory produces a wrapper for an index, the wrapper produced by {@link #setReaderWrapper}
+     * (or {@code null}) is handed to the index unchanged.
+     * Adding the same factory instance twice is rejected.
+     */
+    public void addReaderWrapper(
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> indexReaderWrapperFactory
+    ) {
+        ensureNotFrozen();
+        if (indexReaderWrapperFactory == null) {
+            throw new IllegalArgumentException("reader wrapper factory must not be null");
+        }
+        if (additionalIndexReaderWrappers.contains(indexReaderWrapperFactory)) {
+            throw new IllegalArgumentException("reader wrapper factory already added");
+        }
+
+        this.additionalIndexReaderWrappers.add(indexReaderWrapperFactory);
+    }
+
+    /**
+     * Composes the factories registered via {@link #addReaderWrapper} (inner) with the factory registered via
+     * {@link #setReaderWrapper} (outer) into a single per-{@link IndexService} factory. When applied to an index,
+     * each inner factory is resolved in registration order and the outer factory last; factories resolving to
+     * {@code null} are skipped. If no inner factory resolves, the outer wrapper is returned unchanged ({@code null}
+     * when no outer factory was registered), so indices without added wrappers behave exactly as before this method
+     * existed. Otherwise the result applies the inner wrappers in registration order and the outer wrapper last, so
+     * the {@link #setReaderWrapper} wrapper is always outermost.
+     */
+    static Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> composeReaderWrappers(
+        List<Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>>> inner,
+        @Nullable Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> outer
+    ) {
+        return indexService -> {
+            final List<CheckedFunction<DirectoryReader, DirectoryReader, IOException>> resolved = new ArrayList<>();
+            for (Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> factory : inner) {
+                final CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper = factory.apply(indexService);
+                if (wrapper != null) {
+                    resolved.add(wrapper);
+                }
+            }
+            final CheckedFunction<DirectoryReader, DirectoryReader, IOException> outerWrapper = outer == null
+                ? null
+                : outer.apply(indexService);
+            if (resolved.isEmpty()) {
+                // Nothing added for this index: return the outer wrapper (possibly null) untouched so behaviour
+                // matches the pre-composition code path exactly.
+                return outerWrapper;
+            }
+            return reader -> {
+                // Added wrappers wrap the raw reader first, in registration order; the outer wrapper stays outermost.
+                DirectoryReader wrapped = reader;
+                for (CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrapper : resolved) {
+                    wrapped = wrapper.apply(wrapped);
+                }
+                return outerWrapper == null ? wrapped : outerWrapper.apply(wrapped);
+            };
+        };
     }
 
     IndexEventListener freeze() { // pkg private for testing
@@ -1024,8 +1093,10 @@ public final class IndexModule {
         DataFormatRegistry dataFormatRegistry
     ) throws IOException {
         final IndexEventListener eventListener = freeze();
-        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = indexReaderWrapper
-            .get() == null ? (shard) -> null : indexReaderWrapper.get();
+        Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory = composeReaderWrappers(
+            additionalIndexReaderWrappers,
+            indexReaderWrapper.get()
+        );
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
         final IndexStorePlugin.CompositeDirectoryFactory compositeDirectoryFactory = getCompositeDirectoryFactory(

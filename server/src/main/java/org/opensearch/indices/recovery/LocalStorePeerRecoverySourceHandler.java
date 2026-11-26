@@ -110,6 +110,8 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
                 throw new RecoveryEngineException(shard.shardId(), 1, "snapshot failed", e);
             }
 
+            ensureRemoteStoreContainsSafeCommit(wrappedSafeSnapshot.get());
+
             // Try and copy enough operations to the recovering peer so that if it is promoted to primary then it has a chance of being
             // able to recover other replicas using operations-based recoveries. If we are not using retention leases then we
             // conservatively copy all available operations. If we are using retention leases then "enough operations" is just the
@@ -220,5 +222,15 @@ public class LocalStorePeerRecoverySourceHandler extends RecoverySourceHandler {
 
         }, onFailure);
         finalizeStepAndCompleteFuture(startingSeqNo, sendSnapshotStep, sendFileStep, prepareEngineStep, onFailure);
+    }
+
+    void ensureRemoteStoreContainsSafeCommit(CatalogSnapshot safeCommit) throws IOException {
+        if ((shard.indexSettings().isRemoteStoreEnabled() || shard.indexSettings().isAssignedOnRemoteNode())
+            && shard.indexSettings().isTranslogDurableInRemoteStore() == false
+            && shard.isRemoteSegmentStoreAtOrAheadOf(safeCommit) == false) {
+            throw new DelayRecoveryException(
+                "remote segment store is behind the safe commit; delaying file-based recovery of segments_only shard"
+            );
+        }
     }
 }

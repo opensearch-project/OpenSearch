@@ -11,6 +11,10 @@
 /modules/parent-join/ @opensearch-project/opensearch-core-maintainers @alchemist51 @andrross @ashking94 @Bukhtawar @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @owaiskazi19 @reta @sachinpkale @saratvemulapalli @shwetathareja @sohami
 /modules/transport-netty4/ @opensearch-project/opensearch-core-maintainers @peternied
 
+/server/src/internalClusterTest/java/org/opensearch/wlm/ @opensearch-project/opensearch-core-maintainers @kaushalmahi12
+/server/src/main/java/org/opensearch/wlm/ @opensearch-project/opensearch-core-maintainers @kaushalmahi12
+/server/src/test/java/org/opensearch/wlm/ @opensearch-project/opensearch-core-maintainers @kaushalmahi12
+
 /server/src/internalClusterTest/java/org/opensearch/index/ @opensearch-project/opensearch-core-maintainers @alchemist51 @andrross @ashking94 @Bukhtawar @cwperks @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @owaiskazi19 @reta @sachinpkale @saratvemulapalli @shwetathareja @sohami
 /server/src/internalClusterTest/java/org/opensearch/search/ @opensearch-project/opensearch-core-maintainers @alchemist51 @andrross @ashking94 @Bukhtawar @cwperks @dbwiddis @gbbafna @jed326 @kotwanikunal @mch2 @msfroh @owaiskazi19 @reta @sachinpkale @saratvemulapalli @shwetathareja @sohami
 

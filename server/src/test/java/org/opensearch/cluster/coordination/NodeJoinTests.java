@@ -67,6 +67,7 @@ import org.opensearch.telemetry.tracing.noop.NoopTracer;
 import org.opensearch.test.ClusterServiceUtils;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.transport.CapturingTransport;
+import org.opensearch.test.transport.StubbableConnectionManager;
 import org.opensearch.threadpool.TestThreadPool;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.RequestHandlerRegistry;
@@ -254,6 +255,9 @@ public class NodeJoinTests extends OpenSearchTestCase {
             Collections.emptySet(),
             NoopTracer.INSTANCE
         );
+        // The capturing transport keeps no real connections; treat every node as connected so that joins are not rejected
+        // by the cluster-manager's check that it is still connected to a joining node.
+        ((StubbableConnectionManager) transportService.getConnectionManager()).setDefaultNodeConnectedBehavior((cm, node) -> true);
         final PersistedStateRegistry persistedStateRegistry = persistedStateRegistry();
         persistedStateRegistry.addPersistedState(PersistedStateType.LOCAL, new InMemoryPersistedState(term, initialState));
         coordinator = new Coordinator(

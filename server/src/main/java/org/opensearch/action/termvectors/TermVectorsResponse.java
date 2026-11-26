@@ -262,14 +262,13 @@ public class TermVectorsResponse extends ActionResponse implements ToXContentObj
     }
 
     private void buildTermStatistics(XContentBuilder builder, TermsEnum termIter) throws IOException {
-        // write term statistics. At this point we do not naturally have a
-        // boolean that says if these values actually were requested.
-        // However, we can assume that they were not if the statistic values are
-        // <= 0.
+        // write term statistics. The statistics are -1 if they were not requested
+        // and 0 if the term is not in the index.
         assert (((termIter.docFreq() > 0) && (termIter.totalTermFreq() > 0))
+            || ((termIter.docFreq() == 0) && (termIter.totalTermFreq() == 0))
             || ((termIter.docFreq() == -1) && (termIter.totalTermFreq() == -1)));
         int docFreq = termIter.docFreq();
-        if (docFreq > 0) {
+        if (docFreq >= 0) {
             builder.field(FieldStrings.DOC_FREQ, docFreq);
             builder.field(FieldStrings.TTF, termIter.totalTermFreq());
         }

@@ -88,6 +88,7 @@ import org.opensearch.index.seqno.LocalCheckpointTracker;
 import org.opensearch.index.seqno.LocalCheckpointTrackerTests;
 import org.opensearch.index.seqno.SequenceNumbers;
 import org.opensearch.index.translog.Translog.Location;
+import org.opensearch.node.remotestore.RemoteStoreNodeAttribute;
 import org.opensearch.test.IndexSettingsModule;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.VersionUtils;
@@ -1808,6 +1809,99 @@ public class LocalTranslogTests extends OpenSearchTestCase {
             assertEquals(4, checkpointFsyncCalls.get());
             assertEquals(3, translogFsyncCalls.get());
             // Sequence numbers are marked as persisted after sync
+            assertThat(persistedSeqNos, contains(1L, 2L, 3L, 4L));
+        }
+    }
+
+    public void testTranslogWriterFsyncedOnSegmentsOnlyNode() throws IOException {
+        Path tempDir = createTempDir();
+        // A segments_only node: a segment repository attribute and deliberately no translog repository, so the
+        // translog is local and is the only durable copy of the operations written here.
+        final IndexSettings segmentsOnlySettings = IndexSettingsModule.newIndexSettings(
+            shardId.getIndex(),
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, org.opensearch.Version.CURRENT).build(),
+            Settings.builder()
+                .put("node.attr." + RemoteStoreNodeAttribute.REMOTE_STORE_SEGMENT_REPOSITORY_NAME_ATTRIBUTE_KEY, "seg-repo")
+                .build()
+        );
+        assertTrue("precondition: the node looks remote", segmentsOnlySettings.isAssignedOnRemoteNode());
+        assertFalse("precondition: the translog is local", segmentsOnlySettings.isRemoteTranslogStoreEnabled());
+
+        final TranslogConfig config = new TranslogConfig(
+            shardId,
+            tempDir,
+            segmentsOnlySettings,
+            NON_RECYCLING_INSTANCE,
+            new ByteSizeValue(1, ByteSizeUnit.KB),
+            "",
+            false
+        );
+
+        final Set<Long> persistedSeqNos = new HashSet<>();
+        final AtomicInteger translogFsyncCalls = new AtomicInteger();
+        final AtomicInteger checkpointFsyncCalls = new AtomicInteger();
+
+        final ChannelFactory channelFactory = (file, openOption) -> {
+            FileChannel delegate = FileChannel.open(file, openOption);
+            boolean success = false;
+            try {
+                final boolean isCkpFile = file.getFileName().toString().endsWith(".ckp");
+                final FileChannel channel;
+                if (isCkpFile) {
+                    channel = new FilterFileChannel(delegate) {
+                        @Override
+                        public void force(boolean metaData) throws IOException {
+                            checkpointFsyncCalls.incrementAndGet();
+                        }
+                    };
+                } else {
+                    channel = new FilterFileChannel(delegate) {
+                        @Override
+                        public void force(boolean metaData) throws IOException {
+                            translogFsyncCalls.incrementAndGet();
+                        }
+                    };
+                }
+                success = true;
+                return channel;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(delegate);
+                }
+            }
+        };
+
+        String translogUUID = Translog.createEmptyTranslog(
+            config.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            channelFactory,
+            primaryTerm.get()
+        );
+
+        try (
+            Translog translog = new LocalTranslog(
+                config,
+                translogUUID,
+                new DefaultTranslogDeletionPolicy(-1, -1, 0),
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                primaryTerm::get,
+                persistedSeqNos::add,
+                TranslogOperationHelper.DEFAULT,
+                channelFactory
+            )
+        ) {
+            TranslogWriter writer = translog.getCurrent();
+            byte[] bytes = new byte[256];
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 1);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 2);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 3);
+            writer.add(ReleasableBytesReference.wrap(new BytesArray(bytes)), 4);
+            writer.sync();
+            // Identical to testTranslogWriterFsyncedWithLocalTranslog: the remote segment repository must not cause
+            // the fsync to be skipped, because nothing uploads this translog and the local file is the durable copy.
+            assertEquals("checkpoint must be fsynced", 4, checkpointFsyncCalls.get());
+            assertEquals("translog must be fsynced", 3, translogFsyncCalls.get());
             assertThat(persistedSeqNos, contains(1L, 2L, 3L, 4L));
         }
     }

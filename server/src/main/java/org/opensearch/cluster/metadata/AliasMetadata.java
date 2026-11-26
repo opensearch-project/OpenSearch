@@ -50,6 +50,7 @@ import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
+import org.opensearch.search.internal.AliasFilter;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -83,13 +84,17 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
     @Nullable
     private final Boolean isHidden;
 
+    @Nullable
+    private final String scoringMode;
+
     private AliasMetadata(
         String alias,
         CompressedXContent filter,
         String indexRouting,
         String searchRouting,
         Boolean writeIndex,
-        @Nullable Boolean isHidden
+        @Nullable Boolean isHidden,
+        @Nullable String scoringMode
     ) {
         this.alias = alias;
         this.filter = filter;
@@ -102,6 +107,8 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
         this.writeIndex = writeIndex;
         this.isHidden = isHidden;
+        // The mode is part of the filter: an alias without a filter carries none, so its metadata is unchanged.
+        this.scoringMode = filter == null ? null : scoringMode;
     }
 
     private AliasMetadata(AliasMetadata aliasMetadata, String alias) {
@@ -111,7 +118,8 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             aliasMetadata.indexRouting(),
             aliasMetadata.searchRouting(),
             aliasMetadata.writeIndex(),
-            aliasMetadata.isHidden
+            aliasMetadata.isHidden,
+            aliasMetadata.scoringMode
         );
     }
 
@@ -164,6 +172,11 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         return isHidden;
     }
 
+    @Nullable
+    public String scoringMode() {
+        return scoringMode;
+    }
+
     public static Builder builder(String alias) {
         return new Builder(alias);
     }
@@ -192,6 +205,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         if (Objects.equals(searchRouting, that.searchRouting) == false) return false;
         if (Objects.equals(writeIndex, that.writeIndex) == false) return false;
         if (Objects.equals(isHidden, that.isHidden) == false) return false;
+        if (Objects.equals(scoringMode, that.scoringMode) == false) return false;
 
         return true;
     }
@@ -203,6 +217,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         result = 31 * result + (indexRouting != null ? indexRouting.hashCode() : 0);
         result = 31 * result + (searchRouting != null ? searchRouting.hashCode() : 0);
         result = 31 * result + (writeIndex != null ? writeIndex.hashCode() : 0);
+        result = 31 * result + (scoringMode != null ? scoringMode.hashCode() : 0);
         return result;
     }
 
@@ -230,6 +245,9 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
         out.writeOptionalBoolean(writeIndex());
         out.writeOptionalBoolean(isHidden());
+        if (out.getVersion().onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
+            out.writeOptionalString(scoringMode);
+        }
     }
 
     public AliasMetadata(StreamInput in) throws IOException {
@@ -253,6 +271,11 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
         }
         writeIndex = in.readOptionalBoolean();
         isHidden = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(AliasFilter.SCORING_MODE_VERSION)) {
+            scoringMode = in.readOptionalString();
+        } else {
+            scoringMode = null;
+        }
     }
 
     public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {
@@ -291,6 +314,9 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
         @Nullable
         private Boolean isHidden;
+
+        @Nullable
+        private String scoringMode;
 
         public Builder(String alias) {
             this.alias = alias;
@@ -353,8 +379,20 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             return this;
         }
 
+        public Builder scoringMode(@Nullable String scoringMode) {
+            this.scoringMode = scoringMode;
+            return this;
+        }
+
         public AliasMetadata build() {
-            return new AliasMetadata(alias, filter, indexRouting, searchRouting, writeIndex, isHidden);
+            if (scoringMode != null) {
+                // Every path that defines an alias builds it here, templates included, so the mode is checked once.
+                AliasFilter.ScoringMode.fromString(scoringMode);
+                if (filter == null) {
+                    throw new IllegalArgumentException("[scoring_mode] requires a [filter] on alias [" + alias + "]");
+                }
+            }
+            return new AliasMetadata(alias, filter, indexRouting, searchRouting, writeIndex, isHidden, scoringMode);
         }
 
         public static void toXContent(AliasMetadata aliasMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -382,6 +420,10 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
 
             if (aliasMetadata.isHidden != null) {
                 builder.field("is_hidden", aliasMetadata.isHidden());
+            }
+
+            if (aliasMetadata.scoringMode() != null) {
+                builder.field("scoring_mode", aliasMetadata.scoringMode());
             }
 
             builder.endObject();
@@ -419,6 +461,8 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                         builder.searchRouting(parser.text());
                     } else if ("filter".equals(currentFieldName)) {
                         builder.filter(new CompressedXContent(parser.binaryValue()));
+                    } else if ("scoring_mode".equals(currentFieldName)) {
+                        builder.scoringMode(parser.text());
                     }
                 } else if (token == XContentParser.Token.START_ARRAY) {
                     parser.skipChildren();
