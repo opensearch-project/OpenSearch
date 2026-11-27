@@ -52,7 +52,7 @@ reactor           = "3.8.9"
 
 # client dependencies
 httpclient5       = "5.6.5"
-httpcore5         = "5.4.4"
+httpcore5         = "5.5"
 httpclient        = "4.5.14"
 httpcore          = "4.4.16"
 httpasyncclient   = "4.1.5"
