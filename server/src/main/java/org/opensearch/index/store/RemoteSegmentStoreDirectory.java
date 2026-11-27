@@ -752,7 +752,7 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
     String getMetadataFileForCommit(long primaryTerm, long generation) throws IOException {
         List<String> metadataFiles = remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
             MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, generation),
-            1
+            Integer.MAX_VALUE
         );
 
         if (metadataFiles.isEmpty()) {
@@ -760,17 +760,60 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                 "Metadata file is not present for given primary term " + primaryTerm + " and generation " + generation
             );
         }
-        if (metadataFiles.size() != 1) {
-            throw new IllegalStateException(
-                "there should be only one metadata file for given primary term "
-                    + primaryTerm
-                    + "and generation "
-                    + generation
-                    + " but found "
-                    + metadataFiles.size()
-            );
+        if (metadataFiles.size() == 1) {
+            return metadataFiles.get(0);
         }
-        return metadataFiles.get(0);
+        // Multiple metadata files can exist for the same commit when refreshes race a commit, and files uploaded
+        // by later refreshes can reference segments that are not part of the commit. Compare the translog
+        // generation and upload counter encoded in each name instead of trusting lexicographic position, so a
+        // malformed or unexpected name surfaces an error rather than being silently selected.
+        logger.debug(
+            "Found [{}] metadata files for commit primary term {} and generation {}",
+            metadataFiles.size(),
+            primaryTerm,
+            generation
+        );
+        return earliestUploadForCommit(metadataFiles, primaryTerm, generation);
+    }
+
+    /**
+     * Picks the earliest-uploaded metadata file for a commit. The translog generation and the per-instance
+     * upload counter encoded after the commit prefix order the commit's uploads, so their minimum identifies
+     * the first upload, written while the commit was still the shard's live commit.
+     */
+    private static String earliestUploadForCommit(List<String> metadataFiles, long primaryTerm, long generation) throws IOException {
+        String earliest = null;
+        long earliestTranslogGeneration = Long.MAX_VALUE;
+        long earliestUploadCounter = Long.MAX_VALUE;
+        for (String metadataFile : metadataFiles) {
+            String[] tokens = metadataFile.split(MetadataFilenameUtils.SEPARATOR);
+            final long translogGeneration;
+            final long uploadCounter;
+            try {
+                if (tokens.length < 5 || MetadataFilenameUtils.METADATA_PREFIX.equals(tokens[0]) == false) {
+                    throw new IllegalArgumentException("not a metadata filename");
+                }
+                translogGeneration = RemoteStoreUtils.invertLong(tokens[3]);
+                uploadCounter = RemoteStoreUtils.invertLong(tokens[4]);
+            } catch (IllegalArgumentException e) {
+                throw new IOException(
+                    "Unexpected metadata file ["
+                        + metadataFile
+                        + "] listed for commit primary term "
+                        + primaryTerm
+                        + " and generation "
+                        + generation,
+                    e
+                );
+            }
+            if (translogGeneration < earliestTranslogGeneration
+                || (translogGeneration == earliestTranslogGeneration && uploadCounter < earliestUploadCounter)) {
+                earliest = metadataFile;
+                earliestTranslogGeneration = translogGeneration;
+                earliestUploadCounter = uploadCounter;
+            }
+        }
+        return earliest;
     }
 
     private void postUpload(Directory from, String src, String remoteFilename, String checksum) throws IOException {
