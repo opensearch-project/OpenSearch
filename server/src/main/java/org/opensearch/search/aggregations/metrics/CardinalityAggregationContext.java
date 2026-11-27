@@ -19,10 +19,16 @@ import org.opensearch.core.common.unit.ByteSizeValue;
 public class CardinalityAggregationContext {
     private final boolean hybridCollectorEnabled;
     private final long memoryThreshold;
+    private final boolean compactSketchesEnabled;
 
     public CardinalityAggregationContext(boolean hybridCollectorEnabled, long memoryThreshold) {
+        this(hybridCollectorEnabled, memoryThreshold, true);
+    }
+
+    public CardinalityAggregationContext(boolean hybridCollectorEnabled, long memoryThreshold, boolean compactSketchesEnabled) {
         this.hybridCollectorEnabled = hybridCollectorEnabled;
         this.memoryThreshold = memoryThreshold;
+        this.compactSketchesEnabled = compactSketchesEnabled;
     }
 
     public boolean isHybridCollectorEnabled() {
@@ -34,9 +40,27 @@ public class CardinalityAggregationContext {
     }
 
     /**
+     * Whether cardinality under a parent with many buckets keeps its sketches in {@link CompactHyperLogLogPlusPlus}.
+     */
+    public boolean isCompactSketchesEnabled() {
+        return compactSketchesEnabled;
+    }
+
+    /**
      * Creates a CardinalityAggregationContext from cluster settings
      */
     public static CardinalityAggregationContext from(boolean hybridCollectorEnabled, ByteSizeValue memoryThreshold) {
         return new CardinalityAggregationContext(hybridCollectorEnabled, memoryThreshold.getBytes());
+    }
+
+    /**
+     * Creates a CardinalityAggregationContext from cluster settings
+     */
+    public static CardinalityAggregationContext from(
+        boolean hybridCollectorEnabled,
+        ByteSizeValue memoryThreshold,
+        boolean compactSketchesEnabled
+    ) {
+        return new CardinalityAggregationContext(hybridCollectorEnabled, memoryThreshold.getBytes(), compactSketchesEnabled);
     }
 }

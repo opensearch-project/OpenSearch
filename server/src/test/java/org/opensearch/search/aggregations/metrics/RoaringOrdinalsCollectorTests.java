@@ -23,8 +23,10 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.common.hash.MurmurHash3;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.BigArrays;
+import org.opensearch.common.util.BitArray;
 import org.opensearch.common.util.MockBigArrays;
 import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.common.breaker.CircuitBreaker;
@@ -292,12 +294,12 @@ public class RoaringOrdinalsCollectorTests extends AggregatorTestCase {
         for (int denseValues : new int[] { 2048, 5000 }) {
             AtomicLong breaker = new AtomicLong();
             try (BucketOrdinalBitmaps bitmaps = new BucketOrdinalBitmaps(bigArrays, breaker::addAndGet)) {
-                RoaringBitmap bitmap = bitmaps.getOrCreate(0);
                 for (int ord = 0; ord < denseValues; ord++) {
-                    bitmaps.add(0, bitmap, ord);
+                    bitmaps.add(0, ord);
                 }
+                RoaringBitmap bitmap = bitmaps.get(0);
                 for (int container = 1; container < 3000; container++) {
-                    bitmaps.add(0, bitmap, container << 16);
+                    bitmaps.add(0, container << 16);
                     long actual = BucketOrdinalBitmaps.ramBytesUsed(bitmap);
                     // an array container that turned into a bitmap container since the last measurement is a few bytes smaller
                     assertThat("after " + bitmap.getCardinality() + " values", bitmaps.bytesUsed(), lessThanOrEqualTo(actual + 16));
@@ -313,12 +315,13 @@ public class RoaringOrdinalsCollectorTests extends AggregatorTestCase {
         try (BucketOrdinalBitmaps bitmaps = new BucketOrdinalBitmaps(bigArrays, breaker::addAndGet)) {
             for (int i = 0; i < valuesPerBucket; i++) {
                 for (int bucket = 0; bucket < buckets; bucket++) {
-                    bitmaps.add(bucket, bitmaps.getOrCreate(bucket), randomIntBetween(0, maxOrd - 1));
+                    bitmaps.add(bucket, randomIntBetween(0, maxOrd - 1));
                 }
             }
             long actual = 0;
             for (int bucket = 0; bucket < buckets; bucket++) {
-                actual += BucketOrdinalBitmaps.ramBytesUsed(bitmaps.get(bucket));
+                RoaringBitmap bitmap = bitmaps.get(bucket);
+                actual += bitmap == null ? 0 : BucketOrdinalBitmaps.ramBytesUsed(bitmap);
             }
             assertThat(bitmaps.bytesUsed(), lessThanOrEqualTo(actual));
             assertThat(bitmaps.bytesUsed(), greaterThanOrEqualTo(actual / 2));
@@ -327,6 +330,341 @@ public class RoaringOrdinalsCollectorTests extends AggregatorTestCase {
             assertEquals(bitmaps.bytesUsed(), breaker.get());
         }
         assertEquals("breaker must be released", 0, breaker.get());
+    }
+
+    /**
+     * A bucket keeps its first ordinal inline, without a bitmap or any charged bytes, until a second distinct one arrives.
+     */
+    public void testSingleOrdinalBucketsStayInline() {
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        AtomicLong breaker = new AtomicLong();
+        try (BucketOrdinalBitmaps bitmaps = new BucketOrdinalBitmaps(bigArrays, breaker::addAndGet)) {
+            int buckets = randomIntBetween(1, 5000);
+            for (int bucket = 0; bucket < buckets; bucket++) {
+                bitmaps.add(bucket, bucket * 7);
+                bitmaps.add(bucket, bucket * 7); // a duplicate stays inline
+            }
+            assertEquals(0, bitmaps.bytesUsed());
+            for (int bucket = 0; bucket < buckets; bucket++) {
+                assertNull(bitmaps.get(bucket));
+                assertEquals(1, bitmaps.cardinality(bucket));
+                assertEquals(bucket * 7, bitmaps.singleOrd(bucket));
+            }
+            assertEquals(0, bitmaps.cardinality(buckets + 10));
+            assertEquals(-1, bitmaps.singleOrd(buckets + 10));
+
+            int bucket = randomInt(buckets - 1);
+            bitmaps.add(bucket, Integer.MAX_VALUE - 1);
+            RoaringBitmap bitmap = bitmaps.get(bucket);
+            assertNotNull(bitmap);
+            assertEquals(2, bitmaps.cardinality(bucket));
+            assertTrue(bitmap.contains(bucket * 7));
+            assertTrue(bitmap.contains(Integer.MAX_VALUE - 1));
+            assertEquals(-1, bitmaps.singleOrd(bucket));
+            assertEquals(BucketOrdinalBitmaps.ramBytesUsed(bitmap), bitmaps.bytesUsed());
+        }
+        assertEquals("breaker must be released", 0, breaker.get());
+    }
+
+    /**
+     * Buckets with one ordinal, a few, or many, over ordinals that are mostly visited (hashes looked up by ordinal) or rarely
+     * visited (looked up by rank), get exactly the sketches of their values.
+     */
+    public void testCollectIntoMatchesPerBucketSketches() throws IOException {
+        int values = randomIntBetween(500, 20_000);
+        List<String[]> docs = new ArrayList<>();
+        for (int i = 0; i < values; i++) {
+            docs.add(doc("unused", app(i)));
+        }
+        withIndex(List.of(docs), searcher -> {
+            LeafReader reader = searcher.getIndexReader().leaves().get(0).reader();
+            BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+            for (boolean sparse : new boolean[] { false, true }) {
+                AtomicLong breaker = new AtomicLong();
+                int buckets = randomIntBetween(1, 300);
+                Map<Long, Set<Integer>> expected = new HashMap<>();
+                try (
+                    HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, bigArrays, 1);
+                    BucketOrdinalBitmaps bitmaps = new BucketOrdinalBitmaps(bigArrays, breaker::addAndGet)
+                ) {
+                    if (sparse == false) {
+                        // one bucket holding every value makes the ordinals dense, so hashes are looked up by ordinal
+                        for (int ord = 0; ord < values; ord++) {
+                            bitmaps.add(buckets, ord);
+                            expected.computeIfAbsent((long) buckets, b -> new HashSet<>()).add(ord);
+                        }
+                    }
+                    for (long bucket = 0; bucket < buckets; bucket++) {
+                        // empty, a single value, a few, or more than a rank lookup handles
+                        int size = randomFrom(0, 1, randomIntBetween(2, 64), randomIntBetween(65, 400));
+                        for (int i = 0; i < size; i++) {
+                            int ord = sparse ? randomInt(values / 50) * 50 % values : randomInt(values - 1);
+                            bitmaps.add(bucket, ord);
+                            expected.computeIfAbsent(bucket, b -> new HashSet<>()).add(ord);
+                        }
+                    }
+                    SortedSetDocValues ords = reader.getSortedSetDocValues("app");
+                    bitmaps.collectInto(counts, ords);
+                    for (long bucket = 0; bucket <= buckets; bucket++) {
+                        try (HyperLogLogPlusPlus sketch = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, bigArrays, 1)) {
+                            MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
+                            for (int ord : expected.getOrDefault(bucket, Set.of())) {
+                                BytesRef value = ords.lookupOrd(ord);
+                                MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
+                                sketch.collect(0, hash.h1);
+                            }
+                            assertEquals("bucket " + bucket + " sparse=" + sparse, sketch.cardinality(0), counts.cardinality(bucket));
+                            assertTrue("bucket " + bucket + " sparse=" + sparse, sketch.equals(0, counts, bucket));
+                        }
+                    }
+                }
+                assertEquals("breaker must be released", 0, breaker.get());
+            }
+        });
+    }
+
+    /**
+     * Bits and bitmaps holding the same ordinals give the same counts and the same sketches, whether all buckets are hashed
+     * at once or one at a time, and bits copied into bitmaps hold the same ordinals.
+     */
+    public void testBitsMatchBitmaps() throws IOException {
+        int values = randomIntBetween(500, 5_000);
+        List<String[]> docs = new ArrayList<>();
+        for (int i = 0; i < values; i++) {
+            docs.add(doc("unused", app(i)));
+        }
+        withIndex(List.of(docs), searcher -> {
+            LeafReader reader = searcher.getIndexReader().leaves().get(0).reader();
+            BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+            AtomicLong breaker = new AtomicLong();
+            int buckets = randomIntBetween(1, 200);
+            try (
+                BucketOrdinalBits bits = new BucketOrdinalBits(bigArrays, values, Long.MAX_VALUE, true);
+                BucketOrdinalBitmaps bitmaps = new BucketOrdinalBitmaps(bigArrays, breaker::addAndGet);
+                BucketOrdinalBitmaps copied = new BucketOrdinalBitmaps(bigArrays, breaker::addAndGet)
+            ) {
+                for (long bucket = 0; bucket < buckets; bucket++) {
+                    // empty, a single value, a few, or many, with duplicates
+                    int size = randomFrom(0, 1, randomIntBetween(2, 64), randomIntBetween(65, 2 * values));
+                    for (int i = 0; i < size; i++) {
+                        int ord = randomInt(values - 1);
+                        bits.addCounted(bucket, bits.bucket(bucket), ord);
+                        bitmaps.add(bucket, ord);
+                    }
+                }
+                bits.copyTo(copied);
+                for (long bucket = 0; bucket <= buckets; bucket++) {
+                    assertEquals("bucket " + bucket, bitmaps.cardinality(bucket), bits.cardinality(bucket));
+                    assertEquals("bucket " + bucket, bitmaps.cardinality(bucket), copied.cardinality(bucket));
+                    assertEquals("bucket " + bucket, bitmaps.singleOrd(bucket), copied.singleOrd(bucket));
+                    assertEquals("bucket " + bucket, bitmaps.get(bucket), copied.get(bucket));
+                }
+                SortedSetDocValues ords = reader.getSortedSetDocValues("app");
+                try (
+                    HyperLogLogPlusPlus fromBits = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, bigArrays, 1);
+                    HyperLogLogPlusPlus fromBitmaps = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, bigArrays, 1);
+                    HyperLogLogPlusPlus bitsByBucket = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, bigArrays, 1);
+                    HyperLogLogPlusPlus bitmapsByBucket = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, bigArrays, 1);
+                    HyperLogLogPlusPlus bitsSome = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, bigArrays, 1);
+                    HyperLogLogPlusPlus bitmapsSome = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, bigArrays, 1)
+                ) {
+                    bits.collectInto(fromBits, ords);
+                    bitmaps.collectInto(fromBitmaps, ords);
+                    for (long bucket = 0; bucket <= buckets; bucket++) {
+                        bits.collectInto(bitsByBucket, ords, new long[] { bucket });
+                        bitmaps.collectInto(bitmapsByBucket, ords, new long[] { bucket });
+                    }
+                    // some of the buckets at once, in any order, including buckets that were never collected
+                    Set<Long> some = new HashSet<>();
+                    for (long bucket = 0; bucket <= buckets + 5; bucket++) {
+                        if (randomBoolean()) {
+                            some.add(bucket);
+                        }
+                    }
+                    long[] someBuckets = some.stream().mapToLong(Long::longValue).toArray();
+                    bits.collectInto(bitsSome, ords, someBuckets);
+                    bitmaps.collectInto(bitmapsSome, ords, someBuckets);
+                    for (long bucket = 0; bucket <= buckets; bucket++) {
+                        long expected = fromBitmaps.cardinality(bucket);
+                        assertEquals("bucket " + bucket, expected, fromBits.cardinality(bucket));
+                        assertTrue("bucket " + bucket, fromBitmaps.equals(bucket, fromBits, bucket));
+                        assertTrue("bucket " + bucket, fromBitmaps.equals(bucket, bitsByBucket, bucket));
+                        assertTrue("bucket " + bucket, fromBitmaps.equals(bucket, bitmapsByBucket, bucket));
+                        long expectedSome = some.contains(bucket) ? expected : 0;
+                        assertEquals("bucket " + bucket, expectedSome, bitsSome.cardinality(bucket));
+                        assertEquals("bucket " + bucket, expectedSome, bitmapsSome.cardinality(bucket));
+                        if (some.contains(bucket)) {
+                            assertTrue("bucket " + bucket, fromBitmaps.equals(bucket, bitsSome, bucket));
+                            assertTrue("bucket " + bucket, fromBitmaps.equals(bucket, bitmapsSome, bucket));
+                        }
+                    }
+                }
+            }
+            assertEquals("breaker must be released", 0, breaker.get());
+        });
+    }
+
+    /**
+     * A bucket only gets bits while they fit under the threshold, and a bucket refused bits isn't charged for any.
+     */
+    public void testBitsStayUnderThreshold() {
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        int maxOrd = randomIntBetween(1, 100_000);
+        long perBucket = OrdinalsCollector.memoryOverhead(maxOrd);
+        int fit = randomIntBetween(0, 20);
+        long threshold = fit * perBucket + randomLongBetween(0, perBucket - 1);
+        try (BucketOrdinalBits bits = new BucketOrdinalBits(bigArrays, maxOrd, threshold, false)) {
+            for (int bucket = 0; bucket < fit; bucket++) {
+                BitArray bucketBits = bits.bucket(bucket);
+                assertNotNull(bucketBits);
+                assertSame(bucketBits, bits.bucket(bucket));
+                bucketBits.set(maxOrd - 1);
+            }
+            assertEquals(fit * perBucket, bits.memoryUsed());
+            assertNull(bits.bucket(fit + randomIntBetween(0, 1000)));
+            assertEquals(fit * perBucket, bits.memoryUsed());
+        }
+        try (BucketOrdinalBits bits = new BucketOrdinalBits(bigArrays, maxOrd, Long.MAX_VALUE, true)) {
+            BitArray bucketBits = bits.bucket(3);
+            bits.addCounted(3, bucketBits, maxOrd - 1);
+            bits.addCounted(3, bucketBits, maxOrd - 1);
+            assertEquals(1, bits.cardinality(3));
+            assertEquals(0, bits.cardinality(2));
+            assertEquals(0, bits.cardinality(5000));
+        }
+    }
+
+    /**
+     * When counting, sparse ordinals stop getting bits past a share of the threshold, dense ones keep getting them up to it.
+     */
+    public void testCountedBitsStopEarlyWhenSparse() {
+        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        int maxOrd = randomIntBetween(1024, 100_000);
+        long perBucket = OrdinalsCollector.memoryOverhead(maxOrd);
+        int fit = randomIntBetween(2 * BucketOrdinalBits.SPARSE_SHARE, 100);
+        long threshold = fit * perBucket;
+        int share = (int) (threshold / BucketOrdinalBits.SPARSE_SHARE / perBucket);
+        for (boolean dense : new boolean[] { false, true }) {
+            try (BucketOrdinalBits bits = new BucketOrdinalBits(bigArrays, maxOrd, threshold, true)) {
+                int bucket = 0;
+                for (BitArray bucketBits; (bucketBits = bits.bucket(bucket)) != null; bucket++) {
+                    // a dense bucket holds every fourth ordinal, a sparse one a single ordinal
+                    int ordinals = dense ? (maxOrd + 3) / 4 : 1;
+                    for (int i = 0; i < ordinals; i++) {
+                        bits.addCounted(bucket, bucketBits, i * 4L);
+                    }
+                }
+                assertEquals("dense=" + dense, dense ? fit : share, bucket);
+                // a bucket that has bits keeps them
+                assertNotNull(bits.bucket(0));
+            }
+        }
+    }
+
+    /**
+     * The rank of every value of a set spread over dense and sparse blocks of 65536 ordinals is its position in the set, whether
+     * ranks are asked in ascending or random order.
+     */
+    public void testVisitedRanks() {
+        RoaringBitmap set = new RoaringBitmap();
+        int blocks = randomIntBetween(1, 12);
+        for (int block = 0; block < blocks; block++) {
+            int base = (block * randomIntBetween(1, 3)) << 16;
+            switch (randomInt(3)) {
+                case 0 -> {
+                } // empty block
+                case 1 -> set.add(base + randomInt(65535)); // a single value
+                case 2 -> { // sparse, up to the dense limit
+                    for (int i = randomIntBetween(2, VisitedRanks.DENSE_VALUES); i > 0; i--) {
+                        set.add(base + randomInt(65535));
+                    }
+                }
+                default -> { // dense: random values or a range
+                    if (randomBoolean()) {
+                        set.add((long) base, (long) base + randomIntBetween(VisitedRanks.DENSE_VALUES + 1, 65536));
+                    } else {
+                        for (int i = randomIntBetween(VisitedRanks.DENSE_VALUES + 1, 40_000); i > 0; i--) {
+                            set.add(base + randomInt(65535));
+                        }
+                    }
+                }
+            }
+        }
+        if (randomBoolean()) {
+            set.runOptimize();
+        }
+        int[] values = set.toArray();
+        VisitedRanks ranks = new VisitedRanks(set);
+        for (int i = 0; i < values.length; i++) {
+            assertEquals("value " + values[i], i, ranks.rank(values[i]));
+        }
+        for (int n = 0; n < Math.min(values.length, 10_000); n++) {
+            int i = randomInt(values.length - 1);
+            assertEquals("value " + values[i], i, ranks.rank(values[i]));
+        }
+        assertThat(
+            VisitedRanks.ramBytesUsed(set),
+            lessThanOrEqualTo(4096L + 4L * values.length + 16L * set.getContainerCount() + 12288L * set.getContainerCount())
+        );
+    }
+
+    /**
+     * Over an ordinal space more than twice as large as the visited ordinals, hashes are found by rank, here across several
+     * blocks of 65536 ordinals, some dense and some sparse, and buckets still get exactly the sketches of their values.
+     */
+    public void testCollectIntoByRankAcrossBlocks() throws IOException {
+        int values = 4 * 65536 + randomIntBetween(0, 1000);
+        List<String[]> docs = new ArrayList<>(values);
+        for (int i = 0; i < values; i++) {
+            docs.add(doc("unused", app(i)));
+        }
+        withIndex(List.of(docs), searcher -> {
+            LeafReader reader = searcher.getIndexReader().leaves().get(0).reader();
+            SortedSetDocValues ords = reader.getSortedSetDocValues("app");
+            assertEquals(values, ords.getValueCount());
+            BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+            AtomicLong breaker = new AtomicLong();
+            Map<Long, Set<Integer>> expected = new HashMap<>();
+            try (
+                HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, bigArrays, 1);
+                BucketOrdinalBitmaps bitmaps = new BucketOrdinalBitmaps(bigArrays, breaker::addAndGet)
+            ) {
+                // a dense block from a few big buckets, then single values, small and medium buckets spread over all blocks
+                int denseBlock = randomInt(3);
+                for (long bucket = 0; bucket < 3; bucket++) {
+                    for (int i = 0; i < 20_000; i++) {
+                        int ord = (denseBlock << 16) + randomInt(65535);
+                        bitmaps.add(bucket, ord);
+                        expected.computeIfAbsent(bucket, b -> new HashSet<>()).add(ord);
+                    }
+                }
+                int buckets = randomIntBetween(100, 2000);
+                for (long bucket = 3; bucket < buckets; bucket++) {
+                    int size = randomFrom(1, randomIntBetween(2, 64), randomIntBetween(65, 300));
+                    for (int i = 0; i < size; i++) {
+                        int ord = randomInt(values - 1);
+                        bitmaps.add(bucket, ord);
+                        expected.computeIfAbsent(bucket, b -> new HashSet<>()).add(ord);
+                    }
+                }
+                long visited = expected.values().stream().flatMap(Set::stream).distinct().count();
+                assertTrue("hashes must be found by rank", values > 2 * visited);
+                bitmaps.collectInto(counts, ords);
+                for (long bucket = 0; bucket < buckets; bucket++) {
+                    try (HyperLogLogPlusPlus sketch = new HyperLogLogPlusPlus(HyperLogLogPlusPlus.DEFAULT_PRECISION, bigArrays, 1)) {
+                        MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
+                        for (int ord : expected.getOrDefault(bucket, Set.of())) {
+                            BytesRef value = ords.lookupOrd(ord);
+                            MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
+                            sketch.collect(0, hash.h1);
+                        }
+                        assertEquals("bucket " + bucket, sketch.cardinality(0), counts.cardinality(bucket));
+                        assertTrue("bucket " + bucket, sketch.equals(0, counts, bucket));
+                    }
+                }
+            }
+            assertEquals("breaker must be released", 0, breaker.get());
+        });
     }
 
     // ---------------------------------------------------------------------------------------------------------------

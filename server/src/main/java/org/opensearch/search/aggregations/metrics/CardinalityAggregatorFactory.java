@@ -69,7 +69,12 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
      */
     public enum ExecutionMode {
         DIRECT,
-        ORDINALS;
+        ORDINALS,
+        /**
+         * Collect the global ordinals of each bucket for the whole shard, building them if needed, and only hash the values of
+         * the buckets the parent keeps. Only applies under a parent with many buckets.
+         */
+        DEFERRED_ORDINALS;
 
         ExecutionMode() {}
 
@@ -77,7 +82,9 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
             try {
                 return ExecutionMode.valueOf(value.toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Unknown execution_hint: [" + value + "], expected any of [direct, ordinals]");
+                throw new IllegalArgumentException(
+                    "Unknown execution_hint: [" + value + "], expected any of [direct, ordinals, deferred_ordinals]"
+                );
             }
         }
 
@@ -107,7 +114,43 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, CardinalityAggregator::new, true);
+        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, new CardinalityAggregatorSupplier() {
+            @Override
+            public Aggregator build(
+                String name,
+                ValuesSourceConfig valuesSourceConfig,
+                int precision,
+                SearchContext context,
+                Aggregator parent,
+                Map<String, Object> metadata,
+                ExecutionMode executionMode
+            ) throws IOException {
+                return new CardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata, executionMode);
+            }
+
+            @Override
+            public Aggregator build(
+                String name,
+                ValuesSourceConfig valuesSourceConfig,
+                int precision,
+                SearchContext context,
+                Aggregator parent,
+                CardinalityUpperBound cardinality,
+                Map<String, Object> metadata,
+                ExecutionMode executionMode
+            ) throws IOException {
+                return new CardinalityAggregator(
+                    name,
+                    valuesSourceConfig,
+                    precision,
+                    context,
+                    parent,
+                    cardinality,
+                    metadata,
+                    executionMode
+                );
+            }
+        }, true);
     }
 
     @Override
@@ -137,11 +180,11 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory impleme
         }
 
         if (searchContext.isStreamSearch() && searchContext.getFlushMode() == FlushMode.PER_SEGMENT) {
-            return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, metadata, executionMode);
+            return new StreamCardinalityAggregator(name, config, precision(), searchContext, parent, cardinality, metadata, executionMode);
         }
         return queryShardContext.getValuesSourceRegistry()
             .getAggregator(CardinalityAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, precision(), searchContext, parent, metadata, executionMode);
+            .build(name, config, precision(), searchContext, parent, cardinality, metadata, executionMode);
     }
 
     @Override

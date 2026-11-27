@@ -33,6 +33,7 @@
 package org.opensearch.search.aggregations.metrics;
 
 import org.opensearch.search.aggregations.Aggregator;
+import org.opensearch.search.aggregations.CardinalityUpperBound;
 import org.opensearch.search.aggregations.support.ValuesSourceConfig;
 import org.opensearch.search.internal.SearchContext;
 
@@ -54,4 +55,21 @@ public interface CardinalityAggregatorSupplier {
         Map<String, Object> metadata,
         CardinalityAggregatorFactory.ExecutionMode executionMode
     ) throws IOException;
+
+    /**
+     * Builds the aggregator knowing how many buckets its parent can collect into. Defaults to
+     * {@link #build(String, ValuesSourceConfig, int, SearchContext, Aggregator, Map, CardinalityAggregatorFactory.ExecutionMode)}.
+     */
+    default Aggregator build(
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        int precision,
+        SearchContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata,
+        CardinalityAggregatorFactory.ExecutionMode executionMode
+    ) throws IOException {
+        return build(name, valuesSourceConfig, precision, context, parent, metadata, executionMode);
+    }
 }

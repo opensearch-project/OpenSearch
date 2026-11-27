@@ -1325,7 +1325,9 @@ final class DefaultSearchContext extends SearchContext {
                 .get(CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_ENABLED);
             ByteSizeValue memoryThreshold = clusterService.getClusterSettings()
                 .get(CardinalityAggregator.CARDINALITY_AGGREGATION_HYBRID_COLLECTOR_MEMORY_THRESHOLD);
-            return CardinalityAggregationContext.from(hybridCollectorEnabled, memoryThreshold);
+            boolean compactSketchesEnabled = clusterService.getClusterSettings()
+                .get(CardinalityAggregator.CARDINALITY_AGGREGATION_COMPACT_SKETCHES_ENABLED);
+            return CardinalityAggregationContext.from(hybridCollectorEnabled, memoryThreshold, compactSketchesEnabled);
         }
         return new CardinalityAggregationContext(false, Runtime.getRuntime().maxMemory() / 100);
     }
