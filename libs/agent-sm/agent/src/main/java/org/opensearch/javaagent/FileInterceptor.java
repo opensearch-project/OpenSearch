@@ -80,11 +80,15 @@ public class FileInterceptor {
         if (isDelete == true) {
             final Collection<Class<?>> chain = walker.walk(StackCallerClassChainExtractor.INSTANCE);
 
-            if (walker.getCallerClass().getName().equalsIgnoreCase("sun.nio.ch.PipeImpl$Initializer$LoopbackConnector") == true) {
+            // Require that this class comes from the bootstrap class loader (null)
+            // so a class with the same name in another classloader can't change behavior
+            final Class<?> callerClass = walker.getCallerClass();
+            if (callerClass.getClassLoader() == null
+                && callerClass.getName().equals("sun.nio.ch.PipeImpl$Initializer$LoopbackConnector") == true) {
                 isUnixSocketCaller = true;
             } else {
                 for (final Class<?> caller : chain) {
-                    if (caller.getName().equalsIgnoreCase("sun.nio.ch.PipeImpl$Initializer$LoopbackConnector")) {
+                    if (caller.getClassLoader() == null && caller.getName().equals("sun.nio.ch.PipeImpl$Initializer$LoopbackConnector")) {
                         isUnixSocketCaller = true;
                         break;
                     }

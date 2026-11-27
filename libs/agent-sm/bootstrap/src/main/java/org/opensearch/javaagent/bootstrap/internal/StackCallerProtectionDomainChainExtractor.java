@@ -25,15 +25,28 @@ public final class StackCallerProtectionDomainChainExtractor implements Function
      */
     public static final StackCallerProtectionDomainChainExtractor INSTANCE = new StackCallerProtectionDomainChainExtractor();
 
-    private static final StackWalker STACK_WALKER = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE);
     /**
-     * Classes that are used to check if the stack frame is from AccessController. Temporarily supports both the
-     * AccessController from the JDK (marked for removal) and its replacement in the Java Agent.
+     * The JDK AccessController (marked for removal), temporarily supported alongside its replacement in the Java Agent.
      */
-    private static final Set<String> ACCESS_CONTROLLER_CLASSES = Set.of(
-        "java.security.AccessController",
-        "org.opensearch.secure_sm.AccessController"
-    );
+    @SuppressWarnings("removal")
+    private static final Class<?> JDK_ACCESS_CONTROLLER = java.security.AccessController.class;
+
+    /**
+     * Holder for the OpenSearch AccessController. It is not on the boot class path, so it can't be
+     * referenced directly from here. The trusted copy is the one defined by the system class loader,
+     * so resolve it on first use.
+     */
+    private static final class OpenSearchAccessController {
+        static final Class<?> CLASS = load();
+
+        private static Class<?> load() {
+            try {
+                return Class.forName("org.opensearch.secure_sm.AccessController", false, ClassLoader.getSystemClassLoader());
+            } catch (ClassNotFoundException | LinkageError e) {
+                return null;
+            }
+        }
+    }
 
     private static final Set<String> DO_PRIVILEGED_METHODS = Set.of("doPrivileged", "doPrivilegedChecked");
 
@@ -48,13 +61,24 @@ public final class StackCallerProtectionDomainChainExtractor implements Function
      */
     @Override
     public Collection<ProtectionDomain> apply(Stream<StackFrame> frames) {
-        return frames.takeWhile(
-            frame -> !(ACCESS_CONTROLLER_CLASSES.contains(frame.getClassName()) && DO_PRIVILEGED_METHODS.contains(frame.getMethodName()))
-        )
+        return frames.takeWhile(frame -> isPrivilegedFrame(frame) == false)
             .map(StackFrame::getDeclaringClass)
             .map(Class::getProtectionDomain)
             .filter(pd -> pd.getCodeSource() != null) // Filter out JDK classes
             .filter(pd -> !"jrt".equals(pd.getCodeSource().getLocation().getProtocol())) // Filter out codesources beginning with jrt:
             .collect(Collectors.toSet());
+    }
+
+    /**
+     * Checks whether the frame is a call to doPrivileged on a trusted AccessController.
+     * @param frame stack frame
+     * @return whether callers below this frame should be excluded from permission checks
+     */
+    private static boolean isPrivilegedFrame(StackFrame frame) {
+        final Class<?> clazz = frame.getDeclaringClass();
+        if (clazz != JDK_ACCESS_CONTROLLER && clazz != OpenSearchAccessController.CLASS) {
+            return false;
+        }
+        return DO_PRIVILEGED_METHODS.contains(frame.getMethodName());
     }
 }

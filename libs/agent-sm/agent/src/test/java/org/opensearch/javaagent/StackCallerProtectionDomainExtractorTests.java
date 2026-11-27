@@ -12,14 +12,20 @@ import org.opensearch.javaagent.bootstrap.internal.StackCallerProtectionDomainCh
 import org.junit.Assume;
 import org.junit.Test;
 
+import java.io.InputStream;
 import java.lang.invoke.MethodType;
+import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.AccessController;
+import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
+import java.security.cert.Certificate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -29,7 +35,9 @@ import java.util.stream.Stream;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotSame;
 import static org.junit.Assert.assertThrows;
 
 public class StackCallerProtectionDomainExtractorTests {
@@ -349,4 +357,50 @@ public class StackCallerProtectionDomainExtractorTests {
         );
     }
 
+    @Test
+    public void testAccessControllerFromAnotherClassLoaderDoesNotTruncateStack() throws Exception {
+        final Class<?> trusted = org.opensearch.secure_sm.AccessController.class;
+        final Class<?> spoofed = defineCopyInNewClassLoader(trusted);
+        assertNotSame(trusted, spoofed);
+        assertEquals(trusted.getName(), spoofed.getName());
+
+        // The test runner frames (e.g. JUnit) sit below the doPrivileged frame
+        final ProtectionDomain junit = Test.class.getProtectionDomain();
+        assertThat(extractInsideDoPrivileged(trusted), not(hasItem(junit)));
+        assertThat(extractInsideDoPrivileged(spoofed), hasItem(junit));
+    }
+
+    private static Collection<ProtectionDomain> extractInsideDoPrivileged(Class<?> accessController) throws Exception {
+        final Method doPrivileged = accessController.getMethod("doPrivileged", Supplier.class);
+        final Supplier<Collection<ProtectionDomain>> action = () -> StackCallerProtectionDomainChainExtractor.INSTANCE.apply(
+            captureStackFrames().stream()
+        );
+        @SuppressWarnings("unchecked")
+        final Collection<ProtectionDomain> domains = (Collection<ProtectionDomain>) doPrivileged.invoke(null, action);
+        return domains;
+    }
+
+    /**
+     * Defines a byte-for-byte copy of the class in a new class loader that delegates everything else to the original.
+     */
+    private static Class<?> defineCopyInNewClassLoader(Class<?> original) throws Exception {
+        final byte[] bytes;
+        try (InputStream in = original.getResourceAsStream(original.getSimpleName() + ".class")) {
+            bytes = in.readAllBytes();
+        }
+        final ProtectionDomain domain = new ProtectionDomain(new CodeSource(new URL("file:/spoofed"), (Certificate[]) null), null);
+        final ClassLoader loader = new ClassLoader(original.getClassLoader()) {
+            @Override
+            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                if (name.equals(original.getName()) == false) {
+                    return super.loadClass(name, resolve);
+                }
+                synchronized (getClassLoadingLock(name)) {
+                    final Class<?> loaded = findLoadedClass(name);
+                    return loaded != null ? loaded : defineClass(name, bytes, 0, bytes.length, domain);
+                }
+            }
+        };
+        return loader.loadClass(original.getName());
+    }
 }
