@@ -11,26 +11,33 @@ package org.opensearch.cluster.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.WriteRequest;
 import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.IndexRoutingTable;
 import org.opensearch.cluster.routing.IndexShardRoutingTable;
+import org.opensearch.cluster.routing.OperationRouting;
 import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.allocation.AwarenessReplicaBalance;
 import org.opensearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.opensearch.common.settings.Settings;
+import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.remotestore.RemoteStoreBaseIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.opensearch.cluster.metadata.IndexMetadata.SETTING_REPLICATION_TYPE;
 import static org.opensearch.test.NodeRoles.searchOnlyNode;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -316,5 +323,66 @@ public class SearchReplicaAwarenessAllocationIT extends RemoteStoreBaseIntegTest
                     .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 4).build())
             );
         });
+    }
+
+    /**
+     * With awareness attributes honored for search routing, searches coordinated in zone a must be served by the search
+     * replica in zone a. With them ignored (the default), both zones' search replicas are used.
+     */
+    public void testSearchReplicaRoutingPrefersLocalZone() throws Exception {
+        Settings commonSettings = Settings.builder()
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING.getKey() + "zone.values", "a,b")
+            .put(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.getKey(), "zone")
+            .build();
+        internalCluster().startClusterManagerOnlyNode(commonSettings);
+        internalCluster().startDataOnlyNodes(1, Settings.builder().put(commonSettings).put("node.attr.zone", "a").build());
+        internalCluster().startDataOnlyNodes(1, Settings.builder().put(commonSettings).put("node.attr.zone", "b").build());
+        String searchNodeA = internalCluster().startSearchOnlyNode(
+            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
+        );
+        String searchNodeB = internalCluster().startSearchOnlyNode(
+            Settings.builder().put(commonSettings).put("node.attr.zone", "b").build()
+        );
+        String coordinatorA = internalCluster().startCoordinatingOnlyNode(
+            Settings.builder().put(commonSettings).put("node.attr.zone", "a").build()
+        );
+
+        createIndex(
+            "test",
+            Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_SEARCH_REPLICAS, 2)
+                .put(SETTING_REPLICATION_TYPE, ReplicationType.SEGMENT)
+                .build()
+        );
+        ensureGreen("test");
+        client().prepareIndex("test").setId("1").setSource("foo", "bar").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        // each search replica must have the doc so that every response tells which node served it
+        for (String searchNode : List.of(searchNodeA, searchNodeB)) {
+            assertBusy(() -> assertHitCount(client(searchNode).prepareSearch("test").setSize(0).setPreference("_only_local").get(), 1));
+        }
+        String searchNodeAId = internalCluster().clusterService(searchNodeA).localNode().getId();
+        String searchNodeBId = internalCluster().clusterService(searchNodeB).localNode().getId();
+
+        // awareness attributes are ignored for search routing by default: both search replicas take turns
+        assertEquals(Set.of(searchNodeAId, searchNodeBId), searchNodeIds(coordinatorA, 10));
+
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().put(OperationRouting.IGNORE_AWARENESS_ATTRIBUTES, false))
+        );
+        assertEquals(Set.of(searchNodeAId), searchNodeIds(coordinatorA, 10));
+    }
+
+    private Set<String> searchNodeIds(String coordinatingNode, int numSearches) {
+        Set<String> nodeIds = new HashSet<>();
+        for (int i = 0; i < numSearches; i++) {
+            SearchResponse response = client(coordinatingNode).prepareSearch("test").setQuery(QueryBuilders.matchAllQuery()).get();
+            nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
+        }
+        return nodeIds;
     }
 }

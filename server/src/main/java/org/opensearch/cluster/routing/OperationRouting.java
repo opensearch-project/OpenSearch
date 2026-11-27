@@ -471,7 +471,10 @@ public class OperationRouting {
                 case REPLICA_FIRST:
                     return indexShard.replicaFirstActiveInitializingShardsIt();
                 case SEARCH_REPLICA:
-                    return indexShard.searchReplicaActiveInitializingShardIt();
+                    if (ignoreAwarenessAttributes()) {
+                        return indexShard.searchReplicaActiveInitializingShardIt();
+                    }
+                    return indexShard.searchReplicaPreferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes);
                 case ONLY_LOCAL:
                     return indexShard.onlyNodeActiveInitializingShardsIt(localNodeId);
                 case ONLY_NODES:
