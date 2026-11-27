@@ -178,6 +178,34 @@ class S3Repository extends MeteredBlobStoreRepository {
     });
 
     /**
+     * Access point this repository reads through when pulling a server-side copy from another repository's bucket.
+     * Accepts a full access point ARN or an access point alias; either is usable in place of a bucket name for object
+     * operations.
+     *
+     * <p>Set on the repository that <em>receives</em> the copy, not on the one holding the source. Which access
+     * point a given identity may read through is a property of the grant made to that identity rather than of the
+     * source bucket, so two repositories reading the same bucket can legitimately be granted on different access
+     * points. A single value on the shared source repository could not express that.
+     *
+     * <p>Naming an access point here grants nothing by itself: the access point's own policy decides which
+     * principals it admits and which prefix they are confined to, so a caller holding no grant on it is denied.
+     *
+     * <p>This is the only setting server-side copy adds. Every other input already exists:
+     *
+     * <ul>
+     *   <li><b>Source</b> bucket, path and ownership guard come from the source repository's
+     *       {@link #BUCKET_SETTING}, {@link #BASE_PATH_SETTING} and {@link #EXPECTED_BUCKET_OWNER_SETTING}.</li>
+     *   <li><b>Destination</b> bucket, path and ownership guard come from this repository's own
+     *       {@link #BUCKET_SETTING}, {@link #BASE_PATH_SETTING} and {@link #EXPECTED_BUCKET_OWNER_SETTING}, and this
+     *       repository's credentials sign the copy.</li>
+     * </ul>
+     *
+     * <p>Reading through the access point is what makes its policy - and therefore its prefix confinement - govern
+     * the copy. Addressing the source bucket directly would bypass it.
+     */
+    static final Setting<String> SOURCE_ACCESS_POINT_SETTING = Setting.simpleString("source_access_point");
+
+    /**
      * Type of Async client to be used for S3 Uploads. Defaults to crt.
      */
     static final Setting<String> S3_ASYNC_HTTP_CLIENT_TYPE = Setting.simpleString(

@@ -8,6 +8,7 @@
 
 package org.opensearch.repositories.s3.utils;
 
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
@@ -35,6 +36,36 @@ public class SseKmsUtil {
 
     public static void configureEncryptionSettings(
         CreateMultipartUploadRequest.Builder builder,
+        S3BlobStore blobStore,
+        @Nullable CryptoMetadata cryptoMetadata
+    ) {
+        if (blobStore.serverSideEncryptionType().equals(ServerSideEncryption.AES256.toString())) {
+            builder.serverSideEncryption(ServerSideEncryption.AES256);
+        } else if (blobStore.serverSideEncryptionType().equals(ServerSideEncryption.AWS_KMS.toString())) {
+            String indexKmsKey = null;
+            String indexEncContext = null;
+
+            if (cryptoMetadata != null) {
+                indexKmsKey = cryptoMetadata.getKeyArn().orElse(null);
+                indexEncContext = cryptoMetadata.getEncryptionContext().orElse(null);
+            }
+
+            String kmsKey = (indexKmsKey != null) ? indexKmsKey : blobStore.serverSideEncryptionKmsKey();
+            String encContext = mergeAndEncodeEncryptionContexts(indexEncContext, blobStore.serverSideEncryptionEncryptionContext());
+
+            builder.serverSideEncryption(ServerSideEncryption.AWS_KMS);
+            builder.ssekmsKeyId(kmsKey);
+            builder.bucketKeyEnabled(blobStore.serverSideEncryptionBucketKey());
+            builder.ssekmsEncryptionContext(encContext);
+        }
+    }
+
+    /**
+     * Applies the repository's encryption settings to a server-side copy, so a copied object is encrypted the same
+     * way an uploaded one would be rather than falling back to the destination bucket's default.
+     */
+    public static void configureEncryptionSettings(
+        CopyObjectRequest.Builder builder,
         S3BlobStore blobStore,
         @Nullable CryptoMetadata cryptoMetadata
     ) {
