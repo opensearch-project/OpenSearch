@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionType;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -48,6 +49,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskListener;
 import org.opensearch.tasks.TaskManager;
 
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -59,6 +61,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public abstract class TransportAction<Request extends ActionRequest, Response extends ActionResponse> {
 
     public final String actionName;
+    private final Set<String> legacyActionNames;
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
     /**
@@ -68,7 +71,16 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     protected Logger logger = LogManager.getLogger(getClass());
 
     protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
+        this(actionName, Set.of(), actionFilters, taskManager);
+    }
+
+    protected TransportAction(ActionType<?> action, ActionFilters actionFilters, TaskManager taskManager) {
+        this(action.name(), action.legacyActionNames(), actionFilters, taskManager);
+    }
+
+    private TransportAction(String actionName, Set<String> legacyActionNames, ActionFilters actionFilters, TaskManager taskManager) {
         this.actionName = actionName;
+        this.legacyActionNames = Set.copyOf(legacyActionNames);
         this.filters = actionFilters.filters();
         this.taskManager = taskManager;
     }
@@ -188,6 +200,10 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
 
         RequestFilterChain<Request, Response> requestFilterChain = new RequestFilterChain<>(this, logger);
         requestFilterChain.proceed(task, actionName, request, listener);
+    }
+
+    Set<String> legacyActionNames() {
+        return legacyActionNames;
     }
 
     protected abstract void doExecute(Task task, Request request, ActionListener<Response> listener);

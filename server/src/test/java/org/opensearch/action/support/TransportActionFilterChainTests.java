@@ -35,6 +35,7 @@ package org.opensearch.action.support;
 import org.opensearch.OpenSearchTimeoutException;
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.ActionType;
 import org.opensearch.action.LatchedActionListener;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.action.ActionListener;
@@ -45,6 +46,7 @@ import org.opensearch.tasks.Task;
 import org.opensearch.tasks.TaskManager;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -60,10 +62,15 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockingDetails;
+import static org.mockito.Mockito.when;
 
 public class TransportActionFilterChainTests extends OpenSearchTestCase {
 
@@ -219,6 +226,91 @@ public class TransportActionFilterChainTests extends OpenSearchTestCase {
         for (Throwable failure : failures) {
             assertThat(failure, instanceOf(IllegalStateException.class));
         }
+    }
+
+    public void testLegacyLookupUsesCanonicalNameForTasksAndFilters() throws Exception {
+        String canonicalActionName = "canonical:action";
+        String legacyActionName = "legacy:action";
+        AtomicReference<String> filteredActionName = new AtomicReference<>();
+        AtomicReference<Set<String>> legacyActionNames = new AtomicReference<>();
+        ActionFilter filter = new ActionFilter() {
+            @Override
+            public int order() {
+                return 0;
+            }
+
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void apply(
+                Task task,
+                String action,
+                Request request,
+                ActionRequestMetadata<Request, Response> actionRequestMetadata,
+                ActionListener<Response> listener,
+                ActionFilterChain<Request, Response> chain
+            ) {
+                filteredActionName.set(action);
+                legacyActionNames.set(actionRequestMetadata.legacyActionNames());
+                chain.proceed(task, action, request, listener);
+            }
+        };
+        ActionType<TestResponse> action = new ActionType<>(canonicalActionName, null, Set.of(legacyActionName));
+        TransportAction<TestRequest, TestResponse> transportAction = new TransportAction<TestRequest, TestResponse>(
+            action,
+            new ActionFilters(Set.of(filter)),
+            new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet())
+        ) {
+            @Override
+            protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
+                listener.onResponse(new TestResponse());
+            }
+        };
+        PlainActionFuture<TestResponse> future = PlainActionFuture.newFuture();
+
+        org.opensearch.action.ActionModule.DynamicActionRegistry registry = new org.opensearch.action.ActionModule.DynamicActionRegistry();
+        ActionType<TestResponse> legacyAction = new ActionType<>(legacyActionName, null);
+        registry.registerUnmodifiableActionMap(java.util.Map.of(action, transportAction, legacyAction, transportAction));
+        try (
+            org.opensearch.transport.client.node.NodeClient client = new org.opensearch.transport.client.node.NodeClient(
+                Settings.EMPTY,
+                threadPool
+            )
+        ) {
+            client.initialize(registry, () -> "local", null, null);
+            Task task = client.executeLocally(legacyAction, new TestRequest(), future);
+            assertEquals(canonicalActionName, task.getAction());
+        }
+
+        assertNotNull(future.get());
+        assertEquals(canonicalActionName, filteredActionName.get());
+        assertEquals(Set.of(legacyActionName), legacyActionNames.get());
+    }
+
+    public void testHandledTransportActionRegistersLegacyActionNames() {
+        String canonicalActionName = "canonical:action";
+        String legacyActionName = "legacy:action";
+        ActionType<TestResponse> action = new ActionType<>(canonicalActionName, null, Set.of(legacyActionName));
+        TransportService transportService = mock(TransportService.class);
+        when(transportService.getTaskManager()).thenReturn(mock(TaskManager.class));
+
+        new HandledTransportAction<TestRequest, TestResponse>(
+            action,
+            transportService,
+            new ActionFilters(Set.of()),
+            input -> new TestRequest()
+        ) {
+            @Override
+            protected void doExecute(Task task, TestRequest request, ActionListener<TestResponse> listener) {
+                listener.onResponse(new TestResponse());
+            }
+        };
+
+        Set<String> registeredActionNames = mockingDetails(transportService).getInvocations()
+            .stream()
+            .filter(invocation -> invocation.getMethod().getName().equals("registerRequestHandler"))
+            .map(invocation -> (String) invocation.getArgument(0))
+            .collect(Collectors.toSet());
+        assertEquals(Set.of(canonicalActionName), registeredActionNames);
+        org.mockito.Mockito.verify(transportService).registerRequestHandlerAlias(legacyActionName, canonicalActionName);
     }
 
     private class RequestTestFilter implements ActionFilter {

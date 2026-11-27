@@ -67,6 +67,7 @@ import org.opensearch.usage.UsageService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -77,6 +78,15 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.mockito.Mockito.mock;
 
 public class ActionModuleTests extends OpenSearchTestCase {
+    private static class FakeTransportAction extends TransportAction<ActionRequest, ActionResponse> {
+        protected FakeTransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
+            super(actionName, actionFilters, taskManager);
+        }
+
+        @Override
+        protected void doExecute(Task task, ActionRequest request, ActionListener<ActionResponse> listener) {}
+    }
+
     public void testSetupActionsContainsKnownBuiltin() {
         assertThat(
             ActionModule.setupActions(emptyList()),
@@ -126,6 +136,35 @@ public class ActionModuleTests extends OpenSearchTestCase {
             ActionModule.setupActions(singletonList(registersFakeAction)),
             hasEntry("fake", new ActionHandler<>(action, FakeTransportAction.class))
         );
+    }
+
+    public void testPluginCanRegisterLegacyActionName() {
+        ActionType<ActionResponse> action = new ActionType<>("fake", null, Set.of("legacy:fake"));
+        ActionHandler<ActionRequest, ActionResponse> handler = new ActionHandler<>(action, FakeTransportAction.class);
+        ActionPlugin plugin = new ActionPlugin() {
+            @Override
+            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+                return singletonList(handler);
+            }
+        };
+
+        Map<String, ActionHandler<?, ?>> actions = ActionModule.setupActions(singletonList(plugin));
+
+        assertSame(handler, actions.get("fake"));
+        assertSame(handler, actions.get("legacy:fake"));
+    }
+
+    public void testPluginLegacyActionNameMustBeUnique() {
+        ActionType<ActionResponse> action = new ActionType<>("fake", null, Set.of(MainAction.NAME));
+        ActionPlugin plugin = new ActionPlugin() {
+            @Override
+            public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+                return singletonList(new ActionHandler<>(action, FakeTransportAction.class));
+            }
+        };
+
+        Exception exception = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(singletonList(plugin)));
+        assertEquals("action for name [" + MainAction.NAME + "] already registered", exception.getMessage());
     }
 
     public void testSetupRestHandlerContainsKnownBuiltin() throws IOException {

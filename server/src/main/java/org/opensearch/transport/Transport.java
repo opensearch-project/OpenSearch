@@ -347,10 +347,27 @@ public interface Transport extends LifecycleComponent {
             requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
         }
 
+        synchronized void registerAlias(String alias, String action) {
+            if (requestHandlers.containsKey(alias)) {
+                throw new IllegalArgumentException("transport handlers for action " + alias + " is already registered");
+            }
+            RequestHandlerRegistry<?> handler = requestHandlers.get(action);
+            if (handler == null) {
+                throw new IllegalArgumentException("transport handler for action " + action + " is not registered");
+            }
+            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(alias, handler).immutableMap();
+        }
+
         // TODO: Only visible for testing. Perhaps move StubbableTransport from
         // org.opensearch.test.transport to org.opensearch.transport
         public synchronized <Request extends TransportRequest> void forceRegister(RequestHandlerRegistry<Request> reg) {
-            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
+            MapBuilder<String, RequestHandlerRegistry<? extends TransportRequest>> handlers = MapBuilder.newMapBuilder(requestHandlers);
+            requestHandlers.forEach((name, existing) -> {
+                if (existing.getAction().equals(reg.getAction())) {
+                    handlers.put(name, reg);
+                }
+            });
+            requestHandlers = handlers.put(reg.getAction(), reg).immutableMap();
         }
 
         @SuppressWarnings("unchecked")

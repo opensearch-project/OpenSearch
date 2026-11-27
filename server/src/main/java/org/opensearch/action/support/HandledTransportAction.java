@@ -32,6 +32,7 @@
 package org.opensearch.action.support;
 
 import org.opensearch.action.ActionRequest;
+import org.opensearch.action.ActionType;
 import org.opensearch.core.action.ActionResponse;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
@@ -41,14 +42,70 @@ import org.opensearch.transport.TransportChannel;
 import org.opensearch.transport.TransportRequestHandler;
 import org.opensearch.transport.TransportService;
 
+import java.util.Set;
+
 /**
- * A TransportAction that self registers a handler into the transport service
+ * A TransportAction that self registers a handler into the transport service.
+ * Use an {@link ActionType} constructor to register its legacy names as aliases of the canonical handler.
+ * String constructors register only the supplied name.
  *
  * @opensearch.internal
  */
 public abstract class HandledTransportAction<Request extends ActionRequest, Response extends ActionResponse> extends TransportAction<
     Request,
     Response> {
+
+    /**
+     * Registers the action and its legacy names using {@link ThreadPool.Names#SAME}, with circuit-breaker checks
+     * enabled and no admission-control action type. All names execute through the canonical handler.
+     *
+     * @param action the canonical action and its registered legacy names
+     * @param transportService the service in which to register the handler
+     * @param actionFilters filters applied before executing the action
+     * @param requestReader reader for incoming transport requests
+     */
+    protected HandledTransportAction(
+        ActionType<Response> action,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader
+    ) {
+        this(action, true, null, transportService, actionFilters, requestReader, ThreadPool.Names.SAME);
+    }
+
+    /**
+     * Registers one canonical handler and makes each legacy name resolve to that same handler.
+     * Transport interception, receiving tasks and action filters use the canonical name, regardless of the name
+     * used to look up the handler. Legacy names remain available in {@link ActionRequestMetadata} for permission matching.
+     *
+     * @param action the canonical action and its registered legacy names
+     * @param canTripCircuitBreaker whether incoming requests are subject to the transport circuit-breaker check
+     * @param admissionControlActionType admission-control category, or {@code null} when none is specified
+     * @param transportService the service in which to register the handler
+     * @param actionFilters filters applied before executing the action
+     * @param requestReader reader for incoming transport requests
+     * @param executor executor used for incoming requests
+     */
+    protected HandledTransportAction(
+        ActionType<Response> action,
+        boolean canTripCircuitBreaker,
+        AdmissionControlActionType admissionControlActionType,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Writeable.Reader<Request> requestReader,
+        String executor
+    ) {
+        super(action, actionFilters, transportService.getTaskManager());
+        registerRequestHandlers(
+            transportService,
+            action.name(),
+            action.legacyActionNames(),
+            executor,
+            canTripCircuitBreaker,
+            admissionControlActionType,
+            requestReader
+        );
+    }
 
     protected HandledTransportAction(
         String actionName,
@@ -109,6 +166,26 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
     ) {
         super(actionName, actionFilters, transportService.getTaskManager());
 
+        registerRequestHandlers(
+            transportService,
+            actionName,
+            Set.of(),
+            executor,
+            canTripCircuitBreaker,
+            admissionControlActionType,
+            requestReader
+        );
+    }
+
+    private void registerRequestHandlers(
+        TransportService transportService,
+        String actionName,
+        Set<String> legacyActionNames,
+        String executor,
+        boolean canTripCircuitBreaker,
+        AdmissionControlActionType admissionControlActionType,
+        Writeable.Reader<Request> requestReader
+    ) {
         transportService.registerRequestHandler(
             actionName,
             executor,
@@ -118,7 +195,9 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
             requestReader,
             new TransportHandler()
         );
-
+        for (String legacyActionName : legacyActionNames) {
+            transportService.registerRequestHandlerAlias(legacyActionName, actionName);
+        }
     }
 
     /**
