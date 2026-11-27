@@ -39,6 +39,7 @@ import com.sun.net.httpserver.HttpsExchange;
 import com.sun.net.httpserver.HttpsParameters;
 import com.sun.net.httpserver.HttpsServer;
 
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.client.Request;
 import org.opensearch.client.Response;
 import org.opensearch.client.RestClient;
@@ -142,12 +143,9 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
         final ReindexSslConfig ssl = new ReindexSslConfig(settings, environment, mock(ResourceWatcherService.class));
         try (RestClient client = Reindexer.buildRestClient(getRemoteInfo(), ssl, 1L, threads)) {
             var exception = expectThrows(Exception.class, () -> client.performRequest(new Request("GET", "/")));
-            var rootCause = exception.getCause().getCause().getCause().getCause();
-            assertThat(rootCause, Matchers.instanceOf(CertPathBuilderException.class));
-            assertThat(
-                rootCause.getMessage(),
-                Matchers.containsString("No issuer certificate for certificate in certification path found")
-            );
+            // The trust manager cannot build a certification path to the server certificate. Where that failure sits in the cause
+            // chain, and its message, differ between TLS providers, so only its type is checked.
+            assertThat(ExceptionsHelper.unwrap(exception, CertPathBuilderException.class), Matchers.notNullValue());
         }
     }
 
@@ -214,8 +212,9 @@ public class ReindexRestClientSslTests extends OpenSearchTestCase {
             assertThat(certs, Matchers.arrayWithSize(1));
             assertThat(certs[0], Matchers.instanceOf(X509Certificate.class));
             final X509Certificate clientCert = (X509Certificate) certs[0];
-            assertThat(clientCert.getSubjectDN().getName(), Matchers.is("CN=localhost,OU=UNIT,O=ORG,L=TORONTO,ST=ONTARIO,C=CA"));
-            assertThat(clientCert.getIssuerDN().getName(), Matchers.is("CN=OpenSearch Test Node"));
+            // getSubjectDN() formats the name differently per provider, getSubjectX500Principal().getName() always as RFC 2253.
+            assertThat(clientCert.getSubjectX500Principal().getName(), Matchers.is("CN=localhost,OU=UNIT,O=ORG,L=TORONTO,ST=ONTARIO,C=CA"));
+            assertThat(clientCert.getIssuerX500Principal().getName(), Matchers.is("CN=OpenSearch Test Node"));
         }
     }
 

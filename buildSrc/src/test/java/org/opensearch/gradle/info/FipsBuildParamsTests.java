@@ -14,42 +14,56 @@ import java.util.function.Function;
 
 public class FipsBuildParamsTests extends GradleUnitTestCase {
 
-    public void testIsInFipsApprovedOnlyMode() {
+    public void testIsFipsModeEnabled() {
         FipsBuildParams.init(cryptoEntryFnWithStringParam);
 
         FipsBuildParams.fipsModeEnvSupplier = () -> "true";
-        assertTrue(FipsBuildParams.isInFipsApprovedOnlyMode());
+        assertTrue(FipsBuildParams.isFipsModeEnabled());
 
         FipsBuildParams.fipsModeEnvSupplier = () -> "TRUE";
-        assertTrue(FipsBuildParams.isInFipsApprovedOnlyMode());
+        assertTrue(FipsBuildParams.isFipsModeEnabled());
 
         FipsBuildParams.fipsModeEnvSupplier = () -> "false";
-        assertFalse(FipsBuildParams.isInFipsApprovedOnlyMode());
+        assertFalse(FipsBuildParams.isFipsModeEnabled());
 
         FipsBuildParams.fipsModeEnvSupplier = () -> null;
-        assertFalse(FipsBuildParams.isInFipsApprovedOnlyMode());
+        assertFalse(FipsBuildParams.isFipsModeEnabled());
 
-        // Not in FIPS mode — should always be false regardless of env var
+        // Not a FIPS build: FIPS mode stays off regardless of the env var
         FipsBuildParams.init(param -> null);
         FipsBuildParams.fipsModeEnvSupplier = () -> "true";
-        assertFalse(FipsBuildParams.isInFipsApprovedOnlyMode());
+        assertFalse(FipsBuildParams.isFipsModeEnabled());
 
         // Reset
         FipsBuildParams.fipsModeEnvSupplier = () -> System.getenv("OPENSEARCH_FIPS_MODE");
     }
 
-    public void testIsInFipsMode() {
+    public void testIsFipsBuild() {
         FipsBuildParams.init(cryptoEntryFnWithStringParam);
-        assertTrue(FipsBuildParams.isInFipsMode());
+        assertTrue(FipsBuildParams.isFipsBuild());
 
         FipsBuildParams.init(cryptoEntryFnWithBooleanParam);
-        assertTrue(FipsBuildParams.isInFipsMode());
+        assertTrue(FipsBuildParams.isFipsBuild());
 
         FipsBuildParams.init(param -> "FIPS-140-2");
-        assertFalse(FipsBuildParams.isInFipsMode());
+        assertFalse(FipsBuildParams.isFipsBuild());
 
         FipsBuildParams.init(param -> null);
-        assertFalse(FipsBuildParams.isInFipsMode());
+        assertFalse(FipsBuildParams.isFipsBuild());
+    }
+
+    @SuppressWarnings("deprecation")
+    public void testDeprecatedNamesDelegate() {
+        FipsBuildParams.init(cryptoEntryFnWithStringParam);
+        FipsBuildParams.fipsModeEnvSupplier = () -> "true";
+        assertTrue(FipsBuildParams.isInFipsMode());
+        assertTrue(FipsBuildParams.isInFipsApprovedOnlyMode());
+
+        FipsBuildParams.fipsModeEnvSupplier = () -> "false";
+        assertTrue(FipsBuildParams.isInFipsMode());
+        assertFalse(FipsBuildParams.isInFipsApprovedOnlyMode());
+
+        FipsBuildParams.fipsModeEnvSupplier = () -> System.getenv("OPENSEARCH_FIPS_MODE");
     }
 
     public void testGetFipsMode() {

@@ -32,6 +32,8 @@
 
 package org.opensearch.common;
 
+import org.opensearch.common.crypto.FipsApprovedOnlyMode;
+
 import java.lang.reflect.Method;
 import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
@@ -115,15 +117,13 @@ public final class Randomness {
      * }
      * if BCFIPS is on classpath and the application is running in FIPS JVM,
      * otherwise it returns a non-approved {@link SecureRandom}.
+     * If that fails, it falls back to {@link SecureRandom#getInstanceStrong()}. In a FIPS JVM the launcher's java.security names only
+     * BCFIPS as a strong algorithm, so without BCFIPS this throws a {@link SecurityException} instead of returning a non-approved
+     * generator.
      */
     public static SecureRandom createSecure() {
         try {
-            // Equivalent to: boolean approvedOnly = CryptoServicesRegistrar.isInApprovedOnlyMode()
-            var registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
-            var isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
-            var approvedOnly = (Boolean) isApprovedOnlyMethod.invoke(null);
-
-            if (approvedOnly) {
+            if (FipsApprovedOnlyMode.isActive()) {
                 var isPredictionResistant = true;
                 var entropySource = SecureRandom.getInstance("DEFAULT", "BCFIPS");
 

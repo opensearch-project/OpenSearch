@@ -48,6 +48,7 @@ import org.opensearch.common.PidFile;
 import org.opensearch.common.SuppressForbidden;
 import org.opensearch.common.bootstrap.JarHell;
 import org.opensearch.common.cli.EnvironmentAwareCommand;
+import org.opensearch.common.crypto.FipsApprovedOnlyMode;
 import org.opensearch.common.inject.CreationException;
 import org.opensearch.common.logging.LogConfigurator;
 import org.opensearch.common.logging.Loggers;
@@ -59,6 +60,7 @@ import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.common.settings.SecureString;
 import org.opensearch.core.common.transport.BoundTransportAddress;
 import org.opensearch.env.Environment;
+import org.opensearch.http.HttpTransportSettings;
 import org.opensearch.monitor.jvm.JvmInfo;
 import org.opensearch.monitor.os.OsProbe;
 import org.opensearch.monitor.process.ProcessProbe;
@@ -208,13 +210,10 @@ final class Bootstrap {
             BootstrapSettings.CTRLHANDLER_SETTING.get(settings)
         );
 
-        var cryptoStandard = System.getenv("OPENSEARCH_CRYPTO_STANDARD");
-        var fipsMode = System.getenv("OPENSEARCH_FIPS_MODE");
-
-        if ("FIPS-140-3".equals(cryptoStandard) || "true".equalsIgnoreCase(fipsMode)) {
+        if (isFipsModeRequested(System.getenv("OPENSEARCH_FIPS_MODE"), FipsApprovedOnlyMode.isActive())) {
             LogManager.getLogger(Bootstrap.class).info("running in FIPS-140-3 mode");
-            SecurityProviderManager.removeNonCompliantFipsProviders();
             FipsTrustStoreValidator.validate();
+            rejectHttp3InFipsMode(HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED.get(settings));
         }
 
         // initialize probes before the security manager is installed
@@ -492,6 +491,47 @@ final class Bootstrap {
     @SuppressForbidden(reason = "System#err")
     private static void closeSysError() {
         System.err.close();
+    }
+
+    /**
+     * Whether OpenSearch enforces its FIPS rules. The operator asks for them with {@code OPENSEARCH_FIPS_MODE=true}; the JVM must then
+     * actually run BouncyCastle FIPS in approved-only mode, which the launcher sets up. A JVM in approved-only mode without the
+     * variable is left alone: the operator configured FIPS at the JDK or OS level and did not ask OpenSearch to enforce anything.
+     *
+     * @param fipsModeEnv the value of {@code OPENSEARCH_FIPS_MODE}
+     * @param approvedOnly whether BouncyCastle FIPS runs in approved-only mode
+     * @throws IllegalStateException if FIPS mode is requested, but the JVM does not run in approved-only mode
+     */
+    static boolean isFipsModeRequested(String fipsModeEnv, boolean approvedOnly) {
+        final boolean requested = "true".equalsIgnoreCase(fipsModeEnv);
+        if (requested && approvedOnly == false) {
+            throw new IllegalStateException(
+                "OPENSEARCH_FIPS_MODE=true, but BouncyCastle FIPS does not run in approved-only mode. The launcher (bin/opensearch) "
+                    + "sets it up; check java.security.properties and org.bouncycastle.fips.approved_only in OPENSEARCH_JAVA_OPTS."
+            );
+        }
+        return requested;
+    }
+
+    /**
+     * FIPS mode offers no HTTP/3: QUIC encrypts with the BoringSSL library that the native codec bundles, not with BouncyCastle FIPS,
+     * so {@code Http3Utils.isHttp3Available()} returns false in approved-only mode. An explicit request for HTTP/3 fails the start
+     * instead of falling back to HTTP/1.1 and HTTP/2 without notice.
+     *
+     * @param http3Enabled the value of {@code http.protocol.http3.enabled}
+     * @throws IllegalStateException if HTTP/3 is enabled
+     */
+    static void rejectHttp3InFipsMode(boolean http3Enabled) {
+        if (http3Enabled) {
+            final String key = HttpTransportSettings.SETTING_HTTP_HTTP3_ENABLED.getKey();
+            throw new IllegalStateException(
+                key
+                    + " is true, but FIPS mode does not offer HTTP/3: QUIC encrypts with the BoringSSL library of the native codec "
+                    + "instead of BouncyCastle FIPS. Set "
+                    + key
+                    + " to false."
+            );
+        }
     }
 
     private static void checkLucene() {

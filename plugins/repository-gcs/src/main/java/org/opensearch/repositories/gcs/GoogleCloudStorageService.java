@@ -47,6 +47,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.opensearch.common.collect.MapBuilder;
+import org.opensearch.common.crypto.FipsApprovedOnlyMode;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.common.Strings;
 import org.opensearch.core.common.settings.SecureString;
@@ -60,7 +61,6 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.security.GeneralSecurityException;
 import java.security.KeyStore;
-import java.security.Security;
 import java.util.Enumeration;
 import java.util.Map;
 
@@ -231,7 +231,7 @@ public class GoogleCloudStorageService {
                 SecurityUtils.loadKeyStore(certTrustStore, trustStoreStream, truststorePassword.toString());
             }
             logger.debug("Loaded custom truststore from path: {} with type: {}", truststorePath, truststoreType);
-        } else if (Security.getProvider("BCFIPS") != null) {
+        } else if (FipsApprovedOnlyMode.isActive()) {
             // FIPS mode is active: create FIPS-compliant (BCFKS) truststore with Google default certs
             certTrustStore = createFipsCompliantGoogleTrustStore();
             logger.debug("Using FIPS-compliant Google default certificate trust store");

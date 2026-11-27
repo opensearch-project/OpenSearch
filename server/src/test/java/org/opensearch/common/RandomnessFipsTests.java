@@ -30,10 +30,13 @@ public class RandomnessFipsTests extends RandomnessTests {
         assertEquals("BCFIPS_RNG", Randomness.createSecure().getProvider().getName());
     }
 
-    public void testRecoveryAfterFailsCreateSecureInFipsJvm() {
-        // remove the BouncyCastle provider so that reflection throws a ReflectiveOperationException,
-        // and the default SUN SecureRandom implementation is returned.
+    public void testCreateSecureFailsWithoutTheFipsProvider() {
+        // Without BCFIPS no approved generator is left: the FIPS java.security names only BCFIPS in securerandom.strongAlgorithms,
+        // so createSecure() fails instead of falling back to a non-approved SUN generator.
         Security.removeProvider(BCFIPS);
-        assertEquals(SUN, Randomness.createSecure().getProvider().getName());
+
+        final SecurityException e = expectThrows(SecurityException.class, Randomness::createSecure);
+
+        assertTrue(e.getMessage().startsWith("Failed to instantiate SecureRandom"));
     }
 }

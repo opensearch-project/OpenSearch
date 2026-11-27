@@ -35,9 +35,11 @@ package org.opensearch.gradle;
 import com.github.jengelman.gradle.plugins.shadow.ShadowBasePlugin;
 
 import org.opensearch.gradle.info.BuildParams;
+import org.opensearch.gradle.info.FipsBuildParams;
 import org.opensearch.gradle.info.GlobalBuildInfoPlugin;
 import org.opensearch.gradle.jvm.JvmTestSuiteHelper;
 import org.opensearch.gradle.test.ErrorReportingTestListener;
+import org.opensearch.gradle.util.TestJavaSecurityFile;
 import org.opensearch.gradle.util.Util;
 import org.gradle.api.Action;
 import org.gradle.api.Plugin;
@@ -50,6 +52,7 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.testing.Test;
 
 import java.io.File;
+import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -152,12 +155,36 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                 test.systemProperty("tests.seed", BuildParams.getTestSeed());
             }
 
-            if (BuildParams.isInFipsJvm()) {
-                test.systemProperty(
-                    "java.security.properties",
-                    project.getRootProject().getLayout().getProjectDirectory() + "/distribution/src/config/fips_java.security"
-                );
+            // Like the distribution's launcher: a generated file replaces the JDK's java.security (note the leading "=" of the
+            // value, which makes it "-Djava.security.properties=="). In FIPS mode the providers of fips_java.security are the only
+            // ones; otherwise the JDK's providers are followed by BouncyCastle FIPS. Every other JDK default is kept.
+            // As in the distribution, OPENSEARCH_FIPS_MODE=true turns FIPS mode on. crypto.standard=FIPS-140-3 alone only puts
+            // BouncyCastle FIPS on the classpath. The FIPS file comes from the build tools jar, so external plugins get it too.
+            final File javaSecurityFile = project.getLayout()
+                .getBuildDirectory()
+                .file("java-security/" + test.getName() + ".security")
+                .get()
+                .getAsFile();
+            if (FipsBuildParams.isFipsModeEnabled()) {
+                final String fipsJavaSecurity = TestJavaSecurityFile.bundledFipsJavaSecurity();
+                test.getInputs().property("fipsJavaSecurity", fipsJavaSecurity);
+                test.doFirst(t -> TestJavaSecurityFile.writeFips(testJavaHome((Test) t), fipsJavaSecurity, javaSecurityFile.toPath()));
+                test.systemProperty("org.bouncycastle.fips.approved_only", "true");
+                // FIPS mode has no JKS or PKCS12 trust store, so test JVMs get the BCFKS trust store from the build tools jar too.
+                final File fipsTrustStore = project.getLayout()
+                    .getBuildDirectory()
+                    .file("java-security/" + test.getName() + "-truststore.bcfks")
+                    .get()
+                    .getAsFile();
+                test.doFirst(t -> TestJavaSecurityFile.writeFipsTrustStore(fipsTrustStore.toPath()));
+                nonInputProperties.systemProperty("javax.net.ssl.trustStore", fipsTrustStore);
+                test.systemProperty("javax.net.ssl.trustStoreType", TestJavaSecurityFile.FIPS_TRUST_STORE_TYPE);
+                test.systemProperty("javax.net.ssl.trustStoreProvider", TestJavaSecurityFile.FIPS_TRUST_STORE_PROVIDER);
+                test.systemProperty("javax.net.ssl.trustStorePassword", TestJavaSecurityFile.FIPS_TRUST_STORE_PASSWORD);
+            } else {
+                test.doFirst(t -> TestJavaSecurityFile.writeDefault(testJavaHome((Test) t), javaSecurityFile.toPath()));
             }
+            nonInputProperties.systemProperty("java.security.properties", "=" + javaSecurityFile);
 
             // don't track these as inputs since they contain absolute paths and break cache relocatability
             File gradleHome = project.getGradle().getGradleUserHomeDir();
@@ -231,5 +258,15 @@ public class OpenSearchTestBasePlugin implements Plugin<Project> {
                 );
             });
         });
+    }
+
+    /**
+     * The JDK that runs the test JVM, whose java.security the generated file is built from. Gradle starts the test JVM with the
+     * task's java launcher, which follows an explicitly set {@code executable}. This is not always
+     * {@link BuildParams#getRuntimeJavaHome()}: without runtime.java or RUNTIME_JAVA_HOME that falls back to Gradle's own JDK, while
+     * runtime-jdk-provision.gradle runs the tests on the provisioned bundled JDK.
+     */
+    private static Path testJavaHome(Test test) {
+        return test.getJavaLauncher().get().getMetadata().getInstallationPath().getAsFile().toPath();
     }
 }

@@ -50,6 +50,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
+import org.opensearch.common.crypto.FipsApprovedOnlyMode;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -82,17 +83,6 @@ public class GceInstancesServiceImpl implements GceInstancesService {
         Function.identity(),
         Property.NodeScope
     );
-
-    private static final Supplier<Boolean> inFipsMode = () -> {
-        try {
-            // Equivalent to: boolean approvedOnly = CryptoServicesRegistrar.isInApprovedOnlyMode()
-            var registrarClass = Class.forName("org.bouncycastle.crypto.CryptoServicesRegistrar");
-            var isApprovedOnlyMethod = registrarClass.getMethod("isInApprovedOnlyMode");
-            return (Boolean) isApprovedOnlyMethod.invoke(null);
-        } catch (ReflectiveOperationException e) {
-            return false;
-        }
-    };
 
     private final String project;
     private final List<String> zones;
@@ -203,7 +193,7 @@ public class GceInstancesServiceImpl implements GceInstancesService {
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
         if (gceHttpTransport == null) {
             if (validateCerts) {
-                if (inFipsMode.get()) {
+                if (FipsApprovedOnlyMode.isActive()) {
                     var trustStore = KeyStore.getInstance("BCFKS");
                     try (var in = getClass().getResourceAsStream("/google.bcfks")) {
                         if (in == null) {

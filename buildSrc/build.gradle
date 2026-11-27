@@ -68,6 +68,8 @@ def generateVersionProperties = tasks.register("generateVersionProperties", Writ
 
 processResources {
   from(generateVersionProperties)
+  // OpenSearchTestBasePlugin builds the java.security of FIPS test JVMs from this file, also for plugins built outside this repository.
+  from('../distribution/src/config/fips_java.security')
 }
 
 /*****************************************************************************
