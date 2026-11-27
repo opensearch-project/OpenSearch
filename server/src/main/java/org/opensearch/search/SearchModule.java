@@ -259,6 +259,7 @@ import org.opensearch.search.fetch.subphase.highlight.HighlightPhase;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.opensearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.opensearch.search.indexaware.IndexAwareSearchRequestProcessor;
 import org.opensearch.search.query.QueryCollectorContextSpecRegistry;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.search.query.QueryPhaseSearcher;
@@ -327,6 +328,8 @@ public class SearchModule {
 
     private final List<SearchPlugin.ProfileMetricsProvider> pluginProfilerProviders;
 
+    private final List<IndexAwareSearchRequestProcessor> indexAwareSearchRequestProcessors;
+
     /**
      * Constructs a new SearchModule object
      * <p>
@@ -358,6 +361,7 @@ public class SearchModule {
         concurrentSearchDeciderFactories = registerConcurrentSearchDeciderFactories(plugins);
         registerQueryCollectorContextSpec(plugins);
         pluginProfilerProviders = registerProfilerProviders(plugins);
+        indexAwareSearchRequestProcessors = registerIndexAwareSearchRequestProcessors(plugins);
     }
 
     private Collection<ConcurrentSearchRequestDecider.Factory> registerConcurrentSearchDeciderFactories(List<SearchPlugin> plugins) {
@@ -1323,6 +1327,23 @@ public class SearchModule {
 
     private List<SearchPlugin.ProfileMetricsProvider> registerProfilerProviders(List<SearchPlugin> plugins) {
         return plugins.stream().map(SearchPlugin::getQueryProfileMetricsProvider).filter(Optional::isPresent).map(Optional::get).toList();
+    }
+
+    private List<IndexAwareSearchRequestProcessor> registerIndexAwareSearchRequestProcessors(List<SearchPlugin> plugins) {
+        List<IndexAwareSearchRequestProcessor> processors = new ArrayList<>();
+        for (SearchPlugin plugin : plugins) {
+            processors.addAll(plugin.getIndexAwareSearchRequestProcessors());
+        }
+        return List.copyOf(processors);
+    }
+
+    /**
+     * The {@link IndexAwareSearchRequestProcessor}s registered by installed plugins, in registration
+     * order. This list does not depend on {@code search.index_aware_search_request_processors.enabled};
+     * {@code SearchService#getIndexAwareSearchRequestProcessors()} applies that setting.
+     */
+    public List<IndexAwareSearchRequestProcessor> getIndexAwareSearchRequestProcessors() {
+        return indexAwareSearchRequestProcessors;
     }
 
     public FetchPhase getFetchPhase() {

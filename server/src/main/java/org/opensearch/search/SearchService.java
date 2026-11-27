@@ -125,6 +125,9 @@ import org.opensearch.search.fetch.subphase.FetchDocValuesContext;
 import org.opensearch.search.fetch.subphase.FetchFieldsContext;
 import org.opensearch.search.fetch.subphase.ScriptFieldsContext.ScriptField;
 import org.opensearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.opensearch.search.indexaware.IndexAwareContext;
+import org.opensearch.search.indexaware.IndexAwareSearchRequestProcessor;
+import org.opensearch.search.indexaware.IndexMappingSourceCache;
 import org.opensearch.search.internal.AliasFilter;
 import org.opensearch.search.internal.InternalScrollSearchRequest;
 import org.opensearch.search.internal.LegacyReaderContext;
@@ -283,6 +286,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public static final Setting<Boolean> QUERY_REWRITING_ENABLED_SETTING = Setting.boolSetting(
         "search.query_rewriting.enabled",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    /**
+     * Whether plugin-registered {@code IndexAwareSearchRequestProcessor}s run. Off by default: when on, a
+     * search resolves its target indices and their metadata before the coordinator rewrite, which is
+     * extra work a cluster that doesn't use the extension point shouldn't pay for. Dynamic, so it can be
+     * changed at runtime without a node restart.
+     */
+    public static final Setting<Boolean> INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING = Setting.boolSetting(
+        "search.index_aware_search_request_processors.enabled",
         false,
         Property.Dynamic,
         Property.NodeScope
@@ -527,6 +543,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final List<SearchPlugin.ProfileMetricsProvider> pluginProfilers;
 
+    private final List<IndexAwareSearchRequestProcessor> indexAwareSearchRequestProcessors;
+
+    private final IndexMappingSourceCache indexMappingSourceCache;
+
+    private volatile boolean indexAwareSearchRequestProcessorsEnabled;
+
     public SearchService(
         ClusterService clusterService,
         IndicesService indicesService,
@@ -541,7 +563,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         TaskResourceTrackingService taskResourceTrackingService,
         Collection<ConcurrentSearchRequestDecider.Factory> concurrentSearchDeciderFactories,
         List<SearchPlugin.ProfileMetricsProvider> pluginProfilers,
-        WorkloadGroupService workloadGroupService
+        WorkloadGroupService workloadGroupService,
+        List<IndexAwareSearchRequestProcessor> indexAwareSearchRequestProcessors
     ) {
         Settings settings = clusterService.getSettings();
         this.threadPool = threadPool;
@@ -616,9 +639,56 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
         this.pluginProfilers = pluginProfilers;
 
+        this.indexAwareSearchRequestProcessors = indexAwareSearchRequestProcessors;
+        this.indexMappingSourceCache = new IndexMappingSourceCache(settings);
+        this.indexAwareSearchRequestProcessorsEnabled = INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING,
+                this::setIndexAwareSearchRequestProcessorsEnabled
+            );
+        if (indexAwareSearchRequestProcessors.isEmpty() == false) {
+            // The mapping cache keeps one entry per index it has been asked about, until its size bound evicts
+            // it. Drop the entry of a deleted index right away rather than leave it to the bound.
+            clusterService.addListener(event -> {
+                for (Index deleted : event.indicesDeleted()) {
+                    indexMappingSourceCache.remove(deleted);
+                }
+            });
+        }
+
         // Initialize QueryRewriterRegistry with cluster settings so TermsMergingRewriter
         // can register its settings update consumer
         QueryRewriterRegistry.INSTANCE.initialize(settings, clusterService.getClusterSettings());
+    }
+
+    private void setIndexAwareSearchRequestProcessorsEnabled(boolean indexAwareSearchRequestProcessorsEnabled) {
+        this.indexAwareSearchRequestProcessorsEnabled = indexAwareSearchRequestProcessorsEnabled;
+    }
+
+    /**
+     * Whether any plugin-registered {@code IndexAwareSearchRequestProcessor} should run, per
+     * {@link #INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING}.
+     */
+    public boolean isIndexAwareSearchRequestProcessorsEnabled() {
+        return indexAwareSearchRequestProcessorsEnabled;
+    }
+
+    /**
+     * The {@link IndexAwareSearchRequestProcessor}s registered by installed plugins, in registration
+     * order, or an empty list while {@link #INDEX_AWARE_SEARCH_REQUEST_PROCESSORS_ENABLED_SETTING} is
+     * {@code false}. A search therefore finds out with one call whether there is anything to run.
+     */
+    public List<IndexAwareSearchRequestProcessor> getIndexAwareSearchRequestProcessors() {
+        return indexAwareSearchRequestProcessorsEnabled ? indexAwareSearchRequestProcessors : Collections.emptyList();
+    }
+
+    /**
+     * The node's cache of parsed index field mappings, which backs
+     * {@link IndexAwareContext#getFieldMappings} for every search this node coordinates.
+     */
+    public IndexMappingSourceCache getIndexMappingSourceCache() {
+        return indexMappingSourceCache;
     }
 
     private void validateKeepAlives(TimeValue defaultKeepAlive, TimeValue maxKeepAlive) {

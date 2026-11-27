@@ -424,6 +424,40 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertNotSame(deserializedRequest, searchRequest);
     }
 
+    public void testIndexAwareProcessorsAreNotSkippedByDefault() {
+        assertFalse(new SearchRequest().indexAwareProcessorsSkipped());
+    }
+
+    // A request derived from one that index-aware processors must leave alone must be left alone too.
+    public void testCopyConstructorCarriesSkipIndexAwareProcessors() {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.skipIndexAwareProcessors();
+
+        assertTrue(new SearchRequest(searchRequest).indexAwareProcessorsSkipped());
+    }
+
+    public void testSubSearchRequestCarriesSkipIndexAwareProcessors() {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.skipIndexAwareProcessors();
+
+        SearchRequest subSearchRequest = SearchRequest.subSearchRequest(searchRequest, new String[] { "index" }, "cluster", 0L, false);
+
+        assertTrue(subSearchRequest.indexAwareProcessorsSkipped());
+    }
+
+    // The flag only means something on the node that set it. It does not travel with the request, and it
+    // does not make two otherwise equal requests differ.
+    public void testSkipIndexAwareProcessorsIsNotSerializedAndNotPartOfEquality() throws IOException {
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.skipIndexAwareProcessors();
+
+        SearchRequest deserialized = copyWriteable(searchRequest, namedWriteableRegistry, SearchRequest::new);
+
+        assertFalse(deserialized.indexAwareProcessorsSkipped());
+        assertEquals(searchRequest, deserialized);
+        assertEquals(searchRequest.hashCode(), deserialized.hashCode());
+    }
+
     public void testParseSearchRequestWithUnsupportedSearchType() throws IOException {
         RestRequest restRequest = new FakeRestRequest();
         SearchRequest searchRequest = createSearchRequest();

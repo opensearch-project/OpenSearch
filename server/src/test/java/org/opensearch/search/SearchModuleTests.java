@@ -77,6 +77,7 @@ import org.opensearch.search.fetch.subphase.highlight.FastVectorHighlighter;
 import org.opensearch.search.fetch.subphase.highlight.Highlighter;
 import org.opensearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.opensearch.search.fetch.subphase.highlight.UnifiedHighlighter;
+import org.opensearch.search.indexaware.IndexAwareSearchRequestProcessor;
 import org.opensearch.search.profile.Timer;
 import org.opensearch.search.query.ConcurrentQueryPhaseSearcher;
 import org.opensearch.search.query.QueryPhase;
@@ -434,6 +435,40 @@ public class SearchModuleTests extends OpenSearchTestCase {
         List<SearchPlugin.ProfileMetricsProvider> providers = module.getPluginProfileMetricsProviders();
         assertThat(providers, hasSize(1));
         assertEquals(providers.getFirst().getQueryProfileMetrics(null, null).size(), 1);
+    }
+
+    public void testIndexAwareSearchRequestProcessorsAreEmptyWithoutPlugins() {
+        SearchModule module = new SearchModule(Settings.EMPTY, emptyList());
+
+        assertTrue(module.getIndexAwareSearchRequestProcessors().isEmpty());
+    }
+
+    public void testIndexAwareSearchRequestProcessorsAreCollectedFromAPlugin() {
+        IndexAwareSearchRequestProcessor processor = (source, context, listener) -> listener.onResponse(source);
+        SearchModule module = new SearchModule(Settings.EMPTY, singletonList(indexAwareProcessorPlugin(processor)));
+
+        assertEquals(singletonList(processor), module.getIndexAwareSearchRequestProcessors());
+    }
+
+    // Processors run in this order, so it has to be the order the plugins were registered in.
+    public void testIndexAwareSearchRequestProcessorsKeepPluginRegistrationOrder() {
+        IndexAwareSearchRequestProcessor first = (source, context, listener) -> listener.onResponse(source);
+        IndexAwareSearchRequestProcessor second = (source, context, listener) -> listener.onResponse(source);
+        SearchModule module = new SearchModule(
+            Settings.EMPTY,
+            List.of(indexAwareProcessorPlugin(first), indexAwareProcessorPlugin(second))
+        );
+
+        assertEquals(List.of(first, second), module.getIndexAwareSearchRequestProcessors());
+    }
+
+    private static SearchPlugin indexAwareProcessorPlugin(IndexAwareSearchRequestProcessor processor) {
+        return new SearchPlugin() {
+            @Override
+            public List<IndexAwareSearchRequestProcessor> getIndexAwareSearchRequestProcessors() {
+                return singletonList(processor);
+            }
+        };
     }
 
     public void testDefaultQueryPhaseSearcher() {

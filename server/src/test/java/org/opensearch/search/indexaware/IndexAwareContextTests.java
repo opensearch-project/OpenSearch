@@ -1,0 +1,240 @@
+/*
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * The OpenSearch Contributors require contributions made to
+ * this file be licensed under the Apache-2.0 license or a
+ * compatible open source license.
+ */
+
+package org.opensearch.search.indexaware;
+
+import org.opensearch.Version;
+import org.opensearch.cluster.metadata.IndexMetadata;
+import org.opensearch.cluster.metadata.MappingMetadata;
+import org.opensearch.core.tasks.TaskId;
+import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
+
+public class IndexAwareContextTests extends OpenSearchTestCase {
+
+    public void testGetTargetIndices() {
+        IndexMetadata metadata = indexWithMapping("my-index", Map.of("properties", Map.of("title", Map.of("type", "text"))));
+        IndexAwareContext context = contextFor(Map.of("my-index", metadata), new IndexMappingSourceCache());
+
+        assertEquals(Map.of("my-index", metadata), context.getTargetIndices());
+    }
+
+    public void testGetTargetIndicesIsUnmodifiable() {
+        IndexMetadata metadata = indexWithMapping("my-index", Map.of("properties", Map.of()));
+        IndexAwareContext context = contextFor(new HashMap<>(Map.of("my-index", metadata)), new IndexMappingSourceCache());
+
+        assertThrows(UnsupportedOperationException.class, () -> context.getTargetIndices().put("other-index", metadata));
+    }
+
+    public void testGetFieldMappings() {
+        Map<String, Object> fields = Map.of("title", Map.of("type", "text"));
+        IndexAwareContext context = contextFor(
+            Map.of("my-index", indexWithMapping("my-index", Map.of("properties", fields))),
+            new IndexMappingSourceCache()
+        );
+
+        assertEquals(fields, context.getFieldMappings("my-index"));
+    }
+
+    // Only the properties section: the rest of the mapping is in the index's IndexMetadata.
+    public void testGetFieldMappingsLeavesOutTheRestOfTheMapping() {
+        Map<String, Object> fields = Map.of("title", Map.of("type", "text"));
+        Map<String, Object> mapping = Map.of("dynamic", "strict", "_meta", Map.of("owner", "search"), "properties", fields);
+        IndexAwareContext context = contextFor(Map.of("my-index", indexWithMapping("my-index", mapping)), new IndexMappingSourceCache());
+
+        assertEquals(fields, context.getFieldMappings("my-index"));
+    }
+
+    // Two indices behind one request that map the same field differently: each index reports its own
+    // mapping, so a processor can tell them apart.
+    public void testGetFieldMappingsIsPerIndex() {
+        Map<String, Object> textFields = Map.of("title", Map.of("type", "text"));
+        Map<String, Object> keywordFields = Map.of("title", Map.of("type", "keyword"));
+        IndexAwareContext context = contextFor(
+            Map.of(
+                "text-index",
+                indexWithMapping("text-index", Map.of("properties", textFields)),
+                "keyword-index",
+                indexWithMapping("keyword-index", Map.of("properties", keywordFields))
+            ),
+            new IndexMappingSourceCache()
+        );
+
+        assertEquals(textFields, context.getFieldMappings("text-index"));
+        assertEquals(keywordFields, context.getFieldMappings("keyword-index"));
+    }
+
+    // Two contexts stand in for two requests. Backed by the same node-level cache, the second must get
+    // the map the first one parsed.
+    public void testGetFieldMappingsIsSharedAcrossContexts() {
+        IndexMetadata metadata = indexWithMapping("my-index", Map.of("properties", Map.of()));
+        IndexMappingSourceCache sharedCache = new IndexMappingSourceCache();
+        IndexAwareContext firstRequestContext = contextFor(Map.of("my-index", metadata), sharedCache);
+        IndexAwareContext secondRequestContext = contextFor(Map.of("my-index", metadata), sharedCache);
+
+        Map<String, Object> first = firstRequestContext.getFieldMappings("my-index");
+        Map<String, Object> second = secondRequestContext.getFieldMappings("my-index");
+        assertSame(first, second);
+    }
+
+    public void testGetFieldMappingsUnknownIndexIsEmpty() {
+        IndexAwareContext context = contextFor(Collections.emptyMap(), new IndexMappingSourceCache());
+
+        assertEquals(Collections.emptyMap(), context.getFieldMappings("not-a-target-index"));
+    }
+
+    public void testGetFieldMappingsNoMappingIsEmpty() {
+        IndexMetadata metadata = IndexMetadata.builder("my-index")
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        IndexAwareContext context = contextFor(Map.of("my-index", metadata), new IndexMappingSourceCache());
+
+        assertNull(metadata.mapping());
+        assertEquals(Collections.emptyMap(), context.getFieldMappings("my-index"));
+    }
+
+    // The field filter is applied per index: a field hidden in one index stays visible in another.
+    public void testGetFieldFilterIsPerIndex() {
+        IndexMetadata metadata = indexWithMapping("my-index", Map.of("properties", Map.of()));
+        Function<String, Predicate<String>> hideSecretInRestrictedIndex = index -> "restricted-index".equals(index)
+            ? field -> "secret".equals(field) == false
+            : field -> true;
+        IndexAwareContext context = IndexAwareContext.builder(Map.of("restricted-index", metadata, "open-index", metadata))
+            .fieldFilter(hideSecretInRestrictedIndex)
+            .build();
+
+        assertFalse(context.getFieldFilter("restricted-index").test("secret"));
+        assertTrue(context.getFieldFilter("restricted-index").test("title"));
+        assertTrue(context.getFieldFilter("open-index").test("secret"));
+    }
+
+    // The fields a processor reads are all of the index's fields, whatever the field filter hides: hiding
+    // fields from the caller is the processor's job, through getFieldFilter.
+    public void testGetFieldMappingsIsNotReducedByTheFieldFilter() {
+        Map<String, Object> fields = Map.of("secret", Map.of("type", "text"));
+        IndexAwareContext context = IndexAwareContext.builder(
+            Map.of("my-index", indexWithMapping("my-index", Map.of("properties", fields)))
+        ).fieldFilter(index -> field -> false).build();
+
+        assertEquals(fields, context.getFieldMappings("my-index"));
+    }
+
+    public void testAllowPartialSearchResultsWhenTheRequestAllowsThem() {
+        assertTrue(contextAllowingPartialResults(true).allowPartialSearchResults());
+    }
+
+    public void testAllowPartialSearchResultsWhenTheRequestForbidsThem() {
+        assertFalse(contextAllowingPartialResults(false).allowPartialSearchResults());
+    }
+
+    public void testGetMinNodeVersion() {
+        IndexAwareContext context = IndexAwareContext.builder(Collections.emptyMap()).minNodeVersion(Version.V_3_0_0).build();
+
+        assertEquals(Version.V_3_0_0, context.getMinNodeVersion());
+    }
+
+    public void testGetSearchTaskId() {
+        TaskId searchTaskId = new TaskId("node", 7);
+        IndexAwareContext context = IndexAwareContext.builder(Collections.emptyMap()).searchTaskId(searchTaskId).build();
+
+        assertEquals(searchTaskId, context.getSearchTaskId());
+    }
+
+    public void testGetParentAction() {
+        IndexAwareContext context = IndexAwareContext.builder(Collections.emptyMap())
+            .parentAction("indices:data/write/delete/byquery")
+            .build();
+
+        assertEquals("indices:data/write/delete/byquery", context.getParentAction());
+    }
+
+    // The defaults a plugin's test gets for the values it does not set.
+    public void testBuilderDefaults() {
+        IndexAwareContext context = IndexAwareContext.builder(Collections.emptyMap()).build();
+
+        assertTrue(context.getFieldFilter("any-index").test("any-field"));
+        assertEquals(Version.CURRENT, context.getMinNodeVersion());
+        assertEquals(TaskId.EMPTY_TASK_ID, context.getSearchTaskId());
+        assertTrue(context.allowPartialSearchResults());
+        assertNull(context.getParentAction());
+        assertFalse(context.isByQuerySearch());
+    }
+
+    public void testIsByQuerySearch() {
+        assertTrue(IndexAwareContext.builder(Collections.emptyMap()).byQuerySearch(true).build().isByQuerySearch());
+    }
+
+    // The context copies the target indices: a later change to the caller's map does not reach it.
+    public void testTargetIndicesAreCopied() {
+        IndexMetadata metadata = indexWithMapping("my-index", Map.of("properties", Map.of()));
+        Map<String, IndexMetadata> targetIndices = new HashMap<>(Map.of("my-index", metadata));
+        IndexAwareContext context = IndexAwareContext.builder(targetIndices).build();
+
+        targetIndices.put("other-index", metadata);
+
+        assertEquals(Set.of("my-index"), context.getTargetIndices().keySet());
+    }
+
+    // Each build() makes a context with a cache of its own when no lookup is set: building twice from one
+    // builder does not share a cache between the two contexts.
+    public void testContextsBuiltFromOneBuilderDoNotShareTheDefaultCache() {
+        IndexAwareContext.Builder builder = IndexAwareContext.builder(
+            Map.of("my-index", indexWithMapping("my-index", Map.of("properties", Map.of("title", Map.of("type", "text")))))
+        );
+
+        assertNotSame(builder.build().getFieldMappings("my-index"), builder.build().getFieldMappings("my-index"));
+    }
+
+    // A lookup a plugin supplies may return null; getFieldMappings still returns a map.
+    public void testLookupReturningNullGivesAnEmptyMap() {
+        IndexMetadata metadata = indexWithMapping("my-index", Map.of("properties", Map.of()));
+        IndexAwareContext context = IndexAwareContext.builder(Map.of("my-index", metadata)).fieldMappingsLookup(m -> null).build();
+
+        assertEquals(Collections.emptyMap(), context.getFieldMappings("my-index"));
+    }
+
+    public void testBuilderRequiresTargetIndices() {
+        expectThrows(NullPointerException.class, () -> IndexAwareContext.builder(null));
+    }
+
+    // Without a lookup, a context parses mappings itself, through a cache of its own.
+    public void testBuilderDefaultParsesFieldMappings() {
+        Map<String, Object> fields = Map.of("title", Map.of("type", "text"));
+        IndexAwareContext context = IndexAwareContext.builder(
+            Map.of("my-index", indexWithMapping("my-index", Map.of("properties", fields)))
+        ).build();
+
+        assertEquals(fields, context.getFieldMappings("my-index"));
+    }
+
+    private static IndexAwareContext contextFor(Map<String, IndexMetadata> targetIndices, IndexMappingSourceCache cache) {
+        return IndexAwareContext.builder(targetIndices).fieldMappingsLookup(cache::getFieldMappings).build();
+    }
+
+    private static IndexAwareContext contextAllowingPartialResults(boolean allowPartialSearchResults) {
+        return IndexAwareContext.builder(Collections.emptyMap()).allowPartialSearchResults(allowPartialSearchResults).build();
+    }
+
+    private static IndexMetadata indexWithMapping(String name, Map<String, Object> mapping) {
+        return IndexMetadata.builder(name)
+            // A UUID of its own, as every real index has: the mapping cache is keyed by it.
+            .settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, name + "-uuid"))
+            .putMapping(new MappingMetadata("_doc", mapping))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+    }
+}

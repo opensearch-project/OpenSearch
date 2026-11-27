@@ -40,6 +40,7 @@ import org.opensearch.node.MockNode;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.script.ScriptService;
 import org.opensearch.search.fetch.FetchPhase;
+import org.opensearch.search.indexaware.IndexAwareSearchRequestProcessor;
 import org.opensearch.search.internal.ReaderContext;
 import org.opensearch.search.query.QueryPhase;
 import org.opensearch.tasks.TaskResourceTrackingService;
@@ -48,6 +49,7 @@ import org.opensearch.wlm.WorkloadGroupService;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
@@ -101,7 +103,8 @@ public class MockSearchService extends SearchService {
         CircuitBreakerService circuitBreakerService,
         Executor indexSearcherExecutor,
         TaskResourceTrackingService taskResourceTrackingService,
-        WorkloadGroupService workloadGroupService
+        WorkloadGroupService workloadGroupService,
+        List<IndexAwareSearchRequestProcessor> indexAwareSearchRequestProcessors
     ) {
         super(
             clusterService,
@@ -117,7 +120,8 @@ public class MockSearchService extends SearchService {
             taskResourceTrackingService,
             Collections.emptyList(),
             Collections.emptyList(),
-            workloadGroupService
+            workloadGroupService,
+            indexAwareSearchRequestProcessors
         );
     }
 
