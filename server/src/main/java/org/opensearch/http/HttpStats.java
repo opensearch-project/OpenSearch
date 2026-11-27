@@ -32,12 +32,14 @@
 
 package org.opensearch.http;
 
+import org.opensearch.Version;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
 import org.opensearch.core.xcontent.ToXContentFragment;
 import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.transport.EventLoopStats;
 
 import java.io.IOException;
 
@@ -51,6 +53,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
 
     private final long serverOpen;
     private final long totalOpen;
+    private final EventLoopStats eventLoopStats;
 
     /**
      * Private constructor that takes a builder.
@@ -60,6 +63,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
     private HttpStats(Builder builder) {
         this.serverOpen = builder.serverOpen;
         this.totalOpen = builder.totalOpen;
+        this.eventLoopStats = builder.eventLoopStats;
     }
 
     /**
@@ -70,17 +74,26 @@ public class HttpStats implements Writeable, ToXContentFragment {
     public HttpStats(long serverOpen, long totalOpened) {
         this.serverOpen = serverOpen;
         this.totalOpen = totalOpened;
+        this.eventLoopStats = null;
     }
 
     public HttpStats(StreamInput in) throws IOException {
         serverOpen = in.readVLong();
         totalOpen = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_3_10_0)) {
+            eventLoopStats = in.readOptionalWriteable(EventLoopStats::new);
+        } else {
+            eventLoopStats = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
+        if (out.getVersion().onOrAfter(Version.V_3_10_0)) {
+            out.writeOptionalWriteable(eventLoopStats);
+        }
     }
 
     public long getServerOpen() {
@@ -89,6 +102,13 @@ public class HttpStats implements Writeable, ToXContentFragment {
 
     public long getTotalOpen() {
         return this.totalOpen;
+    }
+
+    /**
+     * @return Netty event-loop queue stats, or {@code null} when this transport has no event-loop group
+     */
+    public EventLoopStats getEventLoopStats() {
+        return eventLoopStats;
     }
 
     static final class Fields {
@@ -104,6 +124,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
     public static class Builder {
         private long serverOpen = 0;
         private long totalOpen = 0;
+        private EventLoopStats eventLoopStats;
 
         public Builder() {}
 
@@ -114,6 +135,11 @@ public class HttpStats implements Writeable, ToXContentFragment {
 
         public Builder totalOpen(long totalOpen) {
             this.totalOpen = totalOpen;
+            return this;
+        }
+
+        public Builder eventLoopStats(EventLoopStats eventLoopStats) {
+            this.eventLoopStats = eventLoopStats;
             return this;
         }
 
@@ -131,6 +157,9 @@ public class HttpStats implements Writeable, ToXContentFragment {
         builder.startObject(Fields.HTTP);
         builder.field(Fields.CURRENT_OPEN, serverOpen);
         builder.field(Fields.TOTAL_OPENED, totalOpen);
+        if (eventLoopStats != null) {
+            eventLoopStats.toXContent(builder, params);
+        }
         builder.endObject();
         return builder;
     }

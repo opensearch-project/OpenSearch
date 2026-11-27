@@ -35,8 +35,10 @@ import org.opensearch.plugins.SecureHttpTransportSettingsProvider.SecureHttpTran
 import org.opensearch.plugins.TransportExceptionHandler;
 import org.opensearch.telemetry.tracing.Tracer;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.EventLoopStats;
 import org.opensearch.transport.NettyAllocator;
 import org.opensearch.transport.NettyByteBufSizer;
+import org.opensearch.transport.NettyEventLoopStats;
 import org.opensearch.transport.SharedGroupFactory;
 import org.opensearch.transport.TransportAdapterProvider;
 import org.opensearch.transport.netty4.Netty4Utils;
@@ -287,6 +289,15 @@ public class Netty4Http3ServerTransport extends AbstractHttpServerTransport {
             sharedGroup.shutdown();
             sharedGroup = null;
         }
+    }
+
+    @Override
+    protected EventLoopStats eventLoopStats() {
+        SharedGroupFactory.SharedGroup group = sharedGroup;
+        if (group == null) {
+            return null;
+        }
+        return NettyEventLoopStats.collect(group.getLowLevelGroup(), sharedGroupFactory.isHttpGroupShared());
     }
 
     @Override

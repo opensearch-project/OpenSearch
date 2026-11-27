@@ -81,6 +81,13 @@ public final class SharedGroupFactory {
         return workerCount;
     }
 
+    /**
+     * @return true when {@code http.netty.worker_count} is 0 and HTTP uses the transport event-loop group
+     */
+    public boolean isHttpGroupShared() {
+        return httpWorkerCount == 0;
+    }
+
     public synchronized SharedGroup getTransportGroup() {
         return getGenericGroup();
     }

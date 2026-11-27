@@ -970,13 +970,24 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         final long messagesSent = statsTracker.getMessagesSent();
         final long messagesReceived = statsTracker.getMessagesReceived();
         final long bytesRead = statsTracker.getBytesRead();
-        return new TransportStats.Builder().serverOpen(acceptedChannels.size())
+        TransportStats.Builder builder = new TransportStats.Builder().serverOpen(acceptedChannels.size())
             .totalOutboundConnections(outboundConnectionCount.get())
             .rxCount(messagesReceived)
             .rxSize(bytesRead)
             .txCount(messagesSent)
-            .txSize(bytesWritten)
-            .build();
+            .txSize(bytesWritten);
+        EventLoopStats eventLoopStats = eventLoopStats();
+        if (eventLoopStats != null) {
+            builder.eventLoopStats(eventLoopStats);
+        }
+        return builder.build();
+    }
+
+    /**
+     * Netty event-loop queue stats for this transport. Transports that do not use Netty event loops return {@code null}.
+     */
+    protected EventLoopStats eventLoopStats() {
+        return null;
     }
 
     /**
