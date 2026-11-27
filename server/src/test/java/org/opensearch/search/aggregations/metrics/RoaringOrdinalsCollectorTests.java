@@ -42,13 +42,11 @@ import org.opensearch.search.aggregations.MultiBucketConsumerService;
 import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregator.BucketOrdinalBitmaps;
-import org.opensearch.search.aggregations.metrics.CardinalityAggregator.BucketOrdinalBits;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregator.DirectCollector;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregator.HybridCollector;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregator.MurmurHash3Values;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregator.OrdinalsCollector;
 import org.opensearch.search.aggregations.metrics.CardinalityAggregator.RoaringOrdinalsCollector;
-import org.opensearch.search.aggregations.metrics.CardinalityAggregator.VisitedRanks;
 
 import java.io.IOException;
 import java.util.ArrayList;

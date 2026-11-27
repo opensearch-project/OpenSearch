@@ -478,7 +478,7 @@ public class CompactSketchesAggregatorTests extends AggregatorTestCase {
                     );
                     final String context = "threshold=" + memoryThreshold + " asc=" + asc + " size=" + size + " debug=" + debug;
                     final boolean stopped = "stopped_over_memory_threshold".equals(debug.get("deferred_ordinals"));
-                    if (bits <= memoryThreshold / CardinalityAggregator.BucketOrdinalBits.SPARSE_SHARE) {
+                    if (bits <= memoryThreshold / BucketOrdinalBits.SPARSE_SHARE) {
                         assertEquals(context, false, debug.get("deferred_bitmaps"));
                     }
                     if (memoryThreshold == Long.MAX_VALUE || memoryThreshold == 1L << 22) {
