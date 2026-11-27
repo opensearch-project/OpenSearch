@@ -34,6 +34,7 @@ package org.opensearch.common.blobstore.fs;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterSeekableByteChannel;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobMetadata;
 import org.opensearch.common.blobstore.BlobPath;
@@ -42,6 +43,7 @@ import org.opensearch.common.blobstore.VersionedBlob;
 import org.opensearch.common.io.PathUtils;
 import org.opensearch.common.io.PathUtilsForTesting;
 import org.opensearch.common.io.Streams;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.io.IOUtils;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.test.OpenSearchTestCase;
@@ -159,6 +161,42 @@ public class FsBlobContainerTests extends OpenSearchTestCase {
         assertThat(container.getBlobMetadata("blob").name(), equalTo("blob"));
         assertThat(container.getBlobMetadata("blob").length(), equalTo((long) exact.length));
         expectThrows(NoSuchFileException.class, () -> container.getBlobMetadata("missing"));
+    }
+
+    public void testWriteBlobWithMetadataRejectsUnsupportedOptionsBeforeWriting() throws IOException {
+        final FsBlobContainer container = newContainer();
+        final byte[] content = "blob-content".getBytes(StandardCharsets.UTF_8);
+
+        expectThrows(
+            IOException.class,
+            () -> container.writeBlobWithMetadata(
+                "custom-metadata",
+                new ByteArrayInputStream(content),
+                content.length,
+                true,
+                Collections.singletonMap("key", "value")
+            )
+        );
+        assertFalse(container.blobExists("custom-metadata"));
+
+        final CryptoMetadata cryptoMetadata = new CryptoMetadata("provider", "type", Settings.EMPTY);
+        expectThrows(
+            IOException.class,
+            () -> container.writeBlobWithMetadata(
+                "crypto-metadata",
+                new ByteArrayInputStream(content),
+                content.length,
+                true,
+                null,
+                cryptoMetadata
+            )
+        );
+        assertFalse(container.blobExists("crypto-metadata"));
+
+        container.writeBlobWithMetadata("plain", new ByteArrayInputStream(content), content.length, true, Collections.emptyMap(), null);
+        try (InputStream inputStream = container.readBlob("plain")) {
+            assertArrayEquals(content, inputStream.readAllBytes());
+        }
     }
 
     public void testWriteBlobConditionallyCreatesIfAbsent() throws IOException {

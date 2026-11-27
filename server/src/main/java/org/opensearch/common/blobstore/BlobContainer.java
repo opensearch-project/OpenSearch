@@ -183,7 +183,8 @@ public interface BlobContainer {
      * @param   failIfAlreadyExists
      *          whether to throw a FileAlreadyExistsException if the given blob already exists
      * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
-     * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
+     * @throws  IOException if the input stream could not be read, the target blob could not be written to, or non-empty metadata is
+     *          unsupported by this container.
      */
     @ExperimentalApi
     default void writeBlobWithMetadata(
@@ -193,7 +194,10 @@ public interface BlobContainer {
         boolean failIfAlreadyExists,
         @Nullable Map<String, String> metadata
     ) throws IOException {
-        throw new UnsupportedOperationException("writeBlobWithMetadata is not implemented yet");
+        if (metadata != null && metadata.isEmpty() == false) {
+            throw new IOException("Blob metadata is not supported by this container");
+        }
+        writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
     };
 
     /**
@@ -216,7 +220,8 @@ public interface BlobContainer {
      * @param   cryptoMetadata
      *          Optional CryptoMetadata for index-level encryption override (null = use repository defaults)
      * @throws  FileAlreadyExistsException if failIfAlreadyExists is true and a blob by the same name already exists
-     * @throws  IOException if the input stream could not be read, or the target blob could not be written to.
+     * @throws  IOException if the input stream could not be read, the target blob could not be written to, or the metadata or
+     *          encryption settings are unsupported by this container.
      */
     @ExperimentalApi
     default void writeBlobWithMetadata(
@@ -227,7 +232,9 @@ public interface BlobContainer {
         @Nullable Map<String, String> metadata,
         @Nullable CryptoMetadata cryptoMetadata
     ) throws IOException {
-        // Default implementation: delegate to non-crypto version
+        if (cryptoMetadata != null) {
+            throw new IOException("CryptoMetadata is not supported by this container");
+        }
         writeBlobWithMetadata(blobName, inputStream, blobSize, failIfAlreadyExists, metadata);
     };
 
