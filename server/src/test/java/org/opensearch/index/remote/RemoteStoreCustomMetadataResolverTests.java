@@ -9,6 +9,8 @@
 package org.opensearch.index.remote;
 
 import org.opensearch.Version;
+import org.opensearch.common.blobstore.BlobContainer;
+import org.opensearch.common.blobstore.BlobPath;
 import org.opensearch.common.blobstore.BlobStore;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -19,6 +21,8 @@ import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.RepositoryMissingException;
 import org.opensearch.repositories.blobstore.BlobStoreRepository;
 import org.opensearch.test.OpenSearchTestCase;
+
+import java.util.Optional;
 
 import org.mockito.Mockito;
 
@@ -185,51 +189,41 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
         assertEquals(PathHashAlgorithm.FNV_1A_BASE64, resolver.getPathStrategy().getHashAlgorithm());
     }
 
-    public void testTranslogMetadataAllowedTrueWithMinVersionNewer() {
-        Settings settings = Settings.builder()
-            .put(CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.getKey(), true)
-            .put("node.attr.remote_store.translog.repository", "my-translog-repo")
-            .build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
-        BlobStoreRepository repositoryMock = mock(BlobStoreRepository.class);
-        when(repositoriesService.repository(getRemoteStoreTranslogRepo(settings))).thenReturn(repositoryMock);
-        BlobStore blobStoreMock = mock(BlobStore.class);
-        when(repositoryMock.blobStore()).thenReturn(blobStoreMock);
-        when(blobStoreMock.isBlobMetadataEnabled()).thenReturn(true);
-        RemoteStoreCustomMetadataResolver resolver = new RemoteStoreCustomMetadataResolver(
-            remoteStoreSettings,
-            () -> Version.V_2_15_0,
-            () -> repositoriesService,
-            settings
-        );
-        assertTrue(resolver.isTranslogMetadataEnabled());
+    public void testTranslogMetadataUsesS3HistoricalMinimumVersion() {
+        Settings settings = translogMetadataSettings(true);
+        BlobStore blobStore = new TestBlobStore(true, Optional.of(Version.V_2_15_0));
+
+        assertFalse(translogMetadataResolver(settings, Version.V_2_14_0, blobStore).isTranslogMetadataEnabled());
+        assertTrue(translogMetadataResolver(settings, Version.V_2_15_0, blobStore).isTranslogMetadataEnabled());
     }
 
-    public void testTranslogMetadataAllowedFalseWithMinVersionNewer() {
-        Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.getKey(), false).build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
-        RemoteStoreCustomMetadataResolver resolver = new RemoteStoreCustomMetadataResolver(
-            remoteStoreSettings,
-            () -> Version.V_2_15_0,
-            () -> repositoriesService,
-            settings
-        );
-        assertFalse(resolver.isTranslogMetadataEnabled());
+    public void testTranslogMetadataUsesAzureMinimumVersion() {
+        Settings settings = translogMetadataSettings(true);
+        BlobStore blobStore = new TestBlobStore(true, Optional.of(Version.V_3_10_0));
+
+        assertFalse(translogMetadataResolver(settings, Version.V_3_9_1, blobStore).isTranslogMetadataEnabled());
+        assertTrue(translogMetadataResolver(settings, Version.V_3_10_0, blobStore).isTranslogMetadataEnabled());
     }
 
-    public void testTranslogMetadataAllowedMinVersionOlder() {
-        Settings settings = Settings.builder().put(CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.getKey(), randomBoolean()).build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
-        RemoteStoreCustomMetadataResolver resolver = new RemoteStoreCustomMetadataResolver(
-            remoteStoreSettings,
-            () -> Version.V_2_14_0,
-            () -> repositoriesService,
-            settings
-        );
-        assertFalse(resolver.isTranslogMetadataEnabled());
+    public void testTranslogMetadataDisabledBySetting() {
+        Settings settings = translogMetadataSettings(false);
+        BlobStore blobStore = new TestBlobStore(true, Optional.of(Version.V_2_15_0));
+
+        assertFalse(translogMetadataResolver(settings, Version.CURRENT, blobStore).isTranslogMetadataEnabled());
+    }
+
+    public void testTranslogMetadataDisabledStore() {
+        Settings settings = translogMetadataSettings(true);
+        BlobStore blobStore = new TestBlobStore(false, Optional.of(Version.V_2_15_0));
+
+        assertFalse(translogMetadataResolver(settings, Version.CURRENT, blobStore).isTranslogMetadataEnabled());
+    }
+
+    public void testTranslogMetadataRequiresDeclaredSupportVersion() {
+        Settings settings = translogMetadataSettings(true);
+        BlobStore blobStore = new TestBlobStore(true, Optional.empty());
+
+        assertFalse(translogMetadataResolver(settings, Version.CURRENT, blobStore).isTranslogMetadataEnabled());
     }
 
     public void testTranslogPathFixedPathSetting() {
@@ -327,5 +321,49 @@ public class RemoteStoreCustomMetadataResolverTests extends OpenSearchTestCase {
             settings
         );
         expectThrows(IllegalArgumentException.class, resolver::isRemoteStoreRepoServerSideEncryptionEnabled);
+    }
+
+    private Settings translogMetadataSettings(boolean enabled) {
+        return Settings.builder()
+            .put(CLUSTER_REMOTE_STORE_TRANSLOG_METADATA.getKey(), enabled)
+            .put("node.attr.remote_store.translog.repository", "my-translog-repo")
+            .build();
+    }
+
+    private RemoteStoreCustomMetadataResolver translogMetadataResolver(Settings settings, Version minNodeVersion, BlobStore blobStore) {
+        ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        RemoteStoreSettings remoteStoreSettings = new RemoteStoreSettings(settings, clusterSettings);
+        BlobStoreRepository repository = mock(BlobStoreRepository.class);
+        when(repository.blobStore()).thenReturn(blobStore);
+        when(repositoriesService.repository(getRemoteStoreTranslogRepo(settings))).thenReturn(repository);
+        return new RemoteStoreCustomMetadataResolver(remoteStoreSettings, () -> minNodeVersion, () -> repositoriesService, settings);
+    }
+
+    private static class TestBlobStore implements BlobStore {
+        private final boolean metadataEnabled;
+        private final Optional<Version> metadataSupportVersion;
+
+        private TestBlobStore(boolean metadataEnabled, Optional<Version> metadataSupportVersion) {
+            this.metadataEnabled = metadataEnabled;
+            this.metadataSupportVersion = metadataSupportVersion;
+        }
+
+        @Override
+        public BlobContainer blobContainer(BlobPath path) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isBlobMetadataEnabled() {
+            return metadataEnabled;
+        }
+
+        @Override
+        public Optional<Version> getBlobMetadataSupportVersion() {
+            return metadataSupportVersion;
+        }
+
+        @Override
+        public void close() {}
     }
 }

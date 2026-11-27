@@ -37,6 +37,7 @@ import software.amazon.awssdk.services.s3.model.StorageClass;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.blobstore.BlobContainer;
 import org.opensearch.common.blobstore.BlobPath;
@@ -54,6 +55,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.opensearch.repositories.s3.S3Repository.BUCKET_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.BUFFER_SIZE_SETTING;
@@ -294,6 +296,11 @@ public class S3BlobStore implements BlobStore {
     @Override
     public boolean isBlobMetadataEnabled() {
         return true;
+    }
+
+    @Override
+    public Optional<Version> getBlobMetadataSupportVersion() {
+        return Optional.of(Version.V_2_15_0);
     }
 
     public ObjectCannedACL getCannedACL() {

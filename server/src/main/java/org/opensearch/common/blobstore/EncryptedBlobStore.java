@@ -8,6 +8,7 @@
 
 package org.opensearch.common.blobstore;
 
+import org.opensearch.Version;
 import org.opensearch.cluster.metadata.CryptoMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.common.crypto.CryptoHandler;
@@ -16,6 +17,7 @@ import org.opensearch.crypto.CryptoRegistryException;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * The EncryptedBlobStore is a decorator class that wraps an existing BlobStore and provides encryption and decryption
@@ -98,6 +100,11 @@ public class EncryptedBlobStore implements BlobStore {
     @Override
     public boolean isBlobMetadataEnabled() {
         return blobStore.isBlobMetadataEnabled();
+    }
+
+    @Override
+    public Optional<Version> getBlobMetadataSupportVersion() {
+        return blobStore.getBlobMetadataSupportVersion();
     }
 
     /**

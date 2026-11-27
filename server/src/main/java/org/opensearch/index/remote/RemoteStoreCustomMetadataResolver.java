@@ -72,9 +72,8 @@ public class RemoteStoreCustomMetadataResolver {
             throw new IllegalArgumentException("Repository should be created before creating index with remote_store enabled setting", ex);
         }
         BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-        return Version.V_2_15_0.compareTo(minNodeVersionSupplier.get()) <= 0
-            && remoteStoreSettings.isTranslogMetadataEnabled()
-            && blobStoreRepository.blobStore().isBlobMetadataEnabled();
+        return remoteStoreSettings.isTranslogMetadataEnabled()
+            && blobStoreRepository.blobStore().isBlobMetadataEnabled(minNodeVersionSupplier.get());
     }
 
     public boolean isRemoteStoreRepoServerSideEncryptionEnabled() {
