@@ -79,6 +79,13 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
      *   counted more than once.</li>
      * </ul>
      *
+     * <p>The sketch must be allocated on {@link BigArrays#NON_RECYCLING_INSTANCE}. This
+     * result never releases it and is read after the search context that produced it
+     * is closed, which is why the aggregator clones its counts onto that instance
+     * before building the result. A sketch on the search context's {@code BigArrays}
+     * either keeps its bytes charged to the request circuit breaker, if it is never
+     * closed, or is read from recycled pages, if it is closed with the context.
+     *
      * @opensearch.experimental
      */
     @ExperimentalApi

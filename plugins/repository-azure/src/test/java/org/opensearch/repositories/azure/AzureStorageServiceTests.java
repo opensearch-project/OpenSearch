@@ -33,6 +33,7 @@
 package org.opensearch.repositories.azure;
 
 import com.azure.core.http.policy.HttpPipelinePolicy;
+import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.ParallelTransferOptions;
 import com.azure.storage.common.policy.RequestRetryPolicy;
@@ -391,11 +392,88 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
         }
     }
 
-    public void testTransferSettingsUseSdkDefaultsWhenUnset() throws IOException {
+    public void testDefaultReadBlockSizePreservesSdkUploadDefaults() throws IOException {
         try (final AzureStorageService service = storageServiceWithSettingsValidation(buildSettings())) {
-            assertThat(service.getReadBlockSize("azure1"), nullValue());
+            assertThat(service.getReadBlockSize("azure1"), is(Math.toIntExact(ByteSizeUnit.MB.toBytes(8))));
             assertThat(service.getBlobRequestOptionsForWriteBlob("azure1"), nullValue());
         }
+    }
+
+    public void testReadBlockSizeCanUseSdkDefault() throws IOException {
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.read.block_size", -1)
+            .build();
+        try (final AzureStorageService service = storageServiceWithSettingsValidation(settings)) {
+            assertThat(service.getReadBlockSize("azure1"), nullValue());
+            assertThat(service.getReadBlockSize("azure2"), is(Math.toIntExact(ByteSizeUnit.MB.toBytes(8))));
+        }
+    }
+
+    public void testReloadReadBlockSizeRestoresDefault() throws IOException {
+        final Settings settings = Settings.builder()
+            .setSecureSettings(buildSecureSettings())
+            .put("azure.client.azure1.read.block_size", "16mb")
+            .build();
+        try (AzureRepositoryPlugin plugin = pluginWithSettingsValidation(settings)) {
+            assertThat(plugin.azureStoreService.getReadBlockSize("azure1"), is(Math.toIntExact(ByteSizeUnit.MB.toBytes(16))));
+            plugin.reload(buildSettings());
+            assertThat(plugin.azureStoreService.getReadBlockSize("azure1"), is(Math.toIntExact(ByteSizeUnit.MB.toBytes(8))));
+        }
+    }
+
+    public void testUploadBlockCountBoundary() {
+        final ParallelTransferOptions options = new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(1L);
+        AzureStorageService.validateUploadSize(50000L, options, "blob size", "azure.client.default.write.block_size");
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> AzureStorageService.validateUploadSize(50001L, options, "blob size", "azure.client.default.write.block_size")
+        );
+        assertThat(exception.getMessage(), containsString("would require [50001] blocks"));
+    }
+
+    public void testUploadSizeValidationUsesInputStreamSdkDefault() {
+        final long maximumUploadSize = (long) BlobClient.BLOB_DEFAULT_UPLOAD_BLOCK_SIZE * 50_000L;
+        AzureStorageService.validateUploadSize(maximumUploadSize, null, "blob size", "azure.client.default.write.block_size");
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> AzureStorageService.validateUploadSize(maximumUploadSize + 1L, null, "blob size", "azure.client.default.write.block_size")
+        );
+        assertThat(exception.getMessage(), containsString("would require [50001] blocks"));
+        assertThat(exception.getMessage(), containsString("is [" + BlobClient.BLOB_DEFAULT_UPLOAD_BLOCK_SIZE + "b]"));
+    }
+
+    public void testUploadSizeValidationUsesSingleUploadSdkDefault() {
+        final ParallelTransferOptions options = new ParallelTransferOptions().setBlockSizeLong(1L);
+        final long maximumSingleUploadSize = ByteSizeUnit.MB.toBytes(256);
+        AzureStorageService.validateUploadSize(maximumSingleUploadSize, options, "blob size", "azure.client.default.write.block_size");
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> AzureStorageService.validateUploadSize(
+                maximumSingleUploadSize + 1L,
+                options,
+                "blob size",
+                "azure.client.default.write.block_size"
+            )
+        );
+    }
+
+    public void testUploadSizeValidationHandlesLongMaximum() {
+        final ParallelTransferOptions options = new ParallelTransferOptions().setBlockSizeLong(1L).setMaxSingleUploadSizeLong(1L);
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> AzureStorageService.validateUploadSize(Long.MAX_VALUE, options, "blob size", "azure.client.default.write.block_size")
+        );
+        assertThat(exception.getMessage(), containsString("blob size [" + Long.MAX_VALUE + "b]"));
+        assertThat(exception.getMessage(), containsString("Minimum block size for this upload is [184467440737096b]"));
+    }
+
+    public void testUploadSizeValidationRejectsNegativeSize() {
+        final IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> AzureStorageService.validateUploadSize(-1L, null, "blob size", "azure.client.default.write.block_size")
+        );
+        assertThat(exception.getMessage(), containsString("blob size must be non-negative"));
     }
 
     public void testTransferSettings() throws IOException {
@@ -408,7 +486,7 @@ public class AzureStorageServiceTests extends OpenSearchTestCase {
             .build();
 
         try (final AzureStorageService service = storageServiceWithSettingsValidation(settings)) {
-            assertThat(service.getReadBlockSize("azure2"), nullValue());
+            assertThat(service.getReadBlockSize("azure2"), is(Math.toIntExact(ByteSizeUnit.MB.toBytes(8))));
             assertThat(service.getReadBlockSize("azure3"), is(Math.toIntExact(ByteSizeUnit.MB.toBytes(16))));
 
             final ParallelTransferOptions options = service.getBlobRequestOptionsForWriteBlob("azure3");

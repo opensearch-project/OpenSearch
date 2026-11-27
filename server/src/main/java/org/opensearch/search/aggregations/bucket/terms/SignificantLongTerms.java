@@ -31,6 +31,7 @@
 
 package org.opensearch.search.aggregations.bucket.terms;
 
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.xcontent.XContentBuilder;
@@ -54,13 +55,22 @@ public class SignificantLongTerms extends InternalMappedSignificantTerms<Signifi
     /**
      * Bucket for significant long values
      *
-     * @opensearch.internal
+     * @opensearch.experimental
      */
-    static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
+    @ExperimentalApi
+    public static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
 
         long term;
 
-        Bucket(
+        /**
+         * Constructs a bucket directly from its computed statistics, for
+         * producers that build significant terms results outside the
+         * shard-level aggregation path.
+         *
+         * @opensearch.experimental
+         */
+        @ExperimentalApi
+        public Bucket(
             long subsetDf,
             long subsetSize,
             long supersetDf,

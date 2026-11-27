@@ -438,6 +438,11 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
+        public Query normalizedWildcardQuery(String value, MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+            return wildcardQuery(value, method, false, context);
+        }
+
+        @Override
         public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
             NamedAnalyzer normalizer = normalizer();
             if (normalizer != null) {

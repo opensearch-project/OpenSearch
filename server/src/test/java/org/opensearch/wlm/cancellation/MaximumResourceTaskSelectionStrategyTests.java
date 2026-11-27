@@ -25,6 +25,8 @@ import java.util.stream.IntStream;
 
 import static org.opensearch.wlm.cancellation.WorkloadGroupTaskCancellationService.MIN_VALUE;
 import static org.opensearch.wlm.tracker.MemoryUsageCalculator.HEAP_SIZE_BYTES;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MaximumResourceTaskSelectionStrategyTests extends OpenSearchTestCase {
 
@@ -76,6 +78,27 @@ public class MaximumResourceTaskSelectionStrategyTests extends OpenSearchTestCas
             resourceType
         );
         assertTrue(selectedTasks.isEmpty());
+    }
+
+    public void testSelectTasksToCancelSelectsEnoughTasksToCoverTheCpuExcess() {
+        List<WorkloadGroupTask> tasks = new ArrayList<>();
+        for (long id = 0; id < 10; id++) {
+            WorkloadGroupTask task = mock(WorkloadGroupTask.class);
+            when(task.getId()).thenReturn(id);
+            when(task.getTotalResourceUtilization(ResourceStats.CPU)).thenReturn(100L);
+            when(task.getElapsedTime()).thenReturn(1000L);
+            tasks.add(task);
+        }
+        // The excess is a share of the node's CPU, like the group usage. With 10 equal tasks, covering 45% of the
+        // group usage takes 5 tasks on any core count
+        double reduceBy = 0.45 * ResourceType.CPU.getResourceUsageCalculator().calculateResourceUsage(tasks);
+
+        List<WorkloadGroupTask> selectedTasks = new MaximumResourceTaskSelectionStrategy().selectTasksForCancellation(
+            tasks,
+            reduceBy,
+            ResourceType.CPU
+        );
+        assertEquals(5, selectedTasks.size());
     }
 
     private boolean tasksUsageMeetsThreshold(List<WorkloadGroupTask> selectedTasks, double threshold) {

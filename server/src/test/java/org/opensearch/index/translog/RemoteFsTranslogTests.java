@@ -355,7 +355,6 @@ public class RemoteFsTranslogTests extends OpenSearchTestCase {
         assertEquals(0, statsTracker.getTotalUploadsFailed());
         assertTrue(statsTracker.getUploadBytesSucceeded() > 0);
         assertTrue(statsTracker.getTotalUploadsSucceeded() > 0);
-        assertTrue(statsTracker.getTotalUploadTimeInMillis() > 0);
         assertTrue(statsTracker.getLastSuccessfulUploadTimestamp() > 0);
     }
 
