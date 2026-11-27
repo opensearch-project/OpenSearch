@@ -42,6 +42,7 @@ import org.opensearch.cluster.ClusterChangedEvent;
 import org.opensearch.cluster.ClusterStateApplier;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.cluster.node.DiscoveryNodes;
+import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lease.Releasables;
@@ -443,7 +444,34 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     /**
+     * Returns the task {@code taskId} names, if it runs on this node.
+     * <p>
+     * A {@link TaskId} is a node id and a task number, and task numbers are unique per node, not across the
+     * cluster: every node numbers its tasks from the same counter start. {@link #getTask(long)} only knows
+     * this node's tasks, so looking up the number of a task on another node could return an unrelated local
+     * task that happens to have the same number. This method checks the node first.
+     *
+     * @param taskId the id of the task, typically a request's parent task
+     * @return the task, or {@code null} if {@code taskId} is not set, names another node, or names a task
+     *         that is no longer registered here, or if this node has not joined the cluster yet
+     */
+    @Nullable
+    public Task getLocalTask(@Nullable TaskId taskId) {
+        if (taskId == null || taskId.isSet() == false) {
+            return null;
+        }
+        final DiscoveryNode localNode = localNode();
+        if (localNode == null || localNode.getId().equals(taskId.getNodeId()) == false) {
+            return null;
+        }
+        return getTask(taskId.getId());
+    }
+
+    /**
      * Returns a task with given id, or null if the task is not found.
+     * <p>
+     * Task numbers are only unique on this node. To look up a task by a {@link TaskId} that may name another
+     * node, such as a request's parent task, use {@link #getLocalTask(TaskId)}.
      */
     public Task getTask(long id) {
         Task task = tasks.get(id);

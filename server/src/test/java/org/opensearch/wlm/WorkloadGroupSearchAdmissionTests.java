@@ -19,7 +19,6 @@ import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchScrollRequest;
 import org.opensearch.action.search.SearchTask;
 import org.opensearch.cluster.node.DiscoveryNode;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ThreadContext;
@@ -40,6 +39,7 @@ import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -70,17 +70,18 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
             serviceListener.set(invocation.getArgument(2));
             return null;
         }).when(workloadGroupService).acquireThrottlePermit(any(), any(), any());
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.localNode()).thenReturn(
+        taskManager = mock(TaskManager.class);
+        // The real node check, against the mocked local node and task lookup.
+        when(taskManager.localNode()).thenReturn(
             new DiscoveryNode("local", buildNewFakeTransportAddress(), Collections.emptyMap(), Collections.emptySet(), Version.CURRENT)
         );
-        taskManager = mock(TaskManager.class);
+        when(taskManager.getLocalTask(any())).thenCallRealMethod();
         // Both policies active and applying to the group unless a test says otherwise.
         when(workloadGroupService.isResourceLimitCheckActive()).thenReturn(true);
         when(workloadGroupService.isThrottlingActive()).thenReturn(true);
         when(workloadGroupService.enforcesResourceLimits(any())).thenReturn(true);
         when(workloadGroupService.configuresThrottling(any())).thenReturn(true);
-        admission = new WorkloadGroupSearchAdmission(workloadGroupService, clusterService, taskManager);
+        admission = new WorkloadGroupSearchAdmission(workloadGroupService, taskManager);
     }
 
     public void testIsActiveWhileAnyPolicyIsActive() {
@@ -384,8 +385,9 @@ public class WorkloadGroupSearchAdmissionTests extends OpenSearchTestCase {
 
     public void testLooksUpTheParentOnlyWhenAsked() {
         admit(searchTask(new TaskId("local", PARENT_ID)), new SearchRequest());
-        // The service asks only once a throttle applies; until then the admission must not touch the task manager.
-        verifyNoInteractions(taskManager);
+        // The service asks only once a throttle applies; until then the admission must not look up any task.
+        verify(taskManager, never()).getLocalTask(any());
+        verify(taskManager, never()).getTask(anyLong());
         parentAlreadyCounted.get().getAsBoolean();
         verify(taskManager).getTask(PARENT_ID);
     }

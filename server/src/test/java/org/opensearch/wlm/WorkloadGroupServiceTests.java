@@ -1041,9 +1041,7 @@ public class WorkloadGroupServiceTests extends OpenSearchTestCase {
     }
 
     private SearchExecutionGate activeSearchGate() {
-        return new SearchExecutionGate(
-            new WorkloadGroupSearchAdmission(workloadGroupService, mockClusterService, Mockito.mock(TaskManager.class))
-        );
+        return new SearchExecutionGate(new WorkloadGroupSearchAdmission(workloadGroupService, Mockito.mock(TaskManager.class)));
     }
 
     public void testAcquireThrottleMonitorModeObservesWithoutRejecting() {

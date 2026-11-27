@@ -2106,7 +2106,7 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
             NoopTracer.INSTANCE,
             mock(TaskResourceTrackingService.class),
             mock(IndicesService.class),
-            new SearchExecutionGate(new WorkloadGroupSearchAdmission(workloadGroupService, clusterService, mock(TaskManager.class))),
+            new SearchExecutionGate(new WorkloadGroupSearchAdmission(workloadGroupService, mock(TaskManager.class))),
             SearchCancelAfterTimeIntervalResolver.NOOP
         );
 
@@ -2167,6 +2167,9 @@ public class TransportSearchActionTests extends OpenSearchTestCase {
 
     /** A {@link TransportSearchAction} on a node with id {@link #LOCAL_NODE_ID} whose tasks {@code taskManager} tracks. */
     private TransportSearchAction actionForParentTaskLookup(TaskManager taskManager) {
+        // The real node check, against the mocked local node and task lookup.
+        when(taskManager.localNode()).thenReturn(new DiscoveryNode(LOCAL_NODE_ID, buildNewFakeTransportAddress(), Version.CURRENT));
+        when(taskManager.getLocalTask(any())).thenCallRealMethod();
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)

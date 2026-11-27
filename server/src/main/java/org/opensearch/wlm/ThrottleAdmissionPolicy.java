@@ -10,7 +10,6 @@ package org.opensearch.wlm;
 
 import org.opensearch.action.ActionRequest;
 import org.opensearch.action.search.SearchScrollRequest;
-import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.tasks.TaskId;
@@ -29,12 +28,10 @@ import static org.opensearch.action.search.SearchAdmission.NOOP_PERMIT;
 final class ThrottleAdmissionPolicy implements WorkloadGroupAdmissionPolicy {
 
     private final WorkloadGroupService workloadGroupService;
-    private final ClusterService clusterService;
     private final TaskManager taskManager;
 
-    ThrottleAdmissionPolicy(WorkloadGroupService workloadGroupService, ClusterService clusterService, TaskManager taskManager) {
+    ThrottleAdmissionPolicy(WorkloadGroupService workloadGroupService, TaskManager taskManager) {
         this.workloadGroupService = workloadGroupService;
-        this.clusterService = clusterService;
         this.taskManager = taskManager;
     }
 
@@ -70,16 +67,9 @@ final class ThrottleAdmissionPolicy implements WorkloadGroupAdmissionPolicy {
      * client is the only thing that parents a counted coordinator search, and {@code TransportSearchAction} parents rewrite
      * searches on a task only when that task is counted, so a counted ancestor is always the immediate parent. Non-search
      * parents (an {@code _msearch} task, a reindex task) never carry the flag, so their child searches are each charged, as
-     * intended. Remote parents are skipped because {@code TaskManager#getTask} is node-local.
+     * intended. Remote parents are skipped (see {@link TaskManager#getLocalTask(TaskId)}).
      */
     private boolean parentAlreadyCounted(final Task task) {
-        TaskId parentTaskId = task.getParentTaskId();
-        if (parentTaskId == null || parentTaskId.isSet() == false) {
-            return false;
-        }
-        if (clusterService.localNode().getId().equals(parentTaskId.getNodeId()) == false) {
-            return false;
-        }
-        return taskManager.getTask(parentTaskId.getId()) instanceof WorkloadGroupTask parent && parent.isThrottleCounted();
+        return taskManager.getLocalTask(task.getParentTaskId()) instanceof WorkloadGroupTask parent && parent.isThrottleCounted();
     }
 }
