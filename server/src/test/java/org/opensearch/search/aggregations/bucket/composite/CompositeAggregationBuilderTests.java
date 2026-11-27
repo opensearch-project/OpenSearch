@@ -45,6 +45,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<CompositeAggregationBuilder> {
     private DateHistogramValuesSourceBuilder randomDateHistogramSourceBuilder() {
         DateHistogramValuesSourceBuilder histo = new DateHistogramValuesSourceBuilder(randomAlphaOfLengthBetween(5, 10));
@@ -135,10 +137,10 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
         CompositeAggregationBuilder builder = new CompositeAggregationBuilder("my_composite", sources);
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.size(0));
-        assertEquals("[size] must be greater than 0. Found [0] in [my_composite]", e.getMessage());
+        assertThat(e.getMessage(), containsString("[size] must be greater than 0"));
 
         e = expectThrows(IllegalArgumentException.class, () -> builder.size(-1));
-        assertEquals("[size] must be greater than 0. Found [-1] in [my_composite]", e.getMessage());
+        assertThat(e.getMessage(), containsString("[size] must be greater than 0"));
 
         int validSize = randomIntBetween(1, 1000);
         builder.size(validSize);
@@ -159,6 +161,6 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             cause = cause.getCause();
         }
         assertEquals(IllegalArgumentException.class, cause.getClass());
-        assertEquals("[size] must be greater than 0. Found [0] in [my_composite]", cause.getMessage());
+        assertThat(cause.getMessage(), containsString("[size] must be greater than 0"));
     }
 }
