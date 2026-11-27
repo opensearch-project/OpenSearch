@@ -534,6 +534,7 @@ import org.opensearch.storage.action.tiering.status.transport.TransportGetTierin
 import org.opensearch.storage.action.tiering.status.transport.TransportListTieringStatusAction;
 import org.opensearch.tasks.Task;
 import org.opensearch.threadpool.ThreadPool;
+import org.opensearch.transport.TransportService;
 import org.opensearch.transport.client.node.NodeClient;
 import org.opensearch.usage.UsageService;
 import org.opensearch.wlm.WorkloadGroupTask;
@@ -659,6 +660,19 @@ public class ActionModule extends AbstractModule {
 
     public Map<String, ActionHandler<?, ?>> getActions() {
         return actions;
+    }
+
+    /**
+     * Returns custom namespaces from registered actions, including the trailing {@code :}.
+     * These prefixes describe naming conventions, not authorization or resource ownership.
+     */
+    public Set<String> getPluginActionPrefixes() {
+        return actions.keySet()
+            .stream()
+            .filter(name -> TransportService.isValidActionName(name) == false)
+            .filter(name -> name.indexOf(':') > 0)
+            .map(name -> name.substring(0, name.indexOf(':') + 1))
+            .collect(Collectors.toUnmodifiableSet());
     }
 
     static Map<String, ActionHandler<?, ?>> setupActions(List<ActionPlugin> actionPlugins) {
