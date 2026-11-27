@@ -789,7 +789,9 @@ public class WildcardFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
-            throw new UnsupportedOperationException("TODO");
+            throw new IllegalArgumentException(
+                "Can only use range queries on keyword and text fields - not on [" + name() + "] which is of type [" + typeName() + "]"
+            );
         }
 
         @Override
