@@ -121,7 +121,7 @@ jobs:
         run: |
           set -e
           set -o pipefail
-          bash .ci/jenkins/scripts/gradle-check.sh -t ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN }} -u ${{ secrets.JENKINS_GITHUB_USER }} -p ${{ secrets.JENKINS_GITHUB_USER_TOKEN }} | tee -a gradle-check.log
+          bash .ci/jenkins/scripts/gradle-check.sh -t ${{ secrets.JENKINS_GRADLE_CHECK_GENERIC_WEBHOOK_TOKEN_PROD }} -u ${{ secrets.JENKINS_GITHUB_USER_LF }} -p ${{ secrets.JENKINS_GITHUB_USER_TOKEN_LF }} | tee -a gradle-check.log
 
       - name: Setup Result Status
         if: always()

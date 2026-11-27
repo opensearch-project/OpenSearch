@@ -60,13 +60,19 @@ public class MinHashTokenFilterFactory extends AbstractTokenFilterFactory {
         long hashCount = settings.getAsInt("hash_count", MinHashFilter.DEFAULT_HASH_COUNT);
         long bucketCount = settings.getAsInt("bucket_count", MinHashFilter.DEFAULT_BUCKET_COUNT);
         long hashSetSize = settings.getAsInt("hash_set_size", MinHashFilter.DEFAULT_HASH_SET_SIZE);
-        long product = hashCount * bucketCount * hashSetSize;
-        if (product > MAX_HASH_PRODUCT) {
+        if (hashCount > MAX_HASH_PRODUCT
+            || bucketCount > MAX_HASH_PRODUCT
+            || hashSetSize > MAX_HASH_PRODUCT
+            || hashCount * bucketCount * hashSetSize > MAX_HASH_PRODUCT) {
             throw new IllegalArgumentException(
                 "[min_hash] hash_count * bucket_count * hash_set_size must be less than or equal to: ["
                     + MAX_HASH_PRODUCT
                     + "] but was ["
-                    + product
+                    + hashCount
+                    + " * "
+                    + bucketCount
+                    + " * "
+                    + hashSetSize
                     + "]"
             );
         }
