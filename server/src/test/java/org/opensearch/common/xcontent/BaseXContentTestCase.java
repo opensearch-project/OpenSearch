@@ -908,8 +908,14 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
         try (XContentGenerator generator = xcontentType().xContent().createGenerator(os)) {
             generator.writeStartObject();
             generator.writeFieldName("test");
+            generator.writeStartArray();
             generator.writeRawValue(new BytesArray(rawData).streamInput(), source.mediaType());
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.mediaType());
+            generator.writeNull();
             assertFalse("Generator should not have closed the output stream", closed.get());
+            generator.writeEndArray();
+            generator.writeFieldName("after");
+            generator.writeRawValue(new BytesArray(rawData).streamInput(), source.mediaType());
             generator.writeEndObject();
         }
 
@@ -917,15 +923,8 @@ public abstract class BaseXContentTestCase extends OpenSearchTestCase {
             XContentParser parser = xcontentType().xContent()
                 .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, os.toByteArray())
         ) {
-            assertEquals(Token.START_OBJECT, parser.nextToken());
-            assertEquals(Token.FIELD_NAME, parser.nextToken());
-            assertEquals("test", parser.currentName());
-            assertEquals(Token.START_OBJECT, parser.nextToken());
-            assertEquals(Token.FIELD_NAME, parser.nextToken());
-            assertEquals("foo", parser.currentName());
-            assertEquals(Token.VALUE_NULL, parser.nextToken());
-            assertEquals(Token.END_OBJECT, parser.nextToken());
-            assertEquals(Token.END_OBJECT, parser.nextToken());
+            Map<String, Object> rawObject = Collections.singletonMap("foo", null);
+            assertEquals(Map.of("test", Arrays.asList(rawObject, rawObject, null), "after", rawObject), parser.map());
             assertNull(parser.nextToken());
         }
 

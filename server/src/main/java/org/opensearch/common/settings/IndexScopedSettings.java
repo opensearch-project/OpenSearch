@@ -202,6 +202,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_UNREFERENCED_FILE_CLEANUP,
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
                 FieldMapper.IGNORE_MALFORMED_SETTING,
+                FieldMapper.IGNORE_MAPPING_CONFLICTS_SETTING,
                 FieldMapper.COERCE_SETTING,
                 Store.INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING,
                 MapperService.INDEX_MAPPER_DYNAMIC_SETTING,

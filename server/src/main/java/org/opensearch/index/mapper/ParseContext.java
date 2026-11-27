@@ -356,6 +356,21 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         }
 
         @Override
+        boolean isMappingConflictIgnored(String field) {
+            return in.isMappingConflictIgnored(field);
+        }
+
+        @Override
+        Set<String> mappingConflictsToCollect() {
+            return in.mappingConflictsToCollect();
+        }
+
+        @Override
+        InternalParseContext createFieldProbeContext(XContentParser parser) {
+            return in.createFieldProbeContext(parser);
+        }
+
+        @Override
         public void incrementFieldCurrentDepth() {
             in.incrementFieldCurrentDepth();
         }
@@ -433,6 +448,38 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
         private boolean docsReversed = false;
 
         private final Set<String> ignoredFields = new HashSet<>();
+
+        private Set<String> ignoredMappingConflicts = Collections.emptySet();
+        private boolean collectingMappingConflicts;
+
+        void collectMappingConflicts(Set<String> fields) {
+            collectingMappingConflicts = true;
+            ignoredMappingConflicts = fields;
+            ignoredFields.addAll(fields);
+        }
+
+        @Override
+        Set<String> mappingConflictsToCollect() {
+            return collectingMappingConflicts ? ignoredMappingConflicts : null;
+        }
+
+        @Override
+        InternalParseContext createFieldProbeContext(XContentParser parser) {
+            InternalParseContext probe = new InternalParseContext(indexSettings, docMapperParser, docMapper, sourceToParse, parser);
+            probe.currentFieldDepth = currentFieldDepth;
+            probe.currentArrayDepth = currentArrayDepth;
+            return probe;
+        }
+
+        void ignoreMappingConflicts(Set<String> fields) {
+            ignoredMappingConflicts = Set.copyOf(fields);
+            ignoredFields.addAll(fields);
+        }
+
+        @Override
+        boolean isMappingConflictIgnored(String field) {
+            return isMappingConflictIgnored(field, ignoredMappingConflicts);
+        }
 
         private DocumentInput documentInput;
 
@@ -709,6 +756,36 @@ public abstract class ParseContext implements Iterable<ParseContext.Document> {
      * Return the collection of fields that have been ignored so far.
      */
     public abstract Collection<String> getIgnoredFields();
+
+    boolean isMappingConflictIgnored(String field) {
+        return false;
+    }
+
+    Set<String> mappingConflictsToCollect() {
+        return null;
+    }
+
+    InternalParseContext createFieldProbeContext(XContentParser parser) {
+        throw new UnsupportedOperationException("field probes require an internal parse context");
+    }
+
+    final boolean isMappingConflictIgnored(String field, Set<String> conflicts) {
+        if (conflicts.isEmpty()) {
+            return false;
+        }
+        if (conflicts.contains(field)) {
+            return true;
+        }
+        // Dotted names and structured objects must both honor an ignored object ancestor.
+        // Literal dotted leaf fields in disable_objects mappings remain independent.
+        for (int dot = field.lastIndexOf('.'); dot >= 0; dot = field.lastIndexOf('.')) {
+            field = field.substring(0, dot);
+            if (conflicts.contains(field) && docMapper().objectMappers().containsKey(field)) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     public abstract DocumentMapperParser docMapperParser();
 

@@ -505,13 +505,10 @@ public class JsonXContentGenerator implements XContentGenerator {
         if (mayWriteRawData(mediaType) == false) {
             copyRawValue(stream, mediaType.xContent());
         } else {
-            if (generator.streamWriteContext().currentName() != null) {
-                // If we've just started a field we'll need to add the separator
-                generator.writeRaw(':');
-            }
+            // Let Jackson write the separator and advance the context for objects, arrays, and root values.
+            generator.writeRawValue("");
             flush();
             Streams.copy(stream, os, false);
-            writeEndRaw();
         }
     }
 
