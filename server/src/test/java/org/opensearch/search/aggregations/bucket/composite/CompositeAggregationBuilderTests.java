@@ -32,14 +32,20 @@
 
 package org.opensearch.search.aggregations.bucket.composite;
 
+import org.opensearch.common.xcontent.json.JsonXContent;
+import org.opensearch.core.xcontent.XContentParseException;
+import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.script.Script;
 import org.opensearch.search.aggregations.BaseAggregationTestCase;
 import org.opensearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.search.sort.SortOrder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<CompositeAggregationBuilder> {
     private DateHistogramValuesSourceBuilder randomDateHistogramSourceBuilder() {
@@ -123,5 +129,38 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             }
         }
         return new CompositeAggregationBuilder(randomAlphaOfLength(10), sources);
+    }
+
+    public void testSizeMustBeGreaterThanZero() {
+        List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
+        sources.add(new TermsValuesSourceBuilder("terms").field("field"));
+        CompositeAggregationBuilder builder = new CompositeAggregationBuilder("my_composite", sources);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> builder.size(0));
+        assertThat(e.getMessage(), containsString("[size] must be greater than 0"));
+
+        e = expectThrows(IllegalArgumentException.class, () -> builder.size(-1));
+        assertThat(e.getMessage(), containsString("[size] must be greater than 0"));
+
+        int validSize = randomIntBetween(1, 1000);
+        builder.size(validSize);
+        assertEquals(validSize, builder.size());
+    }
+
+    public void testParsingRejectsSizeZero() throws IOException {
+        String json = "{ \"size\": 0, \"sources\": [ { \"t\": { \"terms\": { \"field\": \"tag\" } } } ] }";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
+
+        XContentParseException e = expectThrows(
+            XContentParseException.class,
+            () -> CompositeAggregationBuilder.PARSER.parse(parser, "my_composite")
+        );
+        // the parser wraps the error a few times, the real reason is the innermost cause
+        Throwable cause = e;
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        assertEquals(IllegalArgumentException.class, cause.getClass());
+        assertThat(cause.getMessage(), containsString("[size] must be greater than 0"));
     }
 }
