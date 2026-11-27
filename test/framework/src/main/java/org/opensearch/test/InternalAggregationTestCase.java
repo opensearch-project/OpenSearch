@@ -118,6 +118,7 @@ import org.opensearch.search.aggregations.metrics.ExtendedStatsAggregationBuilde
 import org.opensearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.InternalHDRPercentileRanks;
 import org.opensearch.search.aggregations.metrics.InternalHDRPercentiles;
+import org.opensearch.search.aggregations.metrics.InternalStringStats;
 import org.opensearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.opensearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.opensearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -134,6 +135,7 @@ import org.opensearch.search.aggregations.metrics.ParsedMedianAbsoluteDeviation;
 import org.opensearch.search.aggregations.metrics.ParsedMin;
 import org.opensearch.search.aggregations.metrics.ParsedScriptedMetric;
 import org.opensearch.search.aggregations.metrics.ParsedStats;
+import org.opensearch.search.aggregations.metrics.ParsedStringStats;
 import org.opensearch.search.aggregations.metrics.ParsedSum;
 import org.opensearch.search.aggregations.metrics.ParsedTDigestPercentileRanks;
 import org.opensearch.search.aggregations.metrics.ParsedTDigestPercentiles;
@@ -252,6 +254,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         map.put(StatsAggregationBuilder.NAME, (p, c) -> ParsedStats.fromXContent(p, (String) c));
         map.put(StatsBucketPipelineAggregationBuilder.NAME, (p, c) -> ParsedStatsBucket.fromXContent(p, (String) c));
         map.put(ExtendedStatsAggregationBuilder.NAME, (p, c) -> ParsedExtendedStats.fromXContent(p, (String) c));
+        map.put(InternalStringStats.NAME, (p, c) -> ParsedStringStats.fromXContent(p, (String) c));
         map.put(ExtendedStatsBucketPipelineAggregationBuilder.NAME, (p, c) -> ParsedExtendedStatsBucket.fromXContent(p, (String) c));
         map.put(GeoCentroidAggregationBuilder.NAME, (p, c) -> ParsedGeoCentroid.fromXContent(p, (String) c));
         map.put(HistogramAggregationBuilder.NAME, (p, c) -> ParsedHistogram.fromXContent(p, (String) c));

@@ -90,6 +90,8 @@ import org.opensearch.search.aggregations.metrics.ScriptedMetric;
 import org.opensearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.aggregations.metrics.StatsAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.StringStats;
+import org.opensearch.search.aggregations.metrics.StringStatsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.Sum;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.TopHits;
@@ -164,6 +166,13 @@ public class AggregationBuilders {
      */
     public static ExtendedStatsAggregationBuilder extendedStats(String name) {
         return new ExtendedStatsAggregationBuilder(name);
+    }
+
+    /**
+     * Create a new {@link StringStats} aggregation with the given name.
+     */
+    public static StringStatsAggregationBuilder stringStats(String name) {
+        return new StringStatsAggregationBuilder(name);
     }
 
     /**

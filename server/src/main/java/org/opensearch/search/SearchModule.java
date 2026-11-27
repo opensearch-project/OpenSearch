@@ -195,6 +195,7 @@ import org.opensearch.search.aggregations.metrics.InternalMedianAbsoluteDeviatio
 import org.opensearch.search.aggregations.metrics.InternalMin;
 import org.opensearch.search.aggregations.metrics.InternalScriptedMetric;
 import org.opensearch.search.aggregations.metrics.InternalStats;
+import org.opensearch.search.aggregations.metrics.InternalStringStats;
 import org.opensearch.search.aggregations.metrics.InternalSum;
 import org.opensearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
 import org.opensearch.search.aggregations.metrics.InternalTDigestPercentiles;
@@ -209,6 +210,7 @@ import org.opensearch.search.aggregations.metrics.PercentileRanksAggregationBuil
 import org.opensearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ScriptedMetricAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.StatsAggregationBuilder;
+import org.opensearch.search.aggregations.metrics.StringStatsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.opensearch.search.aggregations.metrics.ValueCountAggregationBuilder;
@@ -448,6 +450,14 @@ public class SearchModule {
                 ExtendedStatsAggregationBuilder::new,
                 ExtendedStatsAggregationBuilder.PARSER
             ).addResultReader(InternalExtendedStats::new).setAggregatorRegistrar(ExtendedStatsAggregationBuilder::registerAggregators),
+            builder
+        );
+        registerAggregation(
+            new AggregationSpec(
+                StringStatsAggregationBuilder.NAME,
+                StringStatsAggregationBuilder::new,
+                StringStatsAggregationBuilder.PARSER
+            ).addResultReader(InternalStringStats::new).setAggregatorRegistrar(StringStatsAggregationBuilder::registerAggregators),
             builder
         );
         registerAggregation(
