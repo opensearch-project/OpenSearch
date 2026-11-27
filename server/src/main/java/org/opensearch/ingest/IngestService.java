@@ -783,7 +783,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         validateProcessorCountForIngestPipeline(pipeline);
 
         List<Exception> exceptions = new ArrayList<>();
-        for (Processor processor : pipeline.flattenAllProcessors()) {
+        for (Processor processor : processorsToValidate(pipeline)) {
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
                 String type = processor.getType();
                 if (entry.getValue().containsProcessor(type) == false && ConditionalProcessor.TYPE.equals(type) == false) {
@@ -793,6 +793,32 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
         }
         ExceptionsHelper.rethrowAndSuppress(exceptions);
+    }
+
+    /**
+     * The processors of the pipeline whose type has to be installed on every ingest node. A processor that is configured with an
+     * {@code if} is wrapped in a {@link ConditionalProcessor}, which is not an installed processor type itself, so this looks through
+     * the wrapper to the processor that is: otherwise a processor that a node does not know could be used behind an {@code if}.
+     */
+    private static List<Processor> processorsToValidate(Pipeline pipeline) {
+        List<Processor> processors = new ArrayList<>();
+        for (Processor processor : pipeline.flattenAllProcessors()) {
+            collectProcessorsToValidate(processor, processors);
+        }
+        return processors;
+    }
+
+    private static void collectProcessorsToValidate(Processor processor, List<Processor> collected) {
+        if (processor instanceof ConditionalProcessor conditionalProcessor) {
+            collectProcessorsToValidate(conditionalProcessor.getInnerProcessor(), collected);
+        } else if (processor instanceof CompoundProcessor compoundProcessor) {
+            // a processor with ignore_failure or on_failure, wrapped in a conditional
+            for (Processor inner : compoundProcessor.flattenProcessors()) {
+                collectProcessorsToValidate(inner, collected);
+            }
+        } else {
+            collected.add(processor);
+        }
     }
 
     public void validateProcessorCountForIngestPipeline(Pipeline pipeline) {

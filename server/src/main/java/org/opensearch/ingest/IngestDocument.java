@@ -78,6 +78,10 @@ public final class IngestDocument {
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
 
+    // Set by a processor that wants the pipeline that is currently executing this document to stop. This is execution state, not
+    // document state: it is not copied, and not part of equals/hashCode. It is cleared by Pipeline when the pipeline completes.
+    private boolean pipelineTerminated = false;
+
     public IngestDocument(String index, String id, String routing, Long version, VersionType versionType, Map<String, Object> source) {
         this.sourceAndMetadata = new HashMap<>();
         this.sourceAndMetadata.putAll(source);
@@ -809,6 +813,36 @@ public final class IngestDocument {
         } else {
             handler.accept(null, new IllegalStateException(PIPELINE_CYCLE_ERROR_MESSAGE + pipeline.getId()));
         }
+    }
+
+    /**
+     * Asks for the pipeline that is currently executing this document to stop. The processors of that pipeline that have not run yet
+     * are skipped, and the document is then handled as if the pipeline had completed normally: it is not dropped, it is not a failure,
+     * and no {@code on_failure} metadata is added. A pipeline that called the pipeline that stopped carries on, and so do the
+     * {@code final_pipeline} and other pipelines that run for the document afterwards.
+     * <p>
+     * The request is cleared by the {@link Pipeline} that observes it, when that pipeline completes. A processor that runs other
+     * processors itself, such as {@code foreach}, does not clear it: the processors that it runs share this document, so the request
+     * takes effect when that processor has completed.
+     */
+    public void terminatePipeline() {
+        this.pipelineTerminated = true;
+    }
+
+    /**
+     * @return whether a processor asked for the pipeline that is currently executing this document to stop,
+     *         see {@link #terminatePipeline()}
+     */
+    public boolean isPipelineTerminated() {
+        return pipelineTerminated;
+    }
+
+    /**
+     * Clears the request made through {@link #terminatePipeline()}. Only {@link Pipeline} calls this, once the pipeline that the request
+     * applied to has completed, so that the request cannot leak into a calling pipeline or into a pipeline that runs later.
+     */
+    void clearPipelineTermination() {
+        this.pipelineTerminated = false;
     }
 
     /**
