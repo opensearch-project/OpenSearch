@@ -34,6 +34,7 @@ package org.opensearch.search.profile.aggregation;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Weight;
 import org.opensearch.search.aggregations.Aggregator;
 import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.LeafBucketCollector;
@@ -63,6 +64,11 @@ public class ProfilingAggregator extends Aggregator implements ProfilingWrapper<
     @Override
     public void close() {
         delegate.close();
+    }
+
+    @Override
+    public void setWeight(Weight weight) {
+        delegate.setWeight(weight);
     }
 
     @Override

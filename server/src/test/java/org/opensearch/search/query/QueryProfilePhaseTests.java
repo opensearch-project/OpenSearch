@@ -99,6 +99,7 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -106,6 +107,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -536,10 +538,16 @@ public class QueryProfilePhaseTests extends IndexShardTestCase {
                 assertThat(collector.getProfiledChildren().get(0).getSliceCount(), greaterThanOrEqualTo(1));
             });
 
+            // Do not expect an exact match when terminate_after is used in conjunction to size = 0 as an optimization introduced by
+            // https://issues.apache.org/jira/browse/LUCENE-10620 can produce a total hit count >= terminated_after, because
+            // TotalHitCountCollector is used in this case as part of Weight#count() optimization
             context.setSize(0);
             QueryPhase.executeInternal(context.withCleanQueryResult().withProfilers(), queryPhaseSearcher);
             assertTrue(context.queryResult().terminatedEarly());
-            assertThat(context.queryResult().topDocs().topDocs.totalHits.value(), equalTo(1L));
+            assertThat(
+                context.queryResult().topDocs().topDocs.totalHits.value(),
+                allOf(greaterThanOrEqualTo(1L), lessThanOrEqualTo((long) numDocs))
+            );
             assertThat(context.queryResult().topDocs().topDocs.scoreDocs.length, equalTo(0));
             // IndexSearcher#rewrite optimizes by rewriting non-scoring queries to ConstantScoreQuery
             // see: https://github.com/apache/lucene/pull/672

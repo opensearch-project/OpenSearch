@@ -35,7 +35,9 @@ package org.opensearch.search.profile.aggregation;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.opensearch.action.index.IndexRequestBuilder;
+import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
+import org.opensearch.action.support.WriteRequest.RefreshPolicy;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -44,6 +46,7 @@ import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.search.aggregations.bucket.global.Global;
 import org.opensearch.search.aggregations.bucket.sampler.DiversifiedOrdinalsSamplerAggregator;
 import org.opensearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
+import org.opensearch.search.aggregations.bucket.terms.Terms;
 import org.opensearch.search.aggregations.metrics.Stats;
 import org.opensearch.search.profile.ProfileResult;
 import org.opensearch.search.profile.ProfileShardResult;
@@ -75,6 +78,7 @@ import static org.opensearch.search.aggregations.AggregationBuilders.stats;
 import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.search.aggregations.AggregationBuilders.topHits;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -219,6 +223,60 @@ public class AggregationProfilerIT extends ParameterizedStaticSettingsOpenSearch
 
         indexRandom(true, false, builders);
         createIndex("idx_unmapped");
+    }
+
+    public void testProfiledTermsUseSegmentFrequenciesOnlyWhenAllDocumentsMatch() {
+        final String index = "profiled_terms";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(index)
+                .setSettings(Map.of("number_of_shards", 1, "number_of_replicas", 0, "refresh_interval", "-1"))
+                .setMapping("color", "type=keyword", NUMBER_FIELD, "type=integer")
+                .get()
+        );
+        try {
+            assertNoFailures(
+                client().prepareBulk()
+                    .add(client().prepareIndex(index).setSource("color", "red", NUMBER_FIELD, 1))
+                    .add(client().prepareIndex(index).setSource("color", "red", NUMBER_FIELD, 2))
+                    .add(client().prepareIndex(index).setSource("color", "blue", NUMBER_FIELD, 1))
+                    .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+                    .get()
+            );
+            assertNoFailures(client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get());
+
+            final SearchRequestBuilder search = client().prepareSearch(index)
+                .setSize(0)
+                .setProfile(true)
+                .setRequestCache(false)
+                .addAggregation(terms("colors").field("color").executionHint("global_ordinals"));
+            assertProfiledTerms(search.get(), List.of(Map.entry("red", 2L), Map.entry("blue", 1L)), 0L);
+            assertProfiledTerms(
+                search.setQuery(QueryBuilders.termQuery(NUMBER_FIELD, 1)).get(),
+                List.of(Map.entry("blue", 1L), Map.entry("red", 1L)),
+                2L
+            );
+        } finally {
+            assertAcked(client().admin().indices().prepareDelete(index));
+        }
+    }
+
+    private static void assertProfiledTerms(
+        SearchResponse response,
+        List<Map.Entry<String, Long>> expectedBuckets,
+        long expectedCollectCount
+    ) {
+        assertSearchResponse(response);
+        final Terms colors = response.getAggregations().get("colors");
+        assertEquals(
+            expectedBuckets,
+            colors.getBuckets().stream().map(bucket -> Map.entry(bucket.getKeyAsString(), bucket.getDocCount())).toList()
+        );
+        assertEquals(1, response.getProfileResults().size());
+        final ProfileShardResult shard = response.getProfileResults().values().iterator().next();
+        final ProfileResult aggregation = shard.getAggregationProfileResults().getProfileResults().getFirst();
+        assertThat(aggregation.getTimeBreakdown(), hasEntry(COLLECT + "_count", expectedCollectCount));
     }
 
     public void testSimpleProfile() {
