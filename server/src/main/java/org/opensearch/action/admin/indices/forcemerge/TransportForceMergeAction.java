@@ -42,10 +42,14 @@ import org.opensearch.cluster.routing.ShardRouting;
 import org.opensearch.cluster.routing.ShardsIterator;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.index.shard.IndexShard;
+import org.opensearch.index.shard.IndexShardState;
 import org.opensearch.indices.IndicesService;
+import org.opensearch.ratelimitting.admissioncontrol.AdmissionControlService;
+import org.opensearch.ratelimitting.admissioncontrol.enums.AdmissionControlActionType;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.TransportService;
 
@@ -62,7 +66,24 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
     ForceMergeResponse,
     TransportBroadcastByNodeAction.EmptyResult> {
 
+    /**
+     * Gates admission control for the force merge API independently of the other action types. The controllers' own
+     * mode settings still apply, so a force merge is only ever rejected when this is {@code true} <em>and</em> a
+     * controller is enforced. Enabled by default, so force merges follow the controllers' modes like the other action
+     * types; set it to {@code false} to exempt force merges without changing admission control for search, indexing or
+     * cluster admin actions. Dynamic: a change is picked up by the next shard to start merging, including later shards
+     * of a request that is already in progress.
+     */
+    public static final Setting<Boolean> FORCE_MERGE_ADMISSION_CONTROL_ENABLED = Setting.boolSetting(
+        "admission_control.force_merge.enabled",
+        true,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
+
     private final IndicesService indicesService;
+    private final AdmissionControlService admissionControlService;
+    private volatile boolean admissionControlEnabled;
 
     @Inject
     public TransportForceMergeAction(
@@ -70,7 +91,8 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        AdmissionControlService admissionControlService
     ) {
         super(
             ForceMergeAction.NAME,
@@ -82,6 +104,10 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
             ThreadPool.Names.FORCE_MERGE
         );
         this.indicesService = indicesService;
+        this.admissionControlService = admissionControlService;
+        this.admissionControlEnabled = clusterService.getClusterSettings().get(FORCE_MERGE_ADMISSION_CONTROL_ENABLED);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(FORCE_MERGE_ADMISSION_CONTROL_ENABLED, enabled -> this.admissionControlEnabled = enabled);
     }
 
     @Override
@@ -107,11 +133,46 @@ public class TransportForceMergeAction extends TransportBroadcastByNodeAction<
         return new ForceMergeRequest(in);
     }
 
+    /**
+     * Runs on the data node, on the {@link ThreadPool.Names#FORCE_MERGE} pool. Admission control is evaluated per shard,
+     * immediately before the merge starts, so that the decision reflects the resource usage of the node actually doing
+     * the work at the time the work begins. Shards of one node request are merged sequentially and each merge can run
+     * for a long time, so a single node-level check would go stale for the later shards.
+     * A rejection surfaces as an {@link org.opensearch.core.concurrency.OpenSearchRejectedExecutionException} shard
+     * failure; the remaining shards are still attempted.
+     */
     @Override
     protected EmptyResult shardOperation(ForceMergeRequest request, ShardRouting shardRouting) throws IOException {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.shardId().getIndex()).getShard(shardRouting.shardId().id());
+        if (isAdmissionControlRequired(indexShard)) {
+            admissionControlService.applyTransportAdmissionControl(actionName, AdmissionControlActionType.FORCE_MERGE);
+        }
         indexShard.forceMerge(request);
         return EmptyResult.INSTANCE;
+    }
+
+    /**
+     * Admission control applies only when {@link #FORCE_MERGE_ADMISSION_CONTROL_ENABLED} is set; when it is not, the
+     * controllers are not consulted at all, so no rejection is recorded even in monitor mode.
+     * <p>
+     * Only copies that can actually merge are admission controlled. A copy that is not {@link IndexShardState#STARTED}
+     * (for example one that is still recovering, or the target of a relocation) is left to {@link IndexShard#forceMerge},
+     * which rejects it with an {@link org.opensearch.index.shard.IllegalIndexShardStateException}. That exception is
+     * treated as "shard not available" and left out of the response's failures, exactly as before admission control
+     * was added; checking admission first would instead charge a rejection and report a spurious 429 for it. The state
+     * may change right after this check, which is harmless because {@link IndexShard#forceMerge} checks it again.
+     * <p>
+     * Replicas of segment replication or remote store backed indices do not merge locally: their engine's force merge
+     * is a no-op and the merged segments are copied from the primary. Admission control is skipped for them because
+     * there is no local merge to protect, and rejecting them would only report spurious shard failures. The primary
+     * flag is read from the shard's current routing entry rather than the coordinator's routing, so a replica that was
+     * promoted after the request was built (and therefore merges) is admission controlled.
+     */
+    boolean isAdmissionControlRequired(IndexShard indexShard) {
+        if (admissionControlEnabled == false || indexShard.state() != IndexShardState.STARTED) {
+            return false;
+        }
+        return indexShard.routingEntry().primary() || indexShard.indexSettings().isSegRepEnabledOrRemoteNode() == false;
     }
 
     /**

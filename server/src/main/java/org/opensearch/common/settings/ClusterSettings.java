@@ -34,6 +34,7 @@ package org.opensearch.common.settings;
 import org.apache.logging.log4j.LogManager;
 import org.opensearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.opensearch.action.admin.indices.close.TransportCloseIndexAction;
+import org.opensearch.action.admin.indices.forcemerge.TransportForceMergeAction;
 import org.opensearch.action.search.CreatePitController;
 import org.opensearch.action.search.SearchRequestSlowLog;
 import org.opensearch.action.search.SearchRequestStats;
@@ -854,9 +855,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
                 CpuBasedAdmissionControllerSettings.INDEXING_CPU_USAGE_LIMIT,
                 CpuBasedAdmissionControllerSettings.SEARCH_CPU_USAGE_LIMIT,
                 CpuBasedAdmissionControllerSettings.CLUSTER_ADMIN_CPU_USAGE_LIMIT,
+                CpuBasedAdmissionControllerSettings.FORCE_MERGE_CPU_USAGE_LIMIT,
+                TransportForceMergeAction.FORCE_MERGE_ADMISSION_CONTROL_ENABLED,
                 IoBasedAdmissionControllerSettings.IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 IoBasedAdmissionControllerSettings.SEARCH_IO_USAGE_LIMIT,
                 IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT,
+                IoBasedAdmissionControllerSettings.FORCE_MERGE_IO_USAGE_LIMIT,
                 NativeMemoryBasedAdmissionControllerSettings.NATIVE_MEMORY_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                 NativeMemoryBasedAdmissionControllerSettings.SEARCH_NATIVE_MEMORY_USAGE_LIMIT,
                 NativeMemoryBasedAdmissionControllerSettings.INDEXING_NATIVE_MEMORY_USAGE_LIMIT,

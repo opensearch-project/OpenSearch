@@ -16,7 +16,8 @@ import java.util.Locale;
 public enum AdmissionControlActionType {
     INDEXING("indexing"),
     SEARCH("search"),
-    CLUSTER_ADMIN("cluster_admin");
+    CLUSTER_ADMIN("cluster_admin"),
+    FORCE_MERGE("force_merge");
 
     private final String type;
 
@@ -41,6 +42,8 @@ public enum AdmissionControlActionType {
                 return SEARCH;
             case "cluster_admin":
                 return CLUSTER_ADMIN;
+            case "force_merge":
+                return FORCE_MERGE;
             default:
                 throw new IllegalArgumentException("Not Supported TransportAction Type: " + name);
         }
