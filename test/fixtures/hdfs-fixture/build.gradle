@@ -106,6 +106,6 @@ dependencies {
   runtimeOnly("com.squareup.okhttp3:okhttp:5.5.0") {
     exclude group: "com.squareup.okio"
   }
-  runtimeOnly "com.squareup.okio:okio:3.17.0"
+  runtimeOnly "com.squareup.okio:okio:3.18.2"
   runtimeOnly "org.xerial.snappy:snappy-java:1.1.10.10"
 }
