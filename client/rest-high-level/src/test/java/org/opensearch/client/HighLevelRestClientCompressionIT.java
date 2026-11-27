@@ -79,7 +79,7 @@ public class HighLevelRestClientCompressionIT extends OpenSearchRestHighLevelCli
     public void testCompressesRequest() throws IOException, URISyntaxException {
         try (CloseableHttpClient client = HttpClients.custom().build()) {
             final Node node = client().getNodes().iterator().next();
-            final URI baseUri = new URI(node.getHost().toURI());
+            final URI baseUri = new URI(node.getHost().getSchemeName(), node.getHost().toHostString(), null, null);
 
             final HttpPut index = new HttpPut(baseUri.resolve("/company/_doc/1"));
             index.setEntity(new GzipCompressingEntity(new StringEntity(SAMPLE_DOCUMENT, ContentType.APPLICATION_JSON)));
