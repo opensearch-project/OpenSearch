@@ -87,6 +87,8 @@ import org.opensearch.action.search.SearchType;
 import org.opensearch.action.support.clustermanager.term.GetTermVersionAction;
 import org.opensearch.action.support.clustermanager.term.GetTermVersionRequest;
 import org.opensearch.action.support.replication.TransportReplicationActionTests;
+import org.opensearch.action.termsenum.TermsEnumAction;
+import org.opensearch.action.termsenum.TermsEnumRequest;
 import org.opensearch.action.termvectors.MultiTermVectorsAction;
 import org.opensearch.action.termvectors.MultiTermVectorsRequest;
 import org.opensearch.action.termvectors.TermVectorsAction;
@@ -220,6 +222,17 @@ public class IndicesRequestIT extends OpenSearchIntegTestCase {
 
         clearInterceptedActions();
         assertSameIndices(fieldCapabilitiesRequest, fieldCapabilitiesShardAction);
+    }
+
+    public void testTermsEnum() {
+        String termsEnumShardAction = TermsEnumAction.NAME + "[s]";
+        interceptTransportActions(termsEnumShardAction);
+
+        TermsEnumRequest termsEnumRequest = new TermsEnumRequest(randomIndicesOrAliases()).field(randomAlphaOfLength(8));
+        internalCluster().coordOnlyNodeClient().execute(TermsEnumAction.INSTANCE, termsEnumRequest).actionGet();
+
+        clearInterceptedActions();
+        assertSameIndices(termsEnumRequest, termsEnumShardAction);
     }
 
     public void testAnalyze() {

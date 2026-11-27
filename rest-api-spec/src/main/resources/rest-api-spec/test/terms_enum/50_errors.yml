@@ -1,0 +1,133 @@
+---
+setup:
+  - skip:
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              tag: { type: keyword }
+              count: { type: long }
+  - do:
+      index:
+        index: test
+        refresh: true
+        body: { tag: "a", count: 1 }
+
+---
+"Missing field":
+  - skip:
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
+  - do:
+      catch: bad_request
+      terms_enum:
+        index: test
+        body: { string: "a" }
+  - match: { error.type: action_request_validation_exception }
+  - match: { error.reason: "/\\[field\\]\\s+is\\s+required/" }
+
+---
+"Size below minimum":
+  - skip:
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
+  - do:
+      catch: bad_request
+      terms_enum:
+        index: test
+        body: { field: tag, size: 0 }
+
+---
+"Size above the configured maximum":
+  - skip:
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
+  - do:
+      catch: bad_request
+      terms_enum:
+        index: test
+        body: { field: tag, size: 1001 }
+  - match: { error.reason: "/\\[size\\]/" }
+
+---
+"Field type without terms enumeration support":
+  - skip:
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
+  - do:
+      catch: bad_request
+      terms_enum:
+        index: test
+        body: { field: count }
+  - match: { error.root_cause.0.reason: "/does\\s+not\\s+support\\s+terms\\s+enumeration/" }
+
+---
+"Filtered alias target":
+  - skip:
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
+  - do:
+      indices.put_alias:
+        index: test
+        name: filtered
+        body:
+          filter:
+            term: { tag: "a" }
+  - do:
+      catch: bad_request
+      terms_enum:
+        index: filtered
+        body: { field: tag }
+
+---
+"Closed index is rejected, or skipped with ignore_unavailable":
+  - skip:
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
+  - do:
+      indices.create:
+        index: test-closed
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              tag: { type: keyword }
+  - do:
+      indices.close:
+        index: test-closed
+  - do:
+      catch: bad_request
+      terms_enum:
+        index: test,test-closed
+        body: { field: tag }
+  - match: { error.type: index_closed_exception }
+  - do:
+      terms_enum:
+        index: test,test-closed
+        ignore_unavailable: true
+        body: { field: tag }
+  - match: { terms: [a] }
+  - match: { complete: true }
+  - match: { _shards.total: 1 }
+  - do:
+      terms_enum:
+        index: test*
+        body: { field: tag }
+  - match: { terms: [a] }
+  - match: { _shards.total: 1 }
+  - do:
+      catch: bad_request
+      terms_enum:
+        index: test*
+        expand_wildcards: open,closed
+        body: { field: tag }
+  - match: { error.type: index_closed_exception }

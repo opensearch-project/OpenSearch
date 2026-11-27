@@ -1,0 +1,58 @@
+---
+setup:
+  - skip:
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
+  - do:
+      indices.create:
+        index: old
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              tag: { type: keyword }
+  - do:
+      indices.create:
+        index: new
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              "@timestamp": { type: date }
+              tag: { type: keyword }
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          {"index":{"_index":"old"}}
+          {"@timestamp":"2015-01-01T00:00:00Z","tag":"old-a"}
+          {"index":{"_index":"old"}}
+          {"@timestamp":"2015-06-01T00:00:00Z","tag":"old-b"}
+          {"index":{"_index":"new"}}
+          {"@timestamp":"2026-01-01T00:00:00Z","tag":"new-a"}
+          {"index":{"_index":"new"}}
+          {"@timestamp":"2026-06-01T00:00:00Z","tag":"new-b"}
+
+---
+"index_filter skips shards that cannot match":
+  - skip:
+      version: " - 3.10.99"
+      reason: "terms_enum API added in 3.11.0"
+  - do:
+      terms_enum:
+        index: old,new
+        body:
+          field: tag
+          index_filter:
+            range:
+              "@timestamp": { gte: "2026-01-01" }
+  - match: { terms: [new-a, new-b] }
+  - match: { _shards.total: 2 }
+  - match: { _shards.skipped: 1 }
+  - match: { _shards.successful: 2 }
+  - match: { _shards.failed: 0 }
