@@ -166,9 +166,7 @@ public class UnifiedHighlighter implements Highlighter {
         if (derivedFieldType != null) {
             analyzer = ((DerivedFieldType) derivedFieldType).getIndexAnalyzer();
         }
-        if (fieldMaxAnalyzedOffset != null) {
-            analyzer = getLimitedOffsetAnalyzer(analyzer, fieldMaxAnalyzedOffset);
-        }
+        analyzer = wrapAnalyzer(analyzer, fieldMaxAnalyzedOffset);
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
         IndexSearcher searcher = fieldContext.context.searcher();
         OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);
@@ -212,6 +210,17 @@ public class UnifiedHighlighter implements Highlighter {
 
     protected Analyzer getAnalyzer(DocumentMapper docMapper) {
         return docMapper.mappers().indexAnalyzer();
+    }
+
+    /**
+     * Wraps the selected field analyzer after derived-field resolution. Subclasses can
+     * add an outer wrapper while retaining the maximum analyzed offset enforced here.
+     */
+    protected Analyzer wrapAnalyzer(Analyzer analyzer, Integer fieldMaxAnalyzedOffset) {
+        if (fieldMaxAnalyzedOffset != null) {
+            return getLimitedOffsetAnalyzer(analyzer, fieldMaxAnalyzedOffset);
+        }
+        return analyzer;
     }
 
     protected List<Object> loadFieldValues(
