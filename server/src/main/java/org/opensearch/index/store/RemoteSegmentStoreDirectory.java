@@ -806,10 +806,8 @@ public final class RemoteSegmentStoreDirectory extends FilterDirectory implement
                     e
                 );
             }
-            if (
-                translogGeneration < earliestTranslogGeneration
-                    || (translogGeneration == earliestTranslogGeneration && uploadCounter < earliestUploadCounter)
-            ) {
+            if (translogGeneration < earliestTranslogGeneration
+                || (translogGeneration == earliestTranslogGeneration && uploadCounter < earliestUploadCounter)) {
                 earliest = metadataFile;
                 earliestTranslogGeneration = translogGeneration;
                 earliestUploadCounter = uploadCounter;
