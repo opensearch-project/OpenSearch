@@ -447,10 +447,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             config.setMaxChunkSize(handlingSettings.getMaxChunkSize());
 
             final HttpServerCodec sourceCodec = new HttpServerCodec(config, transport.pipelineMaxDepth);
-            final HttpServerUpgradeHandler upgradeHandler = new HttpServerUpgradeHandler(
+            final Netty4HttpRejectionHandler rejection = transport.createRejectionHandler();
+            final HttpServerUpgradeHandler upgradeHandler = Netty4HttpObjectAggregator.newUpgradeHandler(
                 sourceCodec,
                 upgradeCodecFactory,
-                handlingSettings.getMaxContentLength()
+                handlingSettings.getMaxContentLength(),
+                rejection
             );
             final CleartextHttp2ServerUpgradeHandler cleartextUpgradeHandler = new CleartextHttp2ServerUpgradeHandler(
                 sourceCodec,
@@ -458,18 +460,21 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 createHttp2ChannelInitializerPriorKnowledge()
             );
 
-            ch.pipeline().addLast(cleartextUpgradeHandler).addLast(new SimpleChannelInboundHandler<HttpMessage>() {
+            ch.pipeline().addLast(cleartextUpgradeHandler);
+            ch.pipeline().addBefore(ch.pipeline().context(upgradeHandler).name(), "upgrade_rejection", rejection.newHttpHandler());
+            ch.pipeline().addLast(new SimpleChannelInboundHandler<HttpMessage>() {
                 @Override
                 protected void channelRead0(ChannelHandlerContext ctx, HttpMessage msg) throws Exception {
-                    final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
-                    aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
-
                     // If this handler is hit then no upgrade has been attempted and the client is just talking HTTP
                     final ChannelPipeline pipeline = ctx.pipeline();
-                    pipeline.addAfter(ctx.name(), "handler", getRequestHandler());
+                    pipeline.addAfter("http_rejection_guard", "handler", getRequestHandler());
                     pipeline.replace(this, "header_verifier", transport.createHeaderVerifier());
                     pipeline.addAfter("header_verifier", "decoder_compress", transport.createDecompressor());
-                    pipeline.addAfter("decoder_compress", "aggregator", aggregator);
+                    pipeline.addAfter(
+                        "http_rejection_guard",
+                        "aggregator",
+                        transport.createHttpObjectAggregator(handlingSettings, rejection)
+                    );
                     if (handlingSettings.isCompression()) {
                         pipeline.addAfter(
                             "aggregator",
@@ -487,10 +492,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
 
                     ctx.fireChannelRead(ReferenceCountUtil.retain(msg));
                 }
-            });
+            }).addLast("http_rejection_guard", rejection.newHttpHandler());
         }
 
         protected void configureDefaultHttpPipeline(ChannelPipeline pipeline) {
+            final Netty4HttpRejectionHandler rejection = transport.createRejectionHandler();
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
                 handlingSettings.getMaxInitialLineLength(),
                 handlingSettings.getMaxHeaderSize(),
@@ -501,9 +507,8 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             pipeline.addLast("header_verifier", transport.createHeaderVerifier());
             pipeline.addLast("decoder_compress", transport.createDecompressor());
             pipeline.addLast("encoder", new HttpResponseEncoder());
-            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.getMaxContentLength());
-            aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
-            pipeline.addLast("aggregator", aggregator);
+            pipeline.addLast("http_rejection_guard", rejection.newHttpHandler());
+            pipeline.addLast("aggregator", transport.createHttpObjectAggregator(handlingSettings, rejection));
             if (handlingSettings.isCompression()) {
                 pipeline.addLast(
                     "encoder_compress",
@@ -606,6 +611,16 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 transport.onServerException(httpServerChannel, (Exception) cause);
             }
         }
+    }
+
+    private HttpObjectAggregator createHttpObjectAggregator(HttpHandlingSettings handlingSettings, Netty4HttpRejectionHandler rejection) {
+        final HttpObjectAggregator aggregator = new Netty4HttpObjectAggregator(handlingSettings.getMaxContentLength(), rejection);
+        aggregator.setMaxCumulationBufferComponents(maxCompositeBufferComponents);
+        return aggregator;
+    }
+
+    private Netty4HttpRejectionHandler createRejectionHandler() {
+        return new Netty4HttpRejectionHandler(() -> lifecycle.stoppedOrClosed() == false);
     }
 
     /**
