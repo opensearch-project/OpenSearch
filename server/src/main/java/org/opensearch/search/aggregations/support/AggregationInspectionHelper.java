@@ -51,6 +51,7 @@ import org.opensearch.search.aggregations.bucket.terms.InternalTerms;
 import org.opensearch.search.aggregations.bucket.terms.UnmappedSignificantTerms;
 import org.opensearch.search.aggregations.bucket.terms.UnmappedTerms;
 import org.opensearch.search.aggregations.metrics.InternalAvg;
+import org.opensearch.search.aggregations.metrics.InternalBoxplot;
 import org.opensearch.search.aggregations.metrics.InternalCardinality;
 import org.opensearch.search.aggregations.metrics.InternalExtendedStats;
 import org.opensearch.search.aggregations.metrics.InternalGeoCentroid;
@@ -178,6 +179,13 @@ public class AggregationInspectionHelper {
     }
 
     public static boolean hasValue(InternalCardinality agg) {
+        return MetricInspectionHelper.hasValue(agg);
+    }
+
+    /**
+     * @return whether the boxplot was computed from at least one value
+     */
+    public static boolean hasValue(InternalBoxplot agg) {
         return MetricInspectionHelper.hasValue(agg);
     }
 
