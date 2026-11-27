@@ -31,7 +31,6 @@ class StarDateFieldMapper implements DimensionFilterMapper {
 
     CompositeDataCubeFieldType compositeDataCubeFieldType;
     LongSupplier nowSupplier;
-    String subDimensionField;
     DateDimension dateDimension;
     List<String> sortedSubDimensions;
 
@@ -131,15 +130,10 @@ class StarDateFieldMapper implements DimensionFilterMapper {
         }
 
         // Construct the sub-dimension field name
-        subDimensionField = field + "_" + matchingInterval.shortName();
+        String subDimensionField = field + "_" + matchingInterval.shortName();
 
         // l & u are inclusive interval boundaries here
-        return new RangeMatchDimFilter(field, l, u, true, true) {
-            @Override
-            public String getSubDimensionName() {
-                return subDimensionField;
-            }
-        };
+        return new RangeMatchDimFilter(field, l, u, true, true, subDimensionField);
     }
 
     @Override
@@ -178,13 +172,9 @@ class StarDateFieldMapper implements DimensionFilterMapper {
                     rangeMatchDimFilter.getLow(),
                     rangeMatchDimFilter.getHigh(),
                     rangeMatchDimFilter.isIncludeLow(),
-                    rangeMatchDimFilter.isIncludeHigh()
-                ) {
-                    @Override
-                    public String getSubDimensionName() {
-                        return finalSubDimensionField;
-                    }
-                }
+                    rangeMatchDimFilter.isIncludeHigh(),
+                    finalSubDimensionField
+                )
             );
         }
         return updatedFilters;

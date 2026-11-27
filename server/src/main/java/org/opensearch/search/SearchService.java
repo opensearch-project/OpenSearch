@@ -1803,6 +1803,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             final CollapseContext collapseContext = source.collapse().build(queryShardContext);
             context.collapse(collapseContext);
         }
+        // Set before the intra-segment search decision: each partition would pre-compute the whole segment
+        if (context.getStarTreeIndexEnabled() && StarTreeQueryHelper.isStarTreeSupported(context)) {
+            StarTreeQueryContext starTreeQueryContext = new StarTreeQueryContext(context, source.query());
+            boolean consolidated = starTreeQueryContext.consolidateAllFilters(context);
+            if (consolidated) {
+                queryShardContext.setStarTreeQueryContext(starTreeQueryContext);
+            }
+        }
         context.evaluateRequestShouldUseConcurrentSearch();
         context.evaluateRequestShouldUseIntraSegmentSearch();
         if (source.profile()) {
@@ -1811,14 +1819,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 .toList();
             Profilers profilers = new Profilers(context.searcher(), context.shouldUseConcurrentSearch(), pluginProfileMetricsSupplier);
             context.setProfilers(profilers);
-        }
-
-        if (context.getStarTreeIndexEnabled() && StarTreeQueryHelper.isStarTreeSupported(context)) {
-            StarTreeQueryContext starTreeQueryContext = new StarTreeQueryContext(context, source.query());
-            boolean consolidated = starTreeQueryContext.consolidateAllFilters(context);
-            if (consolidated) {
-                queryShardContext.setStarTreeQueryContext(starTreeQueryContext);
-            }
         }
     }
 

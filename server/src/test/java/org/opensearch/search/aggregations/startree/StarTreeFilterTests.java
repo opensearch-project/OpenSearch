@@ -49,6 +49,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -178,6 +179,92 @@ public class StarTreeFilterTests extends AggregatorTestCase {
         iw.forceMerge(1);
         iw.close();
         return directory;
+    }
+
+    /**
+     * Star-tree results are never computed for a partition of a segment, with or without assertions: each partition would
+     * add the whole segment. Both entry points refuse a context that partitions segments.
+     */
+    public void testStarTreeResultsRefuseSegmentPartitions() {
+        SearchContext partitioned = Mockito.mock(SearchContext.class);
+        Mockito.when(partitioned.shouldUseIntraSegmentSearch()).thenReturn(true);
+        expectThrows(IllegalStateException.class, () -> StarTreeQueryHelper.getStarTreeFilteredValues(partitioned, null, null));
+        expectThrows(IllegalStateException.class, () -> StarTreeQueryHelper.getStarTreeResult(null, partitioned, List.of()));
+    }
+
+    /**
+     * Every first-level node is a leaf of six entries, and the entries right after a matching leaf belong to the next
+     * one: the traversal must mark exactly each leaf's range when a filter is then matched entry by entry, with one
+     * remaining column or two (the filtering bitset is then reused). A filter on the first dimension alone is answered
+     * by each node's aggregated entry.
+     */
+    public void testLeafRangesAreMatchedExactly() throws IOException {
+        Directory directory = newDirectory();
+        IndexWriterConfig conf = newIndexWriterConfig(null);
+        conf.setCodec(getCodec(10, false));
+        conf.setMergePolicy(newLogMergePolicy());
+        RandomIndexWriter iw = new RandomIndexWriter(random(), directory, conf);
+        List<Document> docs = new ArrayList<>();
+        for (int i = 0; i < 120; i++) {
+            Document doc = new Document();
+            // 10 values of the first dimension, each with 3 x 2 combinations of the other two
+            doc.add(new SortedNumericDocValuesField(SNDV, i % 10));
+            doc.add(new SortedNumericDocValuesField(SDV, (i / 10) % 3));
+            doc.add(new SortedNumericDocValuesField(DV, (i / 30) % 2));
+            doc.add(new SortedNumericDocValuesField(FIELD_NAME, i));
+            iw.addDocument(doc);
+            docs.add(doc);
+        }
+        iw.forceMerge(1);
+        iw.close();
+
+        DirectoryReader ir = DirectoryReader.open(directory);
+        initValuesSourceRegistry();
+        LeafReaderContext context = ir.leaves().get(0);
+        CompositeIndexReader starTreeDocValuesReader = (CompositeIndexReader) Lucene.segmentReader(context.reader()).getDocValuesReader();
+        MapperService mapperService = Mockito.mock(MapperService.class);
+        SearchContext searchContext = Mockito.mock(SearchContext.class);
+        Mockito.when(searchContext.mapperService()).thenReturn(mapperService);
+        for (String dimension : List.of(SNDV, SDV, DV)) {
+            Mockito.when(mapperService.fieldType(dimension))
+                .thenReturn(new NumberFieldMapper.NumberFieldType(dimension, NumberFieldMapper.NumberType.INTEGER));
+        }
+
+        for (long sndv = 0; sndv < 10; sndv++) {
+            assertLeafCount(docs, Map.of(SNDV, sndv), starTreeDocValuesReader, context, searchContext);
+            for (long dv = 0; dv < 2; dv++) {
+                assertLeafCount(docs, Map.of(SNDV, sndv, DV, dv), starTreeDocValuesReader, context, searchContext);
+            }
+        }
+        for (long sdv = 0; sdv < 3; sdv++) {
+            assertLeafCount(docs, Map.of(SDV, sdv), starTreeDocValuesReader, context, searchContext);
+            for (long dv = 0; dv < 2; dv++) {
+                assertLeafCount(docs, Map.of(SDV, sdv, DV, dv), starTreeDocValuesReader, context, searchContext);
+            }
+        }
+        for (long dv = 0; dv < 2; dv++) {
+            assertLeafCount(docs, Map.of(DV, dv), starTreeDocValuesReader, context, searchContext);
+        }
+        ir.close();
+        directory.close();
+    }
+
+    private void assertLeafCount(
+        List<Document> docs,
+        Map<String, Long> filters,
+        CompositeIndexReader starTreeDocValuesReader,
+        LeafReaderContext context,
+        SearchContext searchContext
+    ) throws IOException {
+        Map<String, List<DimensionFilter>> dimensionFilters = new HashMap<>();
+        filters.forEach((dimension, value) -> dimensionFilters.put(dimension, List.of(new ExactMatchDimFilter(dimension, List.of(value)))));
+        long expected = getDocCount(docs, filters);
+        assertTrue("every filter matches documents", expected > 0);
+        assertEquals(
+            filters.toString(),
+            expected,
+            getDocCountFromStarTree(starTreeDocValuesReader, new StarTreeFilter(dimensionFilters), context, searchContext)
+        );
     }
 
     private void testStarTreeFilter(int maxLeafDoc, boolean skipStarNodeCreationForSDVDimension) throws IOException {
