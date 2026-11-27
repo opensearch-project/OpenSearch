@@ -341,6 +341,48 @@ public class StarTreeMapperTests extends MapperTestCase {
         );
     }
 
+    public void testExplicitAndOrderedDateDimensions() throws IOException {
+        assertMultipleDateDimensionsRejected(true);
+    }
+
+    public void testTwoOrderedDateDimensions() throws IOException {
+        assertMultipleDateDimensionsRejected(false);
+    }
+
+    private void assertMultipleDateDimensionsRejected(boolean explicitDateDimension) throws IOException {
+        XContentBuilder mapping = topMapping(b -> {
+            b.startObject("composite").startObject("startree");
+            b.field("type", "star_tree");
+            b.startObject("config");
+            if (explicitDateDimension) {
+                b.startObject("date_dimension");
+                b.field("name", "event_time");
+                b.array("calendar_intervals", "minute", "hour");
+                b.endObject();
+            }
+            b.startArray("ordered_dimensions");
+            b.startObject().field("name", "category").endObject();
+            if (explicitDateDimension == false) {
+                b.startObject().field("name", "event_time").endObject();
+            }
+            b.startObject().field("name", "archive_date").endObject();
+            b.endArray();
+            b.startArray("metrics");
+            b.startObject().field("name", "metric_a").array("stats", "sum").endObject();
+            b.endArray();
+            b.endObject().endObject().endObject();
+
+            b.startObject("properties");
+            b.startObject("event_time").field("type", "date").endObject();
+            b.startObject("archive_date").field("type", "date").endObject();
+            b.startObject("category").field("type", "keyword").endObject();
+            b.startObject("metric_a").field("type", "long").endObject();
+            b.endObject();
+        });
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
+        assertThat(ex.getMessage(), containsString("Multiple date dimensions [event_time, archive_date] for star tree field [startree]"));
+    }
+
     public void testInvalidDim() {
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,

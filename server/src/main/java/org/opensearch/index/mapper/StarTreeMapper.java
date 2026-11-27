@@ -175,6 +175,20 @@ public class StarTreeMapper extends ParametrizedFieldMapper {
                             )
                         );
                     }
+                    if (dimension instanceof DateDimension orderedDateDim) {
+                        if (dateDim != null) {
+                            throw new IllegalArgumentException(
+                                String.format(
+                                    Locale.ROOT,
+                                    "Multiple date dimensions [%s, %s] for star tree field [%s]",
+                                    dateDim.getField(),
+                                    orderedDateDim.getField(),
+                                    fieldName
+                                )
+                            );
+                        }
+                        dateDim = orderedDateDim;
+                    }
                     dimensions.add(dimension);
                 }
             } else {
