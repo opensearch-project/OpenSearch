@@ -586,6 +586,29 @@ public class InnerHitsIT extends ParameterizedStaticSettingsOpenSearchIntegTestC
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getChild(), nullValue());
     }
 
+    public void testNestedUnderDottedKeyNextToObject() throws Exception {
+        assertAcked(prepareCreate("articles").setMapping("a.b.c", "type=nested", "a.b.d", "type=nested"));
+        // a.b.c under its dotted key, as a partial update writes it, and a.b.d as an object sharing the prefix "a".
+        client().prepareIndex("articles")
+            .setId("1")
+            .setSource(Map.of("a.b.c", List.of(Map.of("t", "dotted")), "a", Map.of("b", Map.of("d", List.of(Map.of("t", "object"))))))
+            .get();
+        refresh();
+        indexRandomForConcurrentSearch("articles");
+
+        for (String path : List.of("a.b.c", "a.b.d")) {
+            SearchResponse response = client().prepareSearch("articles")
+                .setQuery(nestedQuery(path, matchAllQuery(), ScoreMode.None).innerHit(new InnerHitBuilder()))
+                .get();
+            assertNoFailures(response);
+            assertHitCount(response, 1);
+            assertThat(
+                response.getHits().getAt(0).getInnerHits().get(path).getAt(0).getSourceAsMap(),
+                equalTo(Map.of("t", path.equals("a.b.c") ? "dotted" : "object"))
+            );
+        }
+    }
+
     public void testInnerHitsWithObjectFieldThatHasANestedField() throws Exception {
         assertAcked(
             prepareCreate("articles")

@@ -199,6 +199,22 @@ public class XContentMapValuesTests extends AbstractFilteringTestCase {
         assertThat(XContentMapValues.extractValue("path1.xxx.path2.yyy.test", map).toString(), equalTo("value"));
     }
 
+    public void testExtractValueDottedKeyNextToObject() {
+        Map<String, Object> map = Map.of("a.b.c", List.of("dotted"), "a", Map.of("b", Map.of("d", List.of("object"))));
+        assertEquals(List.of("dotted"), XContentMapValues.extractValue("a.b.c", map));
+        assertEquals(List.of("object"), XContentMapValues.extractValue("a.b.d", map));
+        assertNull(XContentMapValues.extractValue("a.b.e", map));
+
+        // A partly dotted key next to an object sharing its first element.
+        map = Map.of("a", Map.of("x", 1), "a.b", Map.of("c", "value"));
+        assertEquals("value", XContentMapValues.extractValue("a.b.c", map));
+        assertEquals(1, XContentMapValues.extractValue("a.x", map));
+
+        // The object path wins when both lead to a value.
+        map = Map.of("a.b", "dotted", "a", Map.of("b", "object"));
+        assertEquals("object", XContentMapValues.extractValue("a.b", map));
+    }
+
     public void testExtractValueWithNullValue() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder()
             .startObject()
