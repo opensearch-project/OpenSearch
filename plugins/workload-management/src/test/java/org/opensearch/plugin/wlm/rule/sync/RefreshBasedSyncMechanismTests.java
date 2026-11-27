@@ -42,6 +42,7 @@ import java.util.Set;
 import static org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifierTests.getRandomRule;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -75,6 +76,8 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
             mockThreadPool = mock(ThreadPool.class);
             ruleProcessingService = mock(InMemoryRuleProcessingService.class);
             rulePersistenceService = mock(RulePersistenceService.class);
+            // getAllRules is the interface's paging loop over getRule; run it for real so tests stub getRule pages.
+            doCallRealMethod().when(rulePersistenceService).getAllRules(any(), any());
             ruleEventClassifier = new RuleEventClassifier(Collections.emptySet(), ruleProcessingService);
             attributeValueStoreFactory = new AttributeValueStoreFactory(featureType, DefaultAttributeValueStore::new);
             nonPluginSettingValuesProvider = new WlmClusterSettingValuesProvider(settings, clusterSettings);
@@ -260,5 +263,130 @@ public class RefreshBasedSyncMechanismTests extends OpenSearchTestCase {
         verify(rulePersistenceService, times(1)).getRule(any(GetRuleRequest.class), any(ActionListener.class));
         verify(ruleProcessingService, times(0)).add(any(Rule.class));
         verify(ruleProcessingService, times(0)).remove(any(Rule.class));
+    }
+
+    /**
+     * Rules spread over several pages are all applied, by following search_after until it is null.
+     */
+    @SuppressWarnings("unchecked")
+    public void testDoRunAppliesRulesFromAllPages() {
+        Rule r1 = getRandomRule("id1");
+        Rule r2 = getRandomRule("id2");
+        Rule r3 = getRandomRule("id3");
+        Map<String, GetRuleResponse> pages = Map.of(
+            "",
+            new GetRuleResponse(List.of(r1, r2), "id2"),
+            "id2",
+            new GetRuleResponse(List.of(r3), null)
+        );
+        List<String> requestedCursors = new ArrayList<>();
+        doAnswer(invocation -> {
+            GetRuleRequest request = invocation.getArgument(0);
+            String cursor = request.getSearchAfter() == null ? "" : request.getSearchAfter();
+            requestedCursors.add(cursor);
+            ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
+            listener.onResponse(pages.get(cursor));
+            return null;
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+
+        sut.doRun();
+
+        assertEquals(List.of("", "id2"), requestedCursors);
+        verify(ruleProcessingService, times(1)).add(r1);
+        verify(ruleProcessingService, times(1)).add(r2);
+        verify(ruleProcessingService, times(1)).add(r3);
+        verify(ruleProcessingService, times(0)).remove(any(Rule.class));
+    }
+
+    /**
+     * If a later page fails, nothing from that run is applied, so rules on unread pages are not treated as deleted.
+     */
+    @SuppressWarnings("unchecked")
+    public void testDoRunAppliesNothingWhenALaterPageFails() {
+        Rule r1 = getRandomRule("id1");
+        doAnswer(invocation -> {
+            GetRuleRequest request = invocation.getArgument(0);
+            ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
+            if (request.getSearchAfter() == null) {
+                listener.onResponse(new GetRuleResponse(List.of(r1), "id1"));
+            } else {
+                listener.onFailure(new RuntimeException("search failed"));
+            }
+            return null;
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+
+        sut.doRun();
+
+        verify(rulePersistenceService, times(2)).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+        verify(ruleProcessingService, times(0)).add(any(Rule.class));
+        verify(ruleProcessingService, times(0)).remove(any(Rule.class));
+    }
+
+    /**
+     * When the rule count is an exact multiple of the page size, the last full page still returns a cursor and the next
+     * page is empty; every rule is applied.
+     */
+    @SuppressWarnings("unchecked")
+    public void testDoRunHandlesEmptyLastPage() {
+        Rule r1 = getRandomRule("id1");
+        Rule r2 = getRandomRule("id2");
+        stubPages(Map.of("", new GetRuleResponse(List.of(r1, r2), "id2"), "id2", new GetRuleResponse(List.of(), null)));
+
+        sut.doRun();
+
+        verify(rulePersistenceService, times(2)).getRule(any(GetRuleRequest.class), any(ActionListener.class));
+        verify(ruleProcessingService, times(1)).add(r1);
+        verify(ruleProcessingService, times(1)).add(r2);
+    }
+
+    /**
+     * A rule deleted from a later page is removed on the next run, and rules on other pages are left alone.
+     */
+    @SuppressWarnings("unchecked")
+    public void testDoRunRemovesRuleDeletedFromLaterPage() {
+        Rule r1 = getRandomRule("id1");
+        Rule r2 = getRandomRule("id2");
+        Rule r3 = getRandomRule("id3");
+        stubPages(Map.of("", new GetRuleResponse(List.of(r1, r2), "id2"), "id2", new GetRuleResponse(List.of(r3), null)));
+        sut.doRun();
+
+        stubPages(Map.of("", new GetRuleResponse(List.of(r1, r2), "id2"), "id2", new GetRuleResponse(List.of(), null)));
+        sut.doRun();
+
+        verify(ruleProcessingService, times(1)).remove(r3);
+        verify(ruleProcessingService, times(0)).remove(r1);
+        verify(ruleProcessingService, times(0)).remove(r2);
+    }
+
+    /**
+     * If paging stops making progress, the previously applied rules are kept rather than treated as deleted.
+     */
+    @SuppressWarnings("unchecked")
+    public void testDoRunKeepsRulesWhenPagingStopsMakingProgress() {
+        Rule r1 = getRandomRule("id1");
+        Rule r2 = getRandomRule("id2");
+        stubPages(Map.of("", new GetRuleResponse(List.of(r1), "id1"), "id1", new GetRuleResponse(List.of(r2), null)));
+        sut.doRun();
+
+        // Now the second page repeats the cursor without adding anything new.
+        stubPages(Map.of("", new GetRuleResponse(List.of(r1), "id1"), "id1", new GetRuleResponse(List.of(r1), "id1")));
+        sut.doRun();
+
+        verify(ruleProcessingService, times(1)).add(r1);
+        verify(ruleProcessingService, times(1)).add(r2);
+        verify(ruleProcessingService, times(0)).remove(any(Rule.class));
+    }
+
+    /**
+     * Stubs getRule to return the page for each request's search_after ("" for the first page).
+     */
+    @SuppressWarnings("unchecked")
+    private void stubPages(Map<String, GetRuleResponse> pages) {
+        doAnswer(invocation -> {
+            GetRuleRequest request = invocation.getArgument(0);
+            ActionListener<GetRuleResponse> listener = invocation.getArgument(1);
+            listener.onResponse(pages.get(request.getSearchAfter() == null ? "" : request.getSearchAfter()));
+            return null;
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any(ActionListener.class));
     }
 }

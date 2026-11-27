@@ -37,11 +37,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
 
+import org.mockito.ArgumentCaptor;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -67,6 +71,8 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
         indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         workloadGroupPersistenceService = mock(WorkloadGroupPersistenceService.class);
         rulePersistenceService = mock(IndexStoredRulePersistenceService.class);
+        // getAllRules is the interface's paging loop over getRule; run it for real so tests stub getRule pages.
+        doCallRealMethod().when(rulePersistenceService).getAllRules(any(), any());
         featureType = mock(WorkloadGroupFeatureType.class);
 
         action = new TransportDeleteWorkloadGroupAction(
@@ -340,6 +346,53 @@ public class TransportDeleteWorkloadGroupActionTests extends OpenSearchTestCase 
         when(metadata.workloadGroups()).thenReturn(workloadGroups);
 
         return clusterState;
+    }
+
+    /**
+     * Test case to validate that deletion is prevented when the group's only rule is on a later page of rules
+     */
+    public void testRuleDeletionWithExistingRuleOnLaterPage() throws Exception {
+        String workloadGroupName = "testGroup";
+        String workloadGroupId = "test-id-123";
+        DeleteWorkloadGroupRequest request = new DeleteWorkloadGroupRequest(workloadGroupName);
+
+        @SuppressWarnings("unchecked")
+        ActionListener<AcknowledgedResponse> listener = mock(ActionListener.class);
+
+        WorkloadGroup mockWorkloadGroup = createMockWorkloadGroup(workloadGroupName, workloadGroupId);
+        ClusterState clusterState = createMockClusterStateWithWorkloadGroup(mockWorkloadGroup);
+
+        // Page 1 only has another group's rule; this group's rule is on page 2.
+        Rule otherGroupRule = createMockRule("rule-1", "other-group");
+        Rule associatedRule = createMockRule("rule-2", workloadGroupId);
+        GetRuleResponse firstPage = new GetRuleResponse(List.of(otherGroupRule), "rule-1");
+        GetRuleResponse secondPage = new GetRuleResponse(List.of(associatedRule), null);
+
+        ExecutorService mockExecutor = mock(ExecutorService.class);
+        when(threadPool.executor(ThreadPool.Names.GET)).thenReturn(mockExecutor);
+        doAnswer(invocation -> {
+            Runnable runnable = invocation.getArgument(0);
+            runnable.run();
+            return null;
+        }).when(mockExecutor).submit(any(Runnable.class));
+
+        doAnswer(invocation -> {
+            GetRuleRequest ruleRequest = invocation.getArgument(0);
+            @SuppressWarnings("unchecked")
+            ActionListener<GetRuleResponse> ruleListener = invocation.getArgument(1);
+            ruleListener.onResponse(ruleRequest.getSearchAfter() == null ? firstPage : secondPage);
+            return null;
+        }).when(rulePersistenceService).getRule(any(GetRuleRequest.class), any());
+
+        action.clusterManagerOperation(request, clusterState, listener);
+
+        verify(rulePersistenceService, times(2)).getRule(any(GetRuleRequest.class), any());
+        ArgumentCaptor<Exception> failure = ArgumentCaptor.forClass(Exception.class);
+        verify(listener).onFailure(failure.capture());
+        assertTrue(failure.getValue() instanceof IllegalStateException);
+        // The message lists the group's rule ids, not Rule objects, and not other groups' rules.
+        assertTrue(failure.getValue().getMessage(), failure.getValue().getMessage().contains("rules with ids: [rule-2]. Please"));
+        verify(workloadGroupPersistenceService, never()).deleteInClusterStateMetadata(any(), any());
     }
 
     private Rule createMockRule(String ruleId, String workloadGroupId) {

@@ -17,6 +17,14 @@ import org.opensearch.rule.action.GetRuleRequest;
 import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.rule.action.UpdateRuleRequest;
 import org.opensearch.rule.action.UpdateRuleResponse;
+import org.opensearch.rule.autotagging.FeatureType;
+import org.opensearch.rule.autotagging.Rule;
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * Interface for a service that handles rule persistence CRUD operations.
@@ -37,6 +45,54 @@ public interface RulePersistenceService {
      * @param listener The listener that will handle the response or failure.
      */
     void getRule(GetRuleRequest request, ActionListener<GetRuleResponse> listener);
+
+    /**
+     * Gets every rule of a feature type, following {@link GetRuleResponse#getSearchAfter()} through every page of
+     * {@link #getRule}. The listener receives the rules only once every page is read, so callers never see a partial
+     * set. If any page fails, or paging stops making progress (a page with a cursor adds no new rules, or the cursor
+     * does not advance), the listener receives a failure instead. As with {@link ActionListener#wrap}, an exception
+     * thrown by the listener's own {@code onResponse} is also passed to its {@code onFailure}.
+     * @param featureType The feature type whose rules to get.
+     * @param listener The listener that receives all rules, or the failure.
+     */
+    default void getAllRules(FeatureType featureType, ActionListener<List<Rule>> listener) {
+        getAllRules(featureType, null, new LinkedHashMap<>(), listener);
+    }
+
+    private void getAllRules(
+        FeatureType featureType,
+        String searchAfter,
+        Map<String, Rule> collected,
+        ActionListener<List<Rule>> listener
+    ) {
+        getRule(new GetRuleRequest(null, Collections.emptyMap(), searchAfter, featureType), ActionListener.wrap(response -> {
+            boolean addedRules = false;
+            for (Rule rule : response.getRules()) {
+                addedRules |= collected.putIfAbsent(rule.getId(), rule) == null;
+            }
+            final String nextSearchAfter = response.getSearchAfter();
+            if (nextSearchAfter == null) {
+                listener.onResponse(new ArrayList<>(collected.values()));
+                return;
+            }
+            if (addedRules == false || nextSearchAfter.equals(searchAfter)) {
+                // Returning what was read so far would look like the unread rules had been deleted.
+                listener.onFailure(
+                    new IllegalStateException(
+                        "Paging through rules of feature type ["
+                            + featureType.getName()
+                            + "] stopped making progress at search_after ["
+                            + nextSearchAfter
+                            + "] after "
+                            + collected.size()
+                            + " rules"
+                    )
+                );
+                return;
+            }
+            getAllRules(featureType, nextSearchAfter, collected, listener);
+        }, listener::onFailure));
+    }
 
     /**
      * Delete a rule based on the provided request.

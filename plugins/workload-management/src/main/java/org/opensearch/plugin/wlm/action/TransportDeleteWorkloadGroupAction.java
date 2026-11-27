@@ -24,8 +24,6 @@ import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.plugin.wlm.rule.WorkloadGroupFeatureType;
 import org.opensearch.plugin.wlm.service.WorkloadGroupPersistenceService;
 import org.opensearch.rule.RulePersistenceService;
-import org.opensearch.rule.action.GetRuleRequest;
-import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.rule.service.IndexStoredRulePersistenceService;
@@ -34,7 +32,6 @@ import org.opensearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -128,36 +125,30 @@ public class TransportDeleteWorkloadGroupAction extends TransportClusterManagerN
         }
 
         WorkloadGroup workloadGroup = workloadGroups.iterator().next();
-        rulePersistenceService.getRule(
-            new GetRuleRequest(null, Collections.emptyMap(), null, featureType),
-            new ActionListener<GetRuleResponse>() {
-                @Override
-                public void onResponse(GetRuleResponse getRuleResponse) {
-                    List<Rule> associatedRules = getRuleResponse.getRules()
-                        .stream()
-                        .filter(rule -> rule.getFeatureValue().equals(workloadGroup.get_id()))
-                        .toList();
+        // Check every page of rules: a group's rules can sort after the first page.
+        rulePersistenceService.getAllRules(featureType, new ActionListener<List<Rule>>() {
+            @Override
+            public void onResponse(List<Rule> rules) {
+                List<Rule> associatedRules = rules.stream().filter(rule -> rule.getFeatureValue().equals(workloadGroup.get_id())).toList();
 
-                    if (!associatedRules.isEmpty()) {
-                        listener.onFailure(
-                            new IllegalStateException(
-                                workloadGroup.getName()
-                                    + " workload group has rules with ids: "
-                                    + associatedRules
-                                    + " ."
-                                    + "Please delete them first otherwise system will be an inconsistent state."
-                            )
-                        );
-                        return;
-                    }
-                    workloadGroupPersistenceService.deleteInClusterStateMetadata(request, listener);
+                if (associatedRules.isEmpty() == false) {
+                    listener.onFailure(
+                        new IllegalStateException(
+                            workloadGroup.getName()
+                                + " workload group has rules with ids: "
+                                + associatedRules.stream().map(Rule::getId).toList()
+                                + ". Please delete them first otherwise system will be an inconsistent state."
+                        )
+                    );
+                    return;
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
+                workloadGroupPersistenceService.deleteInClusterStateMetadata(request, listener);
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                listener.onFailure(e);
+            }
+        });
     }
 }

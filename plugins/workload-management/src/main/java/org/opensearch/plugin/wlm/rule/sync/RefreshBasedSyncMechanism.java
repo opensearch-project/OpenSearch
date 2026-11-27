@@ -20,8 +20,6 @@ import org.opensearch.plugin.wlm.WlmClusterSettingValuesProvider;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEvent;
 import org.opensearch.plugin.wlm.rule.sync.detect.RuleEventClassifier;
 import org.opensearch.rule.RulePersistenceService;
-import org.opensearch.rule.action.GetRuleRequest;
-import org.opensearch.rule.action.GetRuleResponse;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.threadpool.Scheduler;
@@ -29,8 +27,8 @@ import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.wlm.WlmMode;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -100,36 +98,37 @@ public class RefreshBasedSyncMechanism extends AbstractLifecycleComponent {
 
     /**
      * synchronized check is needed in case two scheduled runs happen concurrently though highly improbable
-     * but theoretically possible
+     * but theoretically possible. This also covers applying the rules, because the index-backed
+     * {@link RulePersistenceService#getRule} blocks, so every page and the final apply run inside this call.
      */
     synchronized void doRun() {
         if (nonPluginSettingValuesProvider.getWlmMode() != WlmMode.ENABLED) {
             return;
         }
 
-        rulePersistenceService.getRule(
-            new GetRuleRequest(null, Collections.emptyMap(), null, featureType),
-            new ActionListener<GetRuleResponse>() {
-                @Override
-                public void onResponse(GetRuleResponse response) {
-                    final Set<Rule> newRules = new HashSet<>(response.getRules());
-                    ruleEventClassifier.setPreviousRules(lastRunIndexedRules);
-
-                    ruleEventClassifier.getRuleEvents(newRules).forEach(RuleEvent::process);
-
-                    lastRunIndexedRules = newRules;
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    if (e instanceof IndexNotFoundException) {
-                        logger.debug("Rule index not found, skipping rule processing.");
-                        return;
-                    }
-                    logger.warn("Failed to get rules from persistence service", e);
-                }
+        // Rules are applied only once every page is read: a partial set would be treated as the missing rules having been
+        // deleted. If any page fails, this run applies nothing and the next run retries.
+        rulePersistenceService.getAllRules(featureType, new ActionListener<List<Rule>>() {
+            @Override
+            public void onResponse(List<Rule> rules) {
+                applyRules(new HashSet<>(rules));
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof IndexNotFoundException) {
+                    logger.debug("Rule index not found, skipping rule processing.");
+                    return;
+                }
+                logger.warn("Failed to get rules from persistence service", e);
+            }
+        });
+    }
+
+    private void applyRules(Set<Rule> newRules) {
+        ruleEventClassifier.setPreviousRules(lastRunIndexedRules);
+        ruleEventClassifier.getRuleEvents(newRules).forEach(RuleEvent::process);
+        lastRunIndexedRules = newRules;
     }
 
     @Override

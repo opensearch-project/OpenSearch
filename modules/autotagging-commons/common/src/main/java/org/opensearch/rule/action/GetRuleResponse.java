@@ -26,7 +26,7 @@ import java.util.List;
  * {
  *     "rules": [
  *         {
- *             "id": "z1MJApUB0zgMcDmz-UQq",
+ *             "id": "e9f35a73-ece2-3fa7-857e-7c1af877fc75",
  *             "description": "Rule for tagging workload_group_id to index123"
  *             "index_pattern": ["index123"],
  *             "workload_group": "workload_group_id",
@@ -34,7 +34,7 @@ import java.util.List;
  *         },
  *         ...
  *     ],
- *     "search_after": ["z1MJApUB0zgMcDmz-UQq"]
+ *     "search_after": ["e9f35a73-ece2-3fa7-857e-7c1af877fc75"]
  * }
  * @opensearch.experimental
  */
@@ -87,5 +87,13 @@ public class GetRuleResponse extends ActionResponse implements ToXContent, ToXCo
      */
     public List<Rule> getRules() {
         return rules;
+    }
+
+    /**
+     * Returns the {@code search_after} value to pass in the next request to get the next page, or {@code null} if there
+     * are no more pages. The next page may be empty.
+     */
+    public String getSearchAfter() {
+        return searchAfter;
     }
 }

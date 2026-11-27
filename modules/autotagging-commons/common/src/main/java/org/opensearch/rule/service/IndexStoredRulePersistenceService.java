@@ -43,6 +43,7 @@ import org.opensearch.rule.action.UpdateRuleResponse;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.search.SearchHit;
+import org.opensearch.search.sort.SortBuilders;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.transport.client.Client;
 
@@ -80,6 +81,11 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
+
+    /**
+     * Field rules are sorted on for pagination: the keyword subfield of each rule document's "id" field.
+     */
+    static final String RULE_ID_SORT_FIELD = Rule.ID_STRING + ".keyword";
 
     private int maxAllowedRulesCount;
     private final String indexName;
@@ -157,21 +163,51 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
 
     /**
      * Validates that no existing rule has the same attribute map as the given rule.
-     * This validation must be performed one at a time to prevent writing duplicate rules.
+     * This validation must be performed one at a time to prevent writing duplicate rules. The rule routing service must
+     * send creates and updates to the node holding the rules index primary (the workload management one does), where they
+     * run on the rule framework's single-threaded executor; every page here is fetched synchronously, so the whole check
+     * and the write stay inside that one task.
      * @param rule - the rule we check duplicate against
      * @param listener - listener for validateNoDuplicateRule response
      */
     private void validateNoDuplicateRule(Rule rule, ActionListener<Void> listener) {
         Map<String, Set<String>> attributeFilters = RuleUtils.buildAttributeFilters(rule);
         QueryBuilder query = queryBuilder.from(new GetRuleRequest(null, attributeFilters, null, rule.getFeatureType()));
-        getRuleFromIndex(null, query, null, new ActionListener<>() {
+        validateNoDuplicateRule(rule, query, null, listener);
+    }
+
+    /**
+     * Checks one page of candidate rules for a duplicate, then the next page, until a duplicate is found, there are no
+     * more pages, a page fails, or the cursor stops advancing. A duplicate can be on any page, not just the first.
+     */
+    private void validateNoDuplicateRule(Rule rule, QueryBuilder query, String searchAfter, ActionListener<Void> listener) {
+        getRuleFromIndex(null, query, searchAfter, new ActionListener<>() {
             @Override
             public void onResponse(GetRuleResponse getRuleResponse) {
                 Optional<String> duplicateRuleId = RuleUtils.getDuplicateRuleId(rule, getRuleResponse.getRules());
-                duplicateRuleId.ifPresentOrElse(
-                    id -> listener.onFailure(new IllegalArgumentException("Duplicate rule exists under id " + id)),
-                    () -> listener.onResponse(null)
-                );
+                if (duplicateRuleId.isPresent()) {
+                    listener.onFailure(new IllegalArgumentException("Duplicate rule exists under id " + duplicateRuleId.get()));
+                    return;
+                }
+                String nextSearchAfter = getRuleResponse.getSearchAfter();
+                if (nextSearchAfter == null) {
+                    listener.onResponse(null);
+                    return;
+                }
+                if (nextSearchAfter.equals(searchAfter)) {
+                    // Fail rather than loop on the same page forever or report "no duplicate" without checking every candidate.
+                    listener.onFailure(
+                        new IllegalStateException(
+                            "Checking rules of feature type ["
+                                + rule.getFeatureType().getName()
+                                + "] for duplicates stopped making progress at search_after ["
+                                + searchAfter
+                                + "]"
+                        )
+                    );
+                    return;
+                }
+                validateNoDuplicateRule(rule, query, nextSearchAfter, listener);
             }
 
             @Override
@@ -226,9 +262,14 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
             return;
         }
         try {
-            SearchRequestBuilder searchRequest = client.prepareSearch(indexName).setQuery(queryBuilder).setSize(maxRulesPerPage);
+            // Always sort on id.keyword (not _id, which needs _id fielddata) so every page's last sort value is a valid
+            // search_after for the next one. unmappedType covers a rules index with no documents (and so no mapping) yet.
+            SearchRequestBuilder searchRequest = client.prepareSearch(indexName)
+                .setQuery(queryBuilder)
+                .setSize(maxRulesPerPage)
+                .addSort(SortBuilders.fieldSort(RULE_ID_SORT_FIELD).order(SortOrder.ASC).unmappedType("keyword"));
             if (searchAfter != null) {
-                searchRequest.addSort("_id", SortOrder.ASC).searchAfter(new Object[] { searchAfter });
+                searchRequest.searchAfter(new Object[] { searchAfter });
             }
 
             SearchResponse searchResponse = searchRequest.get();
@@ -262,8 +303,41 @@ public class IndexStoredRulePersistenceService implements RulePersistenceService
      */
     void handleGetRuleResponse(List<SearchHit> hits, ActionListener<GetRuleResponse> listener) {
         List<Rule> ruleList = hits.stream().map(hit -> parser.parse(hit.getSourceAsString())).toList();
-        String nextSearchAfter = hits.isEmpty() || hits.size() < maxRulesPerPage ? null : hits.get(hits.size() - 1).getId();
+        final String nextSearchAfter;
+        try {
+            nextSearchAfter = nextSearchAfter(hits);
+        } catch (IllegalStateException e) {
+            // The caller logs the failure.
+            listener.onFailure(e);
+            return;
+        }
         listener.onResponse(new GetRuleResponse(ruleList, nextSearchAfter));
+    }
+
+    /**
+     * Returns the cursor for the page after {@code hits}: the last hit's sort value if the page is full, since more rules
+     * may follow, otherwise null.
+     * @throws IllegalStateException if the last hit has no sort value (its rule has no "id.keyword", which only a
+     *         hand-made rules index could cause), since the rules after it can't be paged
+     */
+    private String nextSearchAfter(List<SearchHit> hits) {
+        if (hits.isEmpty() || hits.size() < maxRulesPerPage) {
+            return null;
+        }
+        SearchHit last = hits.get(hits.size() - 1);
+        Object[] sortValues = last.getSortValues();
+        if (sortValues.length == 0 || sortValues[0] == null) {
+            throw new IllegalStateException(
+                "Rule ["
+                    + last.getId()
+                    + "] in index ["
+                    + indexName
+                    + "] has no ["
+                    + RULE_ID_SORT_FIELD
+                    + "] value, so rules after it can't be paged; check the index mapping"
+            );
+        }
+        return sortValues[0].toString();
     }
 
     @Override
