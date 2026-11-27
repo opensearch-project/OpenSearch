@@ -75,6 +75,19 @@ public class PreBuiltAnalyzerProviderFactory extends PreConfiguredAnalysisCompon
         this.current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, create.get());
     }
 
+    private PreBuiltAnalyzerProviderFactory(String name, Function<Version, Analyzer> create) {
+        super(name, PreBuiltCacheFactory.CachingStrategy.OPENSEARCH);
+        this.create = create;
+        this.current = new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDICES, create.apply(Version.CURRENT));
+    }
+
+    /**
+     * Create a pre-built analyzer that may vary based on the OpenSearch version the index was created with.
+     */
+    public static PreBuiltAnalyzerProviderFactory openSearchVersion(String name, Function<Version, Analyzer> create) {
+        return new PreBuiltAnalyzerProviderFactory(name, create);
+    }
+
     @Override
     public AnalyzerProvider<?> get(IndexSettings indexSettings, Environment environment, String name, Settings settings)
         throws IOException {
