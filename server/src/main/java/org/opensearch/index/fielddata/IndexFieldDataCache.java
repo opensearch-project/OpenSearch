@@ -52,6 +52,18 @@ public interface IndexFieldDataCache {
         throws Exception;
 
     /**
+     * Loads global field data, running {@code cancellationCheck} periodically while the global ordinals are built.
+     * The default implementation ignores the check and delegates to {@link #load(DirectoryReader, IndexFieldData.Global)}.
+     */
+    default <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(
+        DirectoryReader indexReader,
+        IFD indexFieldData,
+        Runnable cancellationCheck
+    ) throws Exception {
+        return load(indexReader, indexFieldData);
+    }
+
+    /**
      * Clears all the field data stored cached in on this index.
      */
     void clear();
@@ -98,6 +110,16 @@ public interface IndexFieldDataCache {
         public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader, IFD indexFieldData)
             throws Exception {
             return (IFD) indexFieldData.loadGlobalDirect(indexReader);
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(
+            DirectoryReader indexReader,
+            IFD indexFieldData,
+            Runnable cancellationCheck
+        ) throws Exception {
+            return (IFD) indexFieldData.loadGlobalDirect(indexReader, cancellationCheck);
         }
 
         @Override

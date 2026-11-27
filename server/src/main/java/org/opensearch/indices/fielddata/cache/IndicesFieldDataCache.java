@@ -355,6 +355,16 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             final DirectoryReader indexReader,
             final IFD indexFieldData
         ) throws Exception {
+            return load(indexReader, indexFieldData, () -> {});
+        }
+
+        @Override
+        @SuppressWarnings("unchecked")
+        public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(
+            final DirectoryReader indexReader,
+            final IFD indexFieldData,
+            final Runnable cancellationCheck
+        ) throws Exception {
             final ShardId shardId = ShardUtils.extractShardId(indexReader);
             final IndexReader.CacheHelper cacheHelper = indexReader.getReaderCacheHelper();
             if (cacheHelper == null) {
@@ -367,7 +377,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
                 OpenSearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
                 k.listeners.add(nodeListener);
                 Collections.addAll(k.listeners, perShardListeners);
-                final Accountable ifd = (Accountable) indexFieldData.loadGlobalDirect(indexReader);
+                final Accountable ifd = (Accountable) indexFieldData.loadGlobalDirect(indexReader, cancellationCheck);
                 notifyOnCache(shardId, ifd);
                 return ifd;
             });

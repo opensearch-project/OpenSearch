@@ -120,7 +120,12 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
 
     @Override
     public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
-        IndexOrdinalsFieldData fieldData = loadGlobalInternal(indexReader);
+        return loadGlobal(indexReader, () -> {});
+    }
+
+    @Override
+    public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader, Runnable cancellationCheck) {
+        IndexOrdinalsFieldData fieldData = loadGlobalInternal(indexReader, cancellationCheck);
         if (fieldData instanceof GlobalOrdinalsIndexFieldData) {
             // we create a new instance of the cached value for each consumer in order
             // to avoid creating new TermsEnums for each segment in the cached instance
@@ -130,7 +135,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
         }
     }
 
-    private IndexOrdinalsFieldData loadGlobalInternal(DirectoryReader indexReader) {
+    private IndexOrdinalsFieldData loadGlobalInternal(DirectoryReader indexReader, Runnable cancellationCheck) {
         if (indexReader.leaves().size() <= 1) {
             // ordinals are already global
             return this;
@@ -154,7 +159,7 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
             }
         }
         try {
-            return cache.load(indexReader, this);
+            return cache.load(indexReader, this, cancellationCheck);
         } catch (Exception e) {
             if (e instanceof OpenSearchException) {
                 throw (OpenSearchException) e;
@@ -166,7 +171,12 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
 
     @Override
     public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, scriptFunction);
+        return loadGlobalDirect(indexReader, () -> {});
+    }
+
+    @Override
+    public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader, Runnable cancellationCheck) throws Exception {
+        return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, scriptFunction, cancellationCheck);
     }
 
     @Override

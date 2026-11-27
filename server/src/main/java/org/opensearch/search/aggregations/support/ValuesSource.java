@@ -213,6 +213,16 @@ public abstract class ValuesSource {
             public abstract SortedSetDocValues globalOrdinalsValues(LeafReaderContext context) throws IOException;
 
             /**
+             * Returns the global ordinals for the given leaf context, running {@code cancellationCheck}
+             * periodically while the global ordinals are built. The default implementation ignores the
+             * check and delegates to {@link #globalOrdinalsValues(LeafReaderContext)}.
+             */
+            public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context, Runnable cancellationCheck)
+                throws IOException {
+                return globalOrdinalsValues(context);
+            }
+
+            /**
              * Whether this values source is able to provide a mapping between global and segment ordinals,
              * by returning the underlying {@link OrdinalMap}. If this method returns false, then calling
              * {@link #globalOrdinalsMapping} will result in an {@link UnsupportedOperationException}.
@@ -273,6 +283,16 @@ public abstract class ValuesSource {
                 @Override
                 public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context) {
                     final IndexOrdinalsFieldData global = indexFieldData.loadGlobal((DirectoryReader) context.parent.reader());
+                    final LeafOrdinalsFieldData atomicFieldData = global.load(context);
+                    return atomicFieldData.getOrdinalsValues();
+                }
+
+                @Override
+                public SortedSetDocValues globalOrdinalsValues(LeafReaderContext context, Runnable cancellationCheck) {
+                    final IndexOrdinalsFieldData global = indexFieldData.loadGlobal(
+                        (DirectoryReader) context.parent.reader(),
+                        cancellationCheck
+                    );
                     final LeafOrdinalsFieldData atomicFieldData = global.load(context);
                     return atomicFieldData.getOrdinalsValues();
                 }

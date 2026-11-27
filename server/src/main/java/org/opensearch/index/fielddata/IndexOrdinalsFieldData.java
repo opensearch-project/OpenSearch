@@ -51,6 +51,15 @@ public interface IndexOrdinalsFieldData extends IndexFieldData.Global<LeafOrdina
     IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader);
 
     /**
+     * Load a global view of the ordinals for the given {@link IndexReader}, potentially from a cache, running
+     * {@code cancellationCheck} periodically while the global ordinals are built. The default implementation
+     * ignores the check and delegates to {@link #loadGlobal(DirectoryReader)}.
+     */
+    default IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader, Runnable cancellationCheck) {
+        return loadGlobal(indexReader);
+    }
+
+    /**
      * Load a global view of the ordinals for the given {@link IndexReader}.
      */
     @Override
