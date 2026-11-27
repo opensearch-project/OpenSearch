@@ -68,7 +68,7 @@ public class HierarchicalRoutingSearchProcessor extends AbstractProcessor implem
         this.pathSeparator = pathSeparator;
         this.enableAutoDetection = enableAutoDetection;
         this.pathSeparatorPattern = java.util.regex.Pattern.compile(java.util.regex.Pattern.quote(pathSeparator));
-        this.multiSeparatorPattern = java.util.regex.Pattern.compile(java.util.regex.Pattern.quote(pathSeparator) + "{2,}");
+        this.multiSeparatorPattern = java.util.regex.Pattern.compile("(?:" + java.util.regex.Pattern.quote(pathSeparator) + "){2,}");
     }
 
     @Override
@@ -232,10 +232,9 @@ public class HierarchicalRoutingSearchProcessor extends AbstractProcessor implem
      */
     private String extractAnchor(String[] segments, int depth) {
         StringBuilder anchor = new StringBuilder();
-        int effectiveDepth = Math.min(depth, segments.length);
         int addedSegments = 0;
 
-        for (int i = 0; i < effectiveDepth && addedSegments < depth; i++) {
+        for (int i = 0; i < segments.length && addedSegments < depth; i++) {
             if (!Strings.isNullOrEmpty(segments[i])) {
                 if (addedSegments > 0) {
                     anchor.append(pathSeparator);
