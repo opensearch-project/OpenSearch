@@ -57,6 +57,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private String dataStreamName;
     private final String providedName;
     private Index recoverFrom;
+    private Index mappingsSourceIndex;
     private ResizeType resizeType;
     private boolean copySettings;
 
@@ -186,6 +187,19 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
+    /**
+     * Returns the index whose mappings should be copied verbatim to the new index, or <code>null</code> if mappings
+     * should be resolved from the request and matching templates as usual. Only honoured for data stream backing indices.
+     */
+    public Index mappingsSourceIndex() {
+        return mappingsSourceIndex;
+    }
+
+    public CreateIndexClusterStateUpdateRequest mappingsSourceIndex(Index mappingsSourceIndex) {
+        this.mappingsSourceIndex = mappingsSourceIndex;
+        return this;
+    }
+
     @Override
     public String toString() {
         return "CreateIndexClusterStateUpdateRequest{"
@@ -203,6 +217,8 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
             + '\''
             + ", recoverFrom="
             + recoverFrom
+            + ", mappingsSourceIndex="
+            + mappingsSourceIndex
             + ", resizeType="
             + resizeType
             + ", copySettings="
