@@ -71,7 +71,7 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
     public void testBreakdownMapWithNoLeafContext() throws Exception {
         final Map<String, Long> queryBreakDownMap = testQueryProfileBreakdown.toBreakdownMap();
         assertFalse(queryBreakDownMap == null || queryBreakDownMap.isEmpty());
-        assertEquals(66, queryBreakDownMap.size());
+        assertEquals(2 + 8 * (QueryTimingType.values().length - 1), queryBreakDownMap.size());
         for (QueryTimingType queryTimingType : QueryTimingType.values()) {
             String timingTypeKey = queryTimingType.toString();
             String timingTypeCountKey = queryTimingType + TIMING_TYPE_COUNT_SUFFIX;
@@ -232,7 +232,7 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
 
         Map<String, Long> queryBreakDownMap = testQueryProfileBreakdown.toBreakdownMap();
         assertFalse(queryBreakDownMap == null || queryBreakDownMap.isEmpty());
-        assertEquals(66, queryBreakDownMap.size());
+        assertEquals(2 + 8 * (QueryTimingType.values().length - 1), queryBreakDownMap.size());
 
         for (QueryTimingType queryTimingType : QueryTimingType.values()) {
             String timingTypeKey = queryTimingType.toString();
@@ -286,7 +286,7 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
 
         Map<String, Long> queryBreakDownMap = testQueryProfileBreakdown.toBreakdownMap();
         assertFalse(queryBreakDownMap == null || queryBreakDownMap.isEmpty());
-        assertEquals(66, queryBreakDownMap.size());
+        assertEquals(2 + 8 * (QueryTimingType.values().length - 1), queryBreakDownMap.size());
 
         for (QueryTimingType queryTimingType : QueryTimingType.values()) {
             String timingTypeKey = queryTimingType.toString();
@@ -335,7 +335,7 @@ public class ConcurrentQueryProfileBreakdownTests extends OpenSearchTestCase {
         testQueryProfileBreakdown.getContexts().put(directoryReader.leaves().get(0), leafProfileBreakdown_1);
         final Map<String, Long> queryBreakDownMap = testQueryProfileBreakdown.toBreakdownMap();
         assertFalse(queryBreakDownMap == null || queryBreakDownMap.isEmpty());
-        assertEquals(26, queryBreakDownMap.size());
+        assertEquals(2 + 3 * (QueryTimingType.values().length - 1), queryBreakDownMap.size());
         for (QueryTimingType queryTimingType : QueryTimingType.values()) {
             String timingTypeKey = queryTimingType.toString();
             String timingTypeCountKey = queryTimingType + TIMING_TYPE_COUNT_SUFFIX;

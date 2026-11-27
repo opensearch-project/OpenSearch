@@ -502,7 +502,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                         assertNotNull(maxSliceTime);
                         assertNotNull(minSliceTime);
                         assertNotNull(avgSliceTime);
-                        assertThat(breakdown.size(), equalTo(66));
+                        assertThat(breakdown.size(), equalTo(2 + 8 * (QueryTimingType.values().length - 1)));
                         for (QueryTimingType queryTimingType : QueryTimingType.values()) {
                             if (queryTimingType != QueryTimingType.CREATE_WEIGHT) {
                                 String maxTimingType = MAX_PREFIX + queryTimingType;
@@ -520,12 +520,12 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
                         assertThat(maxSliceTime, equalTo(0L));
                         assertThat(minSliceTime, equalTo(0L));
                         assertThat(avgSliceTime, equalTo(0L));
-                        assertThat(breakdown.size(), equalTo(27));
+                        assertThat(breakdown.size(), equalTo(3 * QueryTimingType.values().length));
                     } else {
                         assertThat(maxSliceTime, is(nullValue()));
                         assertThat(minSliceTime, is(nullValue()));
                         assertThat(avgSliceTime, is(nullValue()));
-                        assertThat(breakdown.size(), equalTo(27));
+                        assertThat(breakdown.size(), equalTo(3 * QueryTimingType.values().length));
                     }
                 }
 
@@ -703,7 +703,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
             assertNotNull(maxSliceTime);
             assertNotNull(minSliceTime);
             assertNotNull(avgSliceTime);
-            assertThat(breakdown.size(), equalTo(66));
+            assertThat(breakdown.size(), equalTo(2 + 8 * (QueryTimingType.values().length - 1)));
             for (QueryTimingType queryTimingType : QueryTimingType.values()) {
                 if (queryTimingType != QueryTimingType.CREATE_WEIGHT) {
                     String maxTimingType = MAX_PREFIX + queryTimingType;
@@ -721,7 +721,7 @@ public class QueryProfilerIT extends ParameterizedDynamicSettingsOpenSearchInteg
             assertThat(maxSliceTime, is(nullValue()));
             assertThat(minSliceTime, is(nullValue()));
             assertThat(avgSliceTime, is(nullValue()));
-            assertThat(breakdown.size(), equalTo(27));
+            assertThat(breakdown.size(), equalTo(3 * QueryTimingType.values().length));
         }
     }
 }
