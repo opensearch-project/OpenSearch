@@ -32,7 +32,11 @@ import org.opensearch.analytics.exec.action.TransportAnalyticsShuffleDataAction;
 import org.opensearch.analytics.exec.join.MppStrategyMetrics;
 import org.opensearch.analytics.exec.shuffle.ShuffleBufferManager;
 import org.opensearch.analytics.planner.CapabilityRegistry;
+import org.opensearch.analytics.planner.DocumentLookupPlanBuilder;
 import org.opensearch.analytics.planner.FieldStorageResolver;
+import org.opensearch.analytics.planner.LogicalPlanDlsRewriter;
+import org.opensearch.analytics.query.QueryBuilderTranslationService;
+import org.opensearch.analytics.query.QueryBuilderTranslatorProvider;
 import org.opensearch.analytics.rest.RestMppStrategyStatsAction;
 import org.opensearch.analytics.schema.OpenSearchSchemaBuilder;
 import org.opensearch.analytics.settings.AnalyticsApproximationSettings;
@@ -146,6 +150,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     public AnalyticsPlugin() {}
 
     private final List<AnalyticsSearchBackendPlugin> backEnds = new ArrayList<>();
+    private final List<QueryBuilderTranslatorProvider> queryBuilderTranslatorProviders = new ArrayList<>();
     private AnalyticsSearchService searchService;
     private final MppStrategyMetrics mppStrategyMetrics = new MppStrategyMetrics();
     private final ShuffleBufferManager shuffleBufferManager = new ShuffleBufferManager();
@@ -162,6 +167,7 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         backEnds.addAll(loader.loadExtensions(AnalyticsSearchBackendPlugin.class));
+        queryBuilderTranslatorProviders.addAll(loader.loadExtensions(QueryBuilderTranslatorProvider.class));
     }
 
     @Override
@@ -183,6 +189,8 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             .orElseThrow(() -> new IllegalStateException("ArrowNativeAllocator not available; arrow-base plugin must be installed"));
 
         CapabilityRegistry capabilityRegistry = new CapabilityRegistry(backEnds, FieldStorageResolver::new);
+        QueryBuilderTranslationService queryBuilderTranslationService = new QueryBuilderTranslationService(queryBuilderTranslatorProviders);
+        LogicalPlanDlsRewriter logicalPlanDlsRewriter = new LogicalPlanDlsRewriter(queryBuilderTranslationService);
 
         Map<String, AnalyticsSearchBackendPlugin> backEndsByName = new LinkedHashMap<>();
         for (AnalyticsSearchBackendPlugin be : backEnds) {
@@ -246,7 +254,10 @@ public class AnalyticsPlugin extends Plugin implements ExtensiblePlugin, ActionP
             shuffleBufferManager,
             coordinatorAllocatorHandle,
             analyticsSearchSlowLog,
-            statsCollector
+            statsCollector,
+            queryBuilderTranslationService,
+            logicalPlanDlsRewriter,
+            new DocumentLookupPlanBuilder(ctx, logicalPlanDlsRewriter)
         );
     }
 

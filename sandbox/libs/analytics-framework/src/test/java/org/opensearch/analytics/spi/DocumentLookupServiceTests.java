@@ -180,6 +180,35 @@ public class DocumentLookupServiceTests extends OpenSearchTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("doc1"));
     }
 
+    public void testGetByResolvedMetadata_executesSecuredPlan() throws Exception {
+        DocumentMetadataResolver.DocumentMetadata metadata = metadata("doc1", 3L, 7L);
+        WriterFileSet fs = fileSet(7L, "0.parquet");
+        byte[] plan = new byte[] { 1, 2, 3 };
+        when(snapshot.findFileSet(FORMAT, 7L)).thenReturn(fs);
+        when(executor.executeSingleRow(3L, fs, INDEX.getName(), plan)).thenReturn(
+            row("_seq_no", 42L, "_primary_term", 2L, "_version", 5L, "name", "alice")
+        );
+
+        DocumentLookupResult result = service.getByResolvedMetadata("doc1", metadata, reader, INDEX, plan);
+
+        assertTrue(result.exists());
+        assertEquals(42L, result.seqNo());
+        verify(executor).executeSingleRow(3L, fs, INDEX.getName(), plan);
+    }
+
+    public void testGetByResolvedMetadata_reportsFilteredRowAsNotFound() throws Exception {
+        DocumentMetadataResolver.DocumentMetadata metadata = metadata("doc1", 3L, 7L);
+        WriterFileSet fs = fileSet(7L, "0.parquet");
+        byte[] plan = new byte[] { 1 };
+        when(snapshot.findFileSet(FORMAT, 7L)).thenReturn(fs);
+        when(executor.executeSingleRow(3L, fs, INDEX.getName(), plan)).thenReturn(null);
+
+        DocumentLookupResult result = service.getByResolvedMetadata("doc1", metadata, reader, INDEX, plan);
+
+        assertFalse(result.exists());
+        assertEquals("doc1", result.id());
+    }
+
     // ---- getVersionMetadata -------------------------------------------------
 
     public void testGetVersionMetadata_notFoundWhenResolverReturnsNull() throws Exception {

@@ -10,7 +10,7 @@ package org.opensearch.plugins;
 
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.index.Index;
-import org.opensearch.index.engine.Engine;
+import org.opensearch.index.engine.exec.DocumentLookupContext;
 import org.opensearch.index.engine.exec.DocumentMetadataResolver;
 import org.opensearch.index.engine.exec.IndexReaderProvider;
 import org.opensearch.index.get.DocumentLookupResult;
@@ -30,16 +30,15 @@ import java.util.List;
 public interface DocumentLookupProvider {
 
     /**
-     * Resolve the document referenced by {@code get} against {@code reader}.
+     * Resolve the document referenced by {@code context} against {@code reader}.
      *
-     * @param get the get request (id, realtime flag, etc.)
+     * @param context request-scoped lookup dependencies, including the effective read-access policy
      * @param reader a point-in-time index reader acquired by the caller
-     * @param index the index, used by implementations as the scan table name
      * @param resolver the {@link DocumentMetadataResolver} used to resolve a document's row location
      * @return the lookup result; never {@code null}
      * @throws IOException if resolution fails
      */
-    DocumentLookupResult getById(Engine.Get get, IndexReaderProvider.Reader reader, Index index, DocumentMetadataResolver resolver)
+    DocumentLookupResult getById(DocumentLookupContext context, IndexReaderProvider.Reader reader, DocumentMetadataResolver resolver)
         throws IOException;
 
     /**
