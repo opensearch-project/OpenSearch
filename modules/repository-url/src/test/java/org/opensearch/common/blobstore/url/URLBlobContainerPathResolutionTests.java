@@ -64,6 +64,7 @@ public class URLBlobContainerPathResolutionTests extends OpenSearchTestCase {
         Files.writeString(repoBase.resolve("name with space.dat"), "space", StandardCharsets.UTF_8);
         Files.writeString(repoBase.resolve("caf\u00E9.dat"), "unicode", StandardCharsets.UTF_8);
         Files.writeString(repoBase.resolve("plus+name.dat"), "plus", StandardCharsets.UTF_8);
+        Files.writeString(repoBase.resolve("100% complete.dat"), "percent", StandardCharsets.UTF_8);
 
         URLBlobStore blobStore = new URLBlobStore(Settings.EMPTY, repoBase.toUri().toURL());
         BlobContainer container = blobStore.blobContainer(BlobPath.cleanPath());
@@ -72,6 +73,7 @@ public class URLBlobContainerPathResolutionTests extends OpenSearchTestCase {
         assertBlobContents(container, "caf%C3%A9.dat", "unicode");
         assertBlobContents(container, "caf%c3%a9.dat", "unicode");
         assertBlobContents(container, "plus+name.dat", "plus");
+        assertBlobContents(container, "100%25%20complete.dat", "percent");
 
         for (String invalidBlobName : List.of("%2e%2e%2Fsecret.dat", "%252e%252e%252Fsecret.dat")) {
             IOException exception = expectThrows(IOException.class, () -> container.readBlob(invalidBlobName));
@@ -84,6 +86,7 @@ public class URLBlobContainerPathResolutionTests extends OpenSearchTestCase {
         try (ZipOutputStream output = new ZipOutputStream(Files.newOutputStream(jarPath))) {
             writeEntry(output, "repository/legit.dat", "root");
             writeEntry(output, "repository/nested/legit.dat", "nested");
+            writeEntry(output, "caf\u00E9?version/legit.dat", "question mark");
             writeEntry(output, "repository-sibling/secret.dat", "secret");
         }
 
@@ -97,6 +100,12 @@ public class URLBlobContainerPathResolutionTests extends OpenSearchTestCase {
             IOException exception = expectThrows(IOException.class, () -> container.readBlob(invalidBlobName));
             assertEquals("invalid blob name [" + invalidBlobName + "]", exception.getMessage());
         }
+
+        URLBlobStore store = new URLBlobStore(
+            Settings.EMPTY,
+            URI.create("jar:" + jarPath.toUri() + "!/caf\u00E9?version/#fragment").toURL()
+        );
+        assertBlobContents(store.blobContainer(BlobPath.cleanPath()), "legit.dat", "question mark");
     }
 
     private static void assertBlobContents(BlobContainer container, String blobName, String expected) throws IOException {

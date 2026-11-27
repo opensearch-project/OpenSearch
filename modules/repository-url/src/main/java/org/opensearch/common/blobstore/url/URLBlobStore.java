@@ -45,12 +45,14 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.Objects;
+import java.util.regex.Pattern;
 
 /**
  * Read-only URL-based blob store
  */
 public class URLBlobStore implements BlobStore {
+
+    private static final Pattern PERCENT_ESCAPE = Pattern.compile("%[0-9A-Fa-f]{2}");
 
     private final URL path;
 
@@ -170,7 +172,7 @@ public class URLBlobStore implements BlobStore {
             || decodedPath.startsWith("/")
             || rawPath.indexOf('\\') >= 0
             || decodedPath.indexOf('\\') >= 0
-            || decodedPath.indexOf('%') >= 0
+            || PERCENT_ESCAPE.matcher(decodedPath).find()
             || count(decodedPath, '/') != count(rawPath, '/')
             || containsControlCharacter(decodedPath)) {
             throw invalidPath(path, null);
@@ -184,8 +186,10 @@ public class URLBlobStore implements BlobStore {
 
         if (rawPath.indexOf('%') >= 0) {
             try {
-                final String canonicalPath = new URI(null, null, decodedPath, null).toASCIIString();
-                if (normalizePercentEncoding(relativeURI.toASCIIString()).equals(canonicalPath) == false) {
+                // Both URIs contain only a path. URI.equals ignores hex digit case in percent escapes.
+                final URI encodedPath = URI.create(relativeURI.toASCIIString());
+                final URI canonicalPath = URI.create(new URI(null, null, decodedPath, null).toASCIIString());
+                if (encodedPath.equals(canonicalPath) == false) {
                     throw invalidPath(path, null);
                 }
             } catch (URISyntaxException e) {
@@ -205,9 +209,11 @@ public class URLBlobStore implements BlobStore {
             return false;
         }
 
-        if (Objects.equals(baseURI.getScheme(), resolvedURI.getScheme()) == false
-            || Objects.equals(baseURI.getRawAuthority(), resolvedURI.getRawAuthority()) == false
-            || baseURI.isOpaque() != resolvedURI.isOpaque()) {
+        if (baseURI.getScheme().equalsIgnoreCase(resolvedURI.getScheme()) == false || baseURI.isOpaque() != resolvedURI.isOpaque()) {
+            return false;
+        }
+        // Comparing URI origins preserves host case-insensitivity and the case of user info.
+        if (baseURI.isOpaque() == false && baseURI.resolve("/").equals(resolvedURI.resolve("/")) == false) {
             return false;
         }
 
@@ -237,32 +243,18 @@ public class URLBlobStore implements BlobStore {
             return normalizedURL;
         }
 
-        if (normalizedURI.isOpaque()) {
-            return appendToPath(normalizedURI, "/");
-        }
-
-        final String rawPath = normalizedURI.getRawPath();
-        final StringBuilder normalized = new StringBuilder().append(normalizedURI.getScheme()).append(':');
-        if (normalizedURI.getRawAuthority() != null) {
-            normalized.append("//").append(normalizedURI.getRawAuthority());
-        }
-        if (rawPath == null || rawPath.isEmpty()) {
-            normalized.append('/');
-        } else {
-            normalized.append(rawPath).append('/');
-        }
-        if (normalizedURI.getRawQuery() != null) {
-            normalized.append('?').append(normalizedURI.getRawQuery());
-        }
-        if (normalizedURI.getRawFragment() != null) {
-            normalized.append('#').append(normalizedURI.getRawFragment());
-        }
-        return URI.create(normalized.toString()).toURL();
+        return appendToPath(normalizedURI, "/");
     }
 
     private static URL appendToPath(URI basePath, String suffix) throws MalformedURLException {
-        final String externalForm = basePath.toASCIIString();
-        final int pathEnd = basePath.getRawFragment() == null ? externalForm.length() : externalForm.indexOf('#');
+        final String externalForm = basePath.toString();
+        // An opaque jar: URI can contain '?' in the nested archive URL or the entry name.
+        int pathEnd = externalForm.length();
+        if (basePath.getRawQuery() != null) {
+            pathEnd = externalForm.indexOf('?');
+        } else if (basePath.getRawFragment() != null) {
+            pathEnd = externalForm.indexOf('#');
+        }
         try {
             return new URI(externalForm.substring(0, pathEnd) + suffix + externalForm.substring(pathEnd)).toURL();
         } catch (URISyntaxException e) {
@@ -289,23 +281,6 @@ public class URLBlobStore implements BlobStore {
             }
         }
         return false;
-    }
-
-    private static String normalizePercentEncoding(String value) {
-        final StringBuilder normalized = new StringBuilder(value);
-        for (int i = 0; i < normalized.length(); i++) {
-            if (normalized.charAt(i) == '%') {
-                if (i + 2 >= normalized.length()
-                    || Character.digit(normalized.charAt(i + 1), 16) == -1
-                    || Character.digit(normalized.charAt(i + 2), 16) == -1) {
-                    return value;
-                }
-                normalized.setCharAt(i + 1, Character.toUpperCase(normalized.charAt(i + 1)));
-                normalized.setCharAt(i + 2, Character.toUpperCase(normalized.charAt(i + 2)));
-                i += 2;
-            }
-        }
-        return normalized.toString();
     }
 
     private static IOException invalidPath(String path, Exception cause) {

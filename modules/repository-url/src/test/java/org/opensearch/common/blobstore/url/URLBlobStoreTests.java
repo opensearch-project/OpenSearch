@@ -206,6 +206,16 @@ public class URLBlobStoreTests extends OpenSearchTestCase {
         assertNormalizedRoot("http://localhost:6001/other/../indices", "http://localhost:6001/indices/");
         assertNormalizedRoot("http://localhost:6001/indices?query=value", "http://localhost:6001/indices/?query=value");
         assertNormalizedRoot("http://localhost:6001/indices#fragment", "http://localhost:6001/indices/#fragment");
+        assertNormalizedRoot("http://localhost:6001/indices?version=1#latest", "http://localhost:6001/indices/?version=1#latest");
+    }
+
+    public void testResolveUsesUriAuthorityEquality() throws IOException {
+        URLBlobStore store = new URLBlobStore(Settings.EMPTY, new URL("http://Reader@LOCALHOST:6001/indices/"));
+        assertEquals(
+            "http://Reader@localhost:6001/indices/blob",
+            store.resolve(new URL("http://Reader@localhost:6001/indices/"), "blob").toExternalForm()
+        );
+        expectThrows(IOException.class, () -> store.resolve(new URL("http://reader@localhost:6001/indices/"), "blob"));
     }
 
     public void testMalformedRootURLIsRejected() throws MalformedURLException {
