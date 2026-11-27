@@ -1,0 +1,65 @@
+---
+"Rollover with max_primary_shard_docs condition":
+  - skip:
+      version: " - 3.10.99"
+      reason: "max_primary_shard_docs was added in 3.11.0"
+
+  - do:
+      indices.create:
+        index: logs-1
+        wait_for_active_shards: 1
+        body:
+          settings:
+            number_of_shards: 1
+          aliases:
+            logs_search: {}
+
+  - do:
+      index:
+        index: logs-1
+        id:    "1"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  # perform alias rollover with no result
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_primary_shard_docs: 2
+
+  - match: { conditions: { "[max_primary_shard_docs: 2]": false } }
+  - match: { rolled_over: false }
+
+  - do:
+      index:
+        index: logs-1
+        id:    "2"
+        body:  { "foo": "hello world" }
+        refresh: true
+
+  # dry run reports the matched condition without rolling over
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        dry_run: true
+        body:
+          conditions:
+            max_primary_shard_docs: 2
+
+  - match: { conditions: { "[max_primary_shard_docs: 2]": true } }
+  - match: { dry_run: true }
+  - match: { rolled_over: false }
+
+  - do:
+      indices.rollover:
+        alias: "logs_search"
+        wait_for_active_shards: 1
+        body:
+          conditions:
+            max_primary_shard_docs: 2
+
+  - match: { conditions: { "[max_primary_shard_docs: 2]": true } }
+  - match: { rolled_over: true }

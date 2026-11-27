@@ -120,6 +120,10 @@ public class MetadataRolloverService {
         boolean silent,
         boolean onlyValidate
     ) throws Exception {
+        // re-checked against the state that is published, nodes may have joined since the request was accepted
+        if (metConditions != null) {
+            TransportRolloverAction.validateConditionsSupported(metConditions, currentState.nodes());
+        }
         validate(currentState.metadata(), rolloverTarget, newIndexName, createIndexRequest);
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         switch (indexAbstraction.getType()) {

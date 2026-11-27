@@ -56,8 +56,11 @@ import org.opensearch.cluster.metadata.MetadataCreateIndexService;
 import org.opensearch.cluster.metadata.MetadataIndexAliasesService;
 import org.opensearch.cluster.metadata.ResolvedIndices;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.cluster.routing.RecoverySource;
 import org.opensearch.cluster.routing.ShardRouting;
+import org.opensearch.cluster.routing.ShardRoutingState;
+import org.opensearch.cluster.routing.TestShardRouting;
 import org.opensearch.cluster.routing.UnassignedInfo;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.UUIDs;
@@ -181,6 +184,85 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
                 fail("unknown condition result found " + entry.getKey());
             }
         }
+    }
+
+    public void testPrimaryShardConditionsUseLargestPrimary() {
+        String indexName = randomAlphaOfLength(10);
+        ShardStats[] shards = new ShardStats[] {
+            shardStats(indexName, 0, true, 10, 100),
+            shardStats(indexName, 1, true, 50, 900),
+            shardStats(indexName, 1, false, 500, 5000) };
+        IndexMetadata metadata = createMetadata(indexName);
+
+        Map<String, Boolean> results = evaluateConditions(
+            List.of(
+                new MaxPrimaryShardDocsCondition(50L),
+                new MaxPrimaryShardSizeCondition(new ByteSizeValue(900)),
+                new MaxDocsCondition(61L)
+            ),
+            null,
+            shards,
+            metadata
+        );
+        assertThat(results.get("[max_primary_shard_docs: 50]"), equalTo(true));
+        assertThat(results.get("[max_primary_shard_size: 900b]"), equalTo(true));
+
+        results = evaluateConditions(
+            List.of(new MaxPrimaryShardDocsCondition(51L), new MaxPrimaryShardSizeCondition(new ByteSizeValue(901))),
+            null,
+            shards,
+            metadata
+        );
+        assertThat(results.get("[max_primary_shard_docs: 51]"), equalTo(false));
+        assertThat(results.get("[max_primary_shard_size: 901b]"), equalTo(false));
+    }
+
+    public void testPrimaryShardConditionsIgnoreReplicas() {
+        String indexName = randomAlphaOfLength(10);
+        ShardStats[] shards = new ShardStats[] { shardStats(indexName, 0, false, 500, 5000), shardStats(indexName, 1, false, 500, 5000) };
+        Map<String, Boolean> results = evaluateConditions(
+            List.of(new MaxPrimaryShardDocsCondition(1L), new MaxPrimaryShardSizeCondition(new ByteSizeValue(1))),
+            null,
+            shards,
+            createMetadata(indexName)
+        );
+        assertThat(results.get("[max_primary_shard_docs: 1]"), equalTo(false));
+        assertThat(results.get("[max_primary_shard_size: 1b]"), equalTo(false));
+    }
+
+    public void testPrimaryShardConditionsWithoutShardStats() {
+        String indexName = randomAlphaOfLength(10);
+        IndexMetadata metadata = createMetadata(indexName);
+        List<Condition<?>> conditions = List.of(
+            new MaxPrimaryShardDocsCondition(1L),
+            new MaxPrimaryShardSizeCondition(new ByteSizeValue(1))
+        );
+
+        IndicesStatsResponse response = createIndicesStatResponse(indexName, 10, 10);
+        when(response.getIndex(indexName).getShards()).thenReturn(null);
+        Map<String, Boolean> results = evaluateConditions(conditions, metadata, response);
+        assertThat(results.get("[max_primary_shard_docs: 1]"), equalTo(false));
+        assertThat(results.get("[max_primary_shard_size: 1b]"), equalTo(false));
+
+        results = evaluateConditions(conditions, metadata, (IndicesStatsResponse) null);
+        assertThat(results.get("[max_primary_shard_docs: 1]"), equalTo(false));
+        assertThat(results.get("[max_primary_shard_size: 1b]"), equalTo(false));
+    }
+
+    public void testValidateConditionsSupportedRejectsMixedCluster() {
+        DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .add(new DiscoveryNode("old", buildNewFakeTransportAddress(), Version.V_3_10_0))
+            .add(new DiscoveryNode("new", buildNewFakeTransportAddress(), Version.CURRENT))
+            .build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportRolloverAction.validateConditionsSupported(List.of(new MaxPrimaryShardDocsCondition(1L)), nodes)
+        );
+        assertThat(e.getMessage(), containsString(MaxPrimaryShardDocsCondition.NAME));
+        assertThat(e.getMessage(), containsString(Version.V_3_10_0.toString()));
+
+        TransportRolloverAction.validateConditionsSupported(List.of(new MaxDocsCondition(1L)), nodes);
     }
 
     public void testEvaluateWithoutDocStats() {
@@ -469,6 +551,17 @@ public class TransportRolloverActionTests extends OpenSearchTestCase {
             .creationDate(System.currentTimeMillis() - TimeValue.timeValueHours(3).getMillis())
             .settings(settings)
             .build();
+    }
+
+    private static ShardStats shardStats(String indexName, int shardId, boolean primary, long docs, long sizeInBytes) {
+        ShardStats shardStats = mock(ShardStats.class);
+        when(shardStats.getShardRouting()).thenReturn(
+            TestShardRouting.newShardRouting(indexName, shardId, "node-" + shardId + "-" + primary, primary, ShardRoutingState.STARTED)
+        );
+        CommonStats commonStats = new CommonStats();
+        commonStats.docs = new DocsStats.Builder().count(docs).deleted(0).totalSizeInBytes(sizeInBytes).build();
+        when(shardStats.getStats()).thenReturn(commonStats);
+        return shardStats;
     }
 
     private static Condition<?> createTestCondition() {
