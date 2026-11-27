@@ -60,6 +60,7 @@ import org.opensearch.index.store.FsDirectoryFactory;
 import org.opensearch.index.store.Store;
 import org.opensearch.indices.IndicesBitsetFilterCache;
 import org.opensearch.indices.IndicesRequestCache;
+import org.opensearch.search.internal.VisibleSubsetStatistics;
 import org.opensearch.search.streaming.FlushModeResolver;
 import org.opensearch.storage.slowlogs.TieredStorageSearchSlowLog;
 
@@ -212,6 +213,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_DYNAMIC_PROPERTIES_LUCENE_FIELD_LIMIT_SETTING,
                 IndicesBitsetFilterCache.INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING,
+                VisibleSubsetStatistics.INDEX_FILTERED_STATS_MAX_VISIBLE_DOCS_SETTING,
                 IndexModule.INDEX_STORE_TYPE_SETTING,
                 IndexModule.INDEX_COMPOSITE_STORE_TYPE_SETTING,
                 IndexModule.INDEX_STORE_FACTORY_SETTING,

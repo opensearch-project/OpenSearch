@@ -231,6 +231,28 @@ public class MetadataRolloverServiceTests extends OpenSearchTestCase {
         assertTrue(foundRemoveWrite);
     }
 
+    public void testRolloverKeepsTheScoringMode() {
+        AliasMetadata aliasMetadata = AliasMetadata.builder("view")
+            .filter("{\"term\":{\"f\":\"v\"}}")
+            .scoringMode("filtered_stats")
+            .build();
+        for (boolean explicitWriteIndex : new boolean[] { true, false }) {
+            List<AliasAction> actions = MetadataRolloverService.rolloverAliasToNewIndex(
+                "old",
+                "new",
+                explicitWriteIndex,
+                aliasMetadata,
+                "view"
+            );
+            for (AliasAction action : actions) {
+                if (action instanceof AliasAction.Add add) {
+                    assertEquals("index [" + add.getIndex() + "]", "filtered_stats", add.getScoringMode());
+                }
+            }
+            assertEquals(explicitWriteIndex ? 2 : 1, actions.stream().filter(a -> a instanceof AliasAction.Add).count());
+        }
+    }
+
     public void testRolloverAliasActionsWithHiddenAliasAndExplicitWriteIndex() {
         String sourceAlias = randomAlphaOfLength(10);
         String sourceIndex = randomAlphaOfLength(10);

@@ -317,41 +317,34 @@ public class MetadataRolloverService {
         if (explicitWriteIndex) {
             return Collections.unmodifiableList(
                 Arrays.asList(
-                    new AliasAction.Add(
-                        newIndex,
-                        alias,
-                        filterAsString,
-                        aliasMetadata.getIndexRouting(),
-                        aliasMetadata.getSearchRouting(),
-                        true,
-                        aliasMetadata.isHidden(),
-                        aliasMetadata.scoringMode()
-                    ),
-                    new AliasAction.Add(
-                        oldIndex,
-                        alias,
-                        filterAsString,
-                        aliasMetadata.getIndexRouting(),
-                        aliasMetadata.getSearchRouting(),
-                        false,
-                        aliasMetadata.isHidden(),
-                        aliasMetadata.scoringMode()
-                    )
+                    AliasAction.Add.builder(newIndex, alias)
+                        .filter(filterAsString)
+                        .indexRouting(aliasMetadata.getIndexRouting())
+                        .searchRouting(aliasMetadata.getSearchRouting())
+                        .writeIndex(true)
+                        .isHidden(aliasMetadata.isHidden())
+                        .scoringMode(aliasMetadata.scoringMode())
+                        .build(),
+                    AliasAction.Add.builder(oldIndex, alias)
+                        .filter(filterAsString)
+                        .indexRouting(aliasMetadata.getIndexRouting())
+                        .searchRouting(aliasMetadata.getSearchRouting())
+                        .writeIndex(false)
+                        .isHidden(aliasMetadata.isHidden())
+                        .scoringMode(aliasMetadata.scoringMode())
+                        .build()
                 )
             );
         } else {
             return Collections.unmodifiableList(
                 Arrays.asList(
-                    new AliasAction.Add(
-                        newIndex,
-                        alias,
-                        filterAsString,
-                        aliasMetadata.getIndexRouting(),
-                        aliasMetadata.getSearchRouting(),
-                        null,
-                        aliasMetadata.isHidden(),
-                        aliasMetadata.scoringMode()
-                    ),
+                    AliasAction.Add.builder(newIndex, alias)
+                        .filter(filterAsString)
+                        .indexRouting(aliasMetadata.getIndexRouting())
+                        .searchRouting(aliasMetadata.getSearchRouting())
+                        .isHidden(aliasMetadata.isHidden())
+                        .scoringMode(aliasMetadata.scoringMode())
+                        .build(),
                     new AliasAction.Remove(oldIndex, alias, null)
                 )
             );

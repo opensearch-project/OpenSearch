@@ -2346,8 +2346,10 @@ public class IndicesService extends AbstractLifecycleComponent
         };
         IndexMetadata indexMetadata = state.metadata().index(index);
         String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
+        // Determine the scoring mode for the resolved aliases.
         // The strongest mode any alias in the set asks for wins, because a request reaching several aliases must not
-        // score over documents that any one of them excludes: no_stats outranks the historical unfiltered_stats.
+        // score over documents that any one of them excludes: filtered_stats outranks no_stats, which outranks the
+        // historical unfiltered_stats.
         AliasFilter.ScoringMode scoringMode = AliasFilter.ScoringMode.UNFILTERED_STATS;
         if (aliases != null && indexMetadata != null) {
             for (String alias : aliases) {
@@ -2355,9 +2357,12 @@ public class IndicesService extends AbstractLifecycleComponent
                 if (aliasMetadata == null) {
                     continue;
                 }
+                if (AliasFilter.ScoringMode.FILTERED_STATS.value().equals(aliasMetadata.scoringMode())) {
+                    scoringMode = AliasFilter.ScoringMode.FILTERED_STATS;
+                    break;
+                }
                 if (AliasFilter.ScoringMode.NO_STATS.value().equals(aliasMetadata.scoringMode())) {
                     scoringMode = AliasFilter.ScoringMode.NO_STATS;
-                    break;
                 }
             }
         }
