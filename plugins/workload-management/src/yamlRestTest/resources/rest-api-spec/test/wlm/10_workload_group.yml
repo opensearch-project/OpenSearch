@@ -470,3 +470,99 @@
         name: "throttled"
 
   - match: { acknowledged: true }
+
+---
+"test queue field is reserved on the WorkloadGroup API":
+  - skip:
+      version: " - 3.9.99"
+      reason: "the queue field was reserved in 3.10"
+
+  - do:
+      cluster.put_settings:
+        flat_settings: true
+        body:
+          transient:
+            wlm.workload_group.mode: "enabled"
+
+  # request queueing is not available yet: a create that sets queue, in any form, is rejected
+  - do:
+      catch: /request queueing .*is not available yet/
+      create_workload_group_context:
+        body:
+          {
+            "name": "queued",
+            "resiliency_mode": "enforced",
+            "resource_limits": {
+              "cpu": 0.1
+            },
+            "throttling": {
+              "node_limit": 5
+            },
+            "queue": {
+              "size_per_bucket": 50
+            }
+          }
+
+  - do:
+      catch: /request queueing .*is not available yet/
+      create_workload_group_context:
+        body:
+          {
+            "name": "queued",
+            "resiliency_mode": "enforced",
+            "resource_limits": {
+              "cpu": 0.1
+            },
+            "queue": {}
+          }
+
+  - do:
+      create_workload_group_context:
+        body:
+          {
+            "name": "queued",
+            "resiliency_mode": "enforced",
+            "resource_limits": {
+              "cpu": 0.1
+            },
+            "throttling": {
+              "node_limit": 5
+            }
+          }
+
+  - is_false: queue
+  - match: { throttling.node_limit: 5 }
+
+  # so is an update that sets queue, in any form, and the group is left unchanged
+  - do:
+      catch: /request queueing .*is not available yet/
+      update_workload_group_context:
+        name: "queued"
+        body:
+          {
+            "queue": {
+              "size_per_bucket": 7
+            }
+          }
+
+  - do:
+      catch: /request queueing .*is not available yet/
+      update_workload_group_context:
+        name: "queued"
+        body:
+          {
+            "queue": null
+          }
+
+  - do:
+      get_workload_group_context:
+        name: "queued"
+
+  - is_false: workload_groups.0.queue
+  - match: { workload_groups.0.throttling.node_limit: 5 }
+
+  - do:
+      delete_workload_group_context:
+        name: "queued"
+
+  - match: { acknowledged: true }
