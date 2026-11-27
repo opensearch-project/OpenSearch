@@ -17,6 +17,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Optional;
 
 /**
  * Engine for executing indexing operations for a specific data format.
@@ -146,5 +147,15 @@ public interface IndexingExecutionEngine<T extends DataFormat, P extends Documen
      */
     default long maxIndexableDocs() {
         return Long.MAX_VALUE;
+    }
+
+    /**
+     * The bulk batch capability of this engine, if it has one: an engine that can parse the documents of a
+     * whole shard bulk ahead of the item loop ({@link BulkBatchIndexer}). Empty by default, so every engine
+     * without one keeps the per-document path; a wrapper engine exposes its delegate's capability without
+     * knowing the delegate's type.
+     */
+    default Optional<BulkBatchIndexer> bulkBatchIndexer() {
+        return Optional.empty();
     }
 }

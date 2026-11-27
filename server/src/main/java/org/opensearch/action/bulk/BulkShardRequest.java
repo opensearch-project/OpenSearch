@@ -36,6 +36,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.action.support.replication.ReplicatedWriteRequest;
 import org.opensearch.action.support.replication.ReplicationRequest;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.index.shard.ShardId;
@@ -48,8 +49,9 @@ import java.util.stream.Stream;
 /**
  * A bulk shard request targeting a specific shard ID
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequest> implements Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);

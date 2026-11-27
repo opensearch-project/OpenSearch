@@ -15,6 +15,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.action.bulk.BulkShardRequest;
 import org.opensearch.common.Booleans;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.SetOnce;
@@ -36,6 +37,7 @@ import org.opensearch.core.index.AppendOnlyIndexOperationRetryException;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.index.IndexModule;
 import org.opensearch.index.VersionType;
+import org.opensearch.index.engine.dataformat.BulkBatchPlan;
 import org.opensearch.index.engine.dataformat.DataFormat;
 import org.opensearch.index.engine.dataformat.DataFormatRegistry;
 import org.opensearch.index.engine.dataformat.DeleteExecutionEngine;
@@ -201,6 +203,9 @@ public class DataFormatAwareEngine implements Indexer, SearcherSupplierProvider 
     // Shared get-by-id flow (parquet lookup + read version-conflict checks), common to all DataFormatAware* engines.
     private final DocumentLookupSupport documentLookup;
 
+    /** Whether this is an append-only index ({@code index.append_only.enabled}). */
+    private final boolean appendOnlyIndex;
+
     // Timestamps and seq-no markers
     private final AtomicLong maxUnsafeAutoIdTimestamp = new AtomicLong(-1);
     private final AtomicLong maxSeenAutoIdTimestamp = new AtomicLong(-1);
@@ -304,6 +309,7 @@ public class DataFormatAwareEngine implements Indexer, SearcherSupplierProvider 
             ? engineConfig.getDocumentMetadataResolver()
             : DocumentMetadataResolver.NOOP;
         this.documentLookup = new DocumentLookupSupport(shardId, this.documentLookupProvider, this.documentMetadataResolver);
+        this.appendOnlyIndex = engineConfig.getIndexSettings().getIndexMetadata().isAppendOnlyIndex();
         this.versionMap = new LiveVersionMap();
 
         List<ReferenceManager.RefreshListener> refreshListeners = new ArrayList<>();
@@ -2445,6 +2451,32 @@ public class DataFormatAwareEngine implements Indexer, SearcherSupplierProvider 
         }
         return catalogSnapshotManager.acquireCommittedSnapshot(false);
     }
+
+    /**
+     * Batches the shard bulk when this is an append-only index ({@code index.append_only.enabled}) whose
+     * indexing execution engine has a bulk batch capability ({@link IndexingExecutionEngine#bulkBatchIndexer()}).
+     * The engine decides eligibility from the mapping and the items; {@code null} keeps the per-document path.
+     */
+    @Override
+    public BulkBatchPlan planBulkBatch(BulkShardRequest request) {
+        BulkBatchPlan plan = null;
+        if (appendOnlyIndex && isClosed.get() == false) {
+            IndexingExecutionEngine<?, ?> engine = indexingExecutionEngine; // the field is raw; the capability is typed
+            plan = engine.bulkBatchIndexer()
+                .map(b -> b.planBulkBatch(request, engineConfig.getIndexSettings().getIndexMetadata(), engineConfig.getMapperService()))
+                .orElse(null);
+        }
+        if (plan == null) {
+            // the per-bulk "none" line lives here, on this engine's class logger, so that a shard without this engine
+            // (every non-pluggable index) logs nothing on the shard-bulk path; the "N of M items" line stays in
+            // TransportShardBulkAction, behind the plan it describes
+            PLAN_LOGGER.debug("{} bulk batch plan: none", shardId);
+        }
+        return plan;
+    }
+
+    /** Logger of the per-bulk {@code bulk batch plan: none} line (ITs pin it: CompositeCorpusParityIT, CompositeBatchParseRiskIT). */
+    private static final Logger PLAN_LOGGER = org.apache.logging.log4j.LogManager.getLogger(DataFormatAwareEngine.class);
 
     /**
      * Acquires a {@link DataFormatAwareReader} on the latest catalog snapshot.

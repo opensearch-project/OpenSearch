@@ -36,6 +36,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.opensearch.action.DocWriteRequest;
 import org.opensearch.common.Nullable;
+import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.core.common.io.stream.StreamInput;
 import org.opensearch.core.common.io.stream.StreamOutput;
 import org.opensearch.core.common.io.stream.Writeable;
@@ -46,8 +47,9 @@ import java.io.IOException;
 /**
  * Transport request for a Single bulk item
  *
- * @opensearch.internal
+ * @opensearch.experimental
  */
+@ExperimentalApi
 public record BulkItemRequest(int id, DocWriteRequest<?> request, BulkItemResponse primaryResponse) implements Writeable, Accountable {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class);
