@@ -338,7 +338,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
                                     // and generation always describes the commit itself.
                                     if (committedSnapshotRef != null) {
                                         try {
-                                            uploadCommitPinnedMetadata(committedSnapshotRef.get(), checkpoint);
+                                            uploadCommitPinnedMetadata(committedSnapshotRef.get(), localSegmentsPostRefresh, checkpoint);
                                         } catch (Exception e) {
                                             logger.warn("Exception while uploading commit-pinned metadata", e);
                                         }
@@ -592,11 +592,26 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      * (snapshots) resolve the commit's metadata to the earliest upload for its term and generation, which is
      * this file as long as it is uploaded before the reader-based metadata of the same sync.
      *
+     * The upload is skipped when the refresh's reader snapshot already references exactly the commit's files:
+     * the reader-based metadata of this sync then describes the commit itself, and a second identical file
+     * would only inflate the metadata file count that retention and stale-commit deletion account against.
+     *
      * If a merge raced the commit and some commit files were never uploaded to the remote store, the upload is
      * skipped: a metadata file referencing files missing from the remote store is worse than no file at all.
      */
-    private void uploadCommitPinnedMetadata(CatalogSnapshot committedSnapshot, ReplicationCheckpoint checkpoint) throws IOException {
+    private void uploadCommitPinnedMetadata(
+        CatalogSnapshot committedSnapshot,
+        Collection<String> localSegmentsPostRefresh,
+        ReplicationCheckpoint checkpoint
+    ) throws IOException {
         Collection<String> commitFiles = committedSnapshot.getFiles(true);
+        if (Set.copyOf(commitFiles).equals(Set.copyOf(localSegmentsPostRefresh))) {
+            logger.debug(
+                "Skipping commit-pinned metadata upload for commit generation {}: reader snapshot already references the commit",
+                committedSnapshot.getGeneration()
+            );
+            return;
+        }
         Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> uploadedSegments = remoteDirectory
             .getSegmentsUploadedToRemoteStore();
         List<String> missingFromRemote = new ArrayList<>();
