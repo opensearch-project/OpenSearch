@@ -194,6 +194,24 @@ public class RemoteStoreSettings {
     );
 
     /**
+     * Dynamic cluster-level switch that sizes a new remote-store-backed, segment-replicated index by the data-node
+     * count rather than by the fixed {@code index.number_of_shards} default. The count is
+     * {@code min(joined data-role nodes, cluster.routing.allocation.load_awareness.provisioned_capacity)}, the
+     * capacity being ignored while unset. When enabled and the request leaves {@code index.number_of_shards} unset,
+     * the index gets one primary per data node. In both the implicit and the explicit shard-count case,
+     * {@code index.routing.allocation.total_primary_shards_per_node} is stamped to
+     * {@code ceil(number_of_shards / data_nodes)} unless the request or template sets it, so primaries spread evenly
+     * across the fleet. Resize targets and warm (remote-capable) indices are left untouched. Applied at creation time
+     * only; an explicit value in the create request or template always wins.
+     */
+    public static final Setting<Boolean> CLUSTER_REMOTE_STORE_NODE_AWARE_SHARDING_ENABLED = Setting.boolSetting(
+        "cluster.remote_store.index.node_aware_sharding.enabled",
+        false,
+        Property.NodeScope,
+        Property.Dynamic
+    );
+
+    /**
      * Controls the threshold for the number of segments uploaded to remote store map.
      * When the map size exceeds this threshold, stale segment cleanup is triggered even without a flush/commit.
      * {@code -1} disables threshold-based cleanup.
