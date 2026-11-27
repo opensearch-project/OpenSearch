@@ -556,8 +556,11 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
             return response.sendObject(consumer);
         } else {
             if (isDeclaredContentLengthTooLarge(request)) {
-                // Reject before the request body is read; the connection cannot be reused since the body is not consumed
-                return response.status(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE).keepAlive(false).send();
+                // Reject without reading the body. As with the netty4 transport, a keep-alive HTTP/1.1 connection stays
+                // usable: Reactor Netty reads and discards the rest of the body once the response is sent. Unlike the
+                // netty4 transport, Reactor Netty closes the connection when the request expects 100-continue, since its
+                // body was never asked for.
+                return response.status(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE).send();
             }
 
             final ReactorNetty4NonStreamingRequestConsumer<HttpContent> consumer = new ReactorNetty4NonStreamingRequestConsumer<>(

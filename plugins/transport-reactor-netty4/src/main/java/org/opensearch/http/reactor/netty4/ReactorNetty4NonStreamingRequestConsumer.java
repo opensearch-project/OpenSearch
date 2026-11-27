@@ -134,7 +134,10 @@ class ReactorNetty4NonStreamingRequestConsumer<T extends HttpContent> implements
             this.content.release();
         }
 
-        // The rest of the request body is not going to be consumed, so the connection cannot be reused
+        // On HTTP/1.1, close the connection after the response, as the netty4 transport does when the limit is exceeded
+        // while the content is being aggregated. The connection is not kept alive because ending the request would remove
+        // the decompressor while it may still be decoding the chunk that crossed the limit. This has no effect on HTTP/2
+        // and HTTP/3, where Reactor Netty drops the rest of the stream once the response is sent.
         response.keepAlive(false);
 
         final FullHttpResponse tooLarge = new DefaultFullHttpResponse(

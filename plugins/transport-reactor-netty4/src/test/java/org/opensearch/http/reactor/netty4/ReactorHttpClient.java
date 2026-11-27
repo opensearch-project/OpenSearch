@@ -183,6 +183,37 @@ public class ReactorHttpClient implements Closeable {
         return responses.get(0);
     }
 
+    /**
+     * Sends the request with its body streamed in the given chunks and without a content length: over HTTP/1.1 the body
+     * is sent with chunked transfer encoding, and h2c is used with prior knowledge because the server aggregates the body
+     * of an HTTP/1.1 upgrade request and sets its content length.
+     */
+    public final FullHttpResponse sendChunked(InetSocketAddress remoteAddress, HttpRequest httpRequest, List<byte[]> chunks) {
+        final EventLoopGroup eventLoopGroup = new MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory());
+        try {
+            final HttpClient client = createClient(remoteAddress, eventLoopGroup);
+            return (protocol == HttpProtocol.H2C ? client.protocol(HttpProtocol.H2C) : client).headers(h -> h.add(httpRequest.headers()))
+                .baseUrl(httpRequest.uri())
+                .request(httpRequest.method())
+                .send(Flux.fromIterable(chunks).map(Unpooled::wrappedBuffer))
+                .responseSingle(
+                    (r, body) -> body.switchIfEmpty(Mono.just(Unpooled.EMPTY_BUFFER))
+                        .map(
+                            b -> new DefaultFullHttpResponse(
+                                r.version(),
+                                r.status(),
+                                b.retain(),
+                                r.responseHeaders(),
+                                EmptyHttpHeaders.INSTANCE
+                            )
+                        )
+                )
+                .block();
+        } finally {
+            eventLoopGroup.shutdownGracefully().awaitUninterruptibly();
+        }
+    }
+
     public final Collection<FullHttpResponse> put(InetSocketAddress remoteAddress, List<Tuple<String, CharSequence>> urisAndBodies)
         throws InterruptedException {
         return processRequestsWithBody(HttpMethod.PUT, remoteAddress, urisAndBodies);

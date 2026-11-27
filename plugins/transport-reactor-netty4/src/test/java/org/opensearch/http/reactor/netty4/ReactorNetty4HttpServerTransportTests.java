@@ -63,12 +63,16 @@ import org.junit.Before;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 import java.util.zip.GZIPOutputStream;
 
 import io.netty.bootstrap.Bootstrap;
@@ -108,8 +112,11 @@ import static org.opensearch.core.rest.RestStatus.OK;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ALLOW_ORIGIN;
 import static org.opensearch.http.HttpTransportSettings.SETTING_CORS_ENABLED;
 import static org.opensearch.http.TestDispatcherBuilder.dispatcherBuilderWithDefaults;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -150,21 +157,6 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
         final Settings settings = createSettings();
         final int contentLength = randomIntBetween(1, HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings).bytesAsInt());
         runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.CONTINUE);
-    }
-
-    /**
-     * Test that {@link ReactorNetty4HttpServerTransport} responds to a
-     * 100-continue expectation with too large a content-length
-     * with a 413 status.
-     *
-     * @throws InterruptedException if the client communication with the server is interrupted
-     */
-    public void testExpectContinueHeaderContentLengthTooLong() throws InterruptedException {
-        final String key = HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey();
-        final int maxContentLength = randomIntBetween(1, 104857600);
-        final Settings settings = createBuilderWithPort().put(key, maxContentLength + "b").build();
-        final int contentLength = randomIntBetween(maxContentLength + 1, Integer.MAX_VALUE);
-        runExpectHeaderTest(settings, HttpHeaderValues.CONTINUE.toString(), contentLength, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
     }
 
     /**
@@ -568,7 +560,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
         final int maxContentLength = randomIntBetween(1024, 64 * 1024);
         final byte[] body = new byte[maxContentLength + randomIntBetween(1, 1024)];
         Arrays.fill(body, (byte) 'a');
-        runMaxContentLengthTest(maxContentLength, body, false, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
+        runMaxContentLengthTest(maxContentLength, body, false, false, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, -1);
     }
 
     /**
@@ -581,7 +573,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
         Arrays.fill(body, (byte) 'a');
         final byte[] compressed = gzip(body);
         assertThat("the compressed body must be within the limit for this test", compressed.length < maxContentLength, is(true));
-        runMaxContentLengthTest(maxContentLength, compressed, true, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE);
+        runMaxContentLengthTest(maxContentLength, compressed, true, false, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, -1);
     }
 
     /**
@@ -591,7 +583,28 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
     public void testCompressedRequestWithinMaxContentLengthIsDispatched() throws Exception {
         final int maxContentLength = randomIntBetween(1024, 64 * 1024);
         final byte[] body = randomAlphaOfLength(randomIntBetween(1, maxContentLength)).getBytes(StandardCharsets.UTF_8);
-        runMaxContentLengthTest(maxContentLength, gzip(body), true, HttpResponseStatus.OK, body.length);
+        runMaxContentLengthTest(maxContentLength, gzip(body), true, false, HttpResponseStatus.OK, body.length);
+    }
+
+    /**
+     * Test that a request body without a content length (sent in chunks) that is larger than {@code http.max_content_length}
+     * is rejected with a 413 status once the limit is exceeded and never reaches the dispatcher.
+     */
+    public void testRequestWithoutContentLengthExceedingMaxContentLengthIsRejected() throws InterruptedException {
+        final int maxContentLength = randomIntBetween(1024, 64 * 1024);
+        final byte[] body = new byte[maxContentLength + randomIntBetween(1, 1024)];
+        Arrays.fill(body, (byte) 'a');
+        runMaxContentLengthTest(maxContentLength, body, false, true, HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE, -1);
+    }
+
+    /**
+     * Test that a request body without a content length (sent in chunks) that is no larger than
+     * {@code http.max_content_length} is dispatched.
+     */
+    public void testRequestWithoutContentLengthWithinMaxContentLengthIsDispatched() throws InterruptedException {
+        final int maxContentLength = randomIntBetween(1024, 64 * 1024);
+        final byte[] body = randomAlphaOfLength(randomIntBetween(1, maxContentLength)).getBytes(StandardCharsets.UTF_8);
+        runMaxContentLengthTest(maxContentLength, body, false, true, HttpResponseStatus.OK, body.length);
     }
 
     /**
@@ -634,29 +647,96 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
             + contentLength
             + "\r\n\r\n";
 
+        // The body is never asked for, so the connection is closed after the 413 (by Reactor Netty) instead of waiting for it
         final String response = runRawMaxContentLengthTest(maxContentLength, head, new byte[0]);
         assertThat(response, startsWith("HTTP/1.1 413"));
         assertThat(response.contains("100 Continue"), is(false));
     }
 
     /**
-     * Sends the given raw HTTP/1.1 request head and body over a plain socket and returns everything the server
-     * responds with until it closes the connection; fails if the server keeps the connection open instead.
+     * Test that a request whose declared content length exceeds {@code http.max_content_length} is rejected with a 413
+     * status without closing a keep-alive connection: the rest of its body is discarded and the next request on the
+     * same connection is served, as with the netty4 transport.
+     */
+    public void testConnectionIsReusedAfterContentLengthExceedingMaxContentLength() throws Exception {
+        final int maxContentLength = randomIntBetween(1024, 64 * 1024);
+        final byte[] body = new byte[maxContentLength + randomIntBetween(1, 4 * maxContentLength)];
+        Arrays.fill(body, (byte) 'a');
+        final String tooLarge = "POST / HTTP/1.1\r\n"
+            + "Host: localhost\r\n"
+            + "Content-Type: application/json\r\n"
+            + "Content-Length: "
+            + body.length
+            + "\r\n\r\n";
+        final String next = "POST /next HTTP/1.1\r\n"
+            + "Host: localhost\r\n"
+            + "Content-Type: application/json\r\n"
+            + "Content-Length: 2\r\n\r\n"
+            + "{}";
+
+        final RawExchange exchange = runRawExchange(
+            maxContentLength,
+            response -> response.contains("HTTP/1.1 200"),
+            tooLarge.getBytes(StandardCharsets.US_ASCII),
+            body,
+            next.getBytes(StandardCharsets.US_ASCII)
+        );
+        assertThat(exchange.response(), startsWith("HTTP/1.1 413"));
+        assertThat(exchange.response(), containsString("HTTP/1.1 200"));
+        assertThat("the connection should have been kept open", exchange.closed(), is(false));
+        assertThat(exchange.dispatchedUris(), equalTo(List.of("/next")));
+    }
+
+    /**
+     * Test that a chunked request, which has no content length, whose body is larger than {@code http.max_content_length}
+     * is rejected with a 413 status and the connection is closed as soon as the limit is exceeded, whether or not the
+     * last chunk has been sent.
+     */
+    public void testChunkedRequestExceedingMaxContentLengthIsRejected() throws Exception {
+        final int maxContentLength = randomIntBetween(1024, 64 * 1024);
+        final byte[] body = new byte[maxContentLength + randomIntBetween(1, 1024)];
+        Arrays.fill(body, (byte) 'a');
+        final String head = "POST / HTTP/1.1\r\n"
+            + "Host: localhost\r\n"
+            + "Content-Type: application/json\r\n"
+            + "Transfer-Encoding: chunked\r\n\r\n";
+
+        final byte[] chunkedBody = chunkedBody(body, randomIntBetween(2, 16), randomBoolean());
+        final String response = runRawMaxContentLengthTest(maxContentLength, head, chunkedBody);
+        assertThat(response, startsWith("HTTP/1.1 413"));
+    }
+
+    /**
+     * Sends the given raw HTTP/1.1 request head and body over a plain connection and returns everything the server
+     * responds with until it closes the connection; fails if the server keeps the connection open instead, or if the
+     * request is dispatched.
      */
     private String runRawMaxContentLengthTest(int maxContentLength, String head, byte[] body) throws InterruptedException {
+        final RawExchange exchange = runRawExchange(maxContentLength, response -> false, head.getBytes(StandardCharsets.US_ASCII), body);
+        // The server is expected to respond and close the connection without waiting for the rest of the request
+        assertThat("the connection should have been closed by the server", exchange.closed(), is(true));
+        assertThat(exchange.dispatchedUris(), empty());
+        return exchange.response();
+    }
+
+    /**
+     * Sends the given raw HTTP/1.1 bytes over a new plain connection to a transport with the given
+     * {@code http.max_content_length}, and collects everything the server responds with until {@code done} matches it
+     * or the server closes the connection (waiting up to 30 seconds).
+     */
+    private RawExchange runRawExchange(int maxContentLength, Predicate<String> done, byte[]... request) throws InterruptedException {
         final Settings settings = createBuilderWithPort().put(
             HttpTransportSettings.SETTING_HTTP_MAX_CONTENT_LENGTH.getKey(),
             maxContentLength + "b"
         ).build();
-        final AtomicInteger dispatched = new AtomicInteger();
+        final List<String> dispatchedUris = new CopyOnWriteArrayList<>();
         final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
-            (request, channel, threadContext) -> {
-                dispatched.incrementAndGet();
+            (restRequest, channel, threadContext) -> {
+                dispatchedUris.add(restRequest.uri());
                 channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
             }
         ).build();
 
-        final String response;
         try (
             ReactorNetty4HttpServerTransport transport = new ReactorNetty4HttpServerTransport(
                 settings,
@@ -674,6 +754,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
             final TransportAddress remoteAddress = randomFrom(transport.boundAddress().boundAddresses());
 
             final ByteArrayOutputStream received = new ByteArrayOutputStream();
+            final CountDownLatch completed = new CountDownLatch(1);
             final EventLoopGroup group = new MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory());
             try {
                 final Bootstrap clientBootstrap = new Bootstrap().option(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator())
@@ -686,6 +767,9 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
                                 protected void channelRead0(ChannelHandlerContext ctx, ByteBuf msg) {
                                     synchronized (received) {
                                         received.writeBytes(ByteBufUtil.getBytes(msg));
+                                        if (done.test(received.toString(StandardCharsets.US_ASCII))) {
+                                            completed.countDown();
+                                        }
                                     }
                                 }
                             });
@@ -694,32 +778,28 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
                     .group(group);
 
                 final Channel channel = clientBootstrap.connect(remoteAddress.address()).sync().channel();
-                channel.writeAndFlush(Unpooled.wrappedBuffer(head.getBytes(StandardCharsets.US_ASCII), body)).sync();
+                channel.closeFuture().addListener(future -> completed.countDown());
+                channel.writeAndFlush(Unpooled.wrappedBuffer(request)).sync();
+                completed.await(30, TimeUnit.SECONDS);
 
-                // The server is expected to respond and close the connection without waiting for the rest of the request
-                assertTrue("the connection should have been closed by the server", channel.closeFuture().await(30, TimeUnit.SECONDS));
+                final boolean closed = channel.closeFuture().isDone();
+                synchronized (received) {
+                    return new RawExchange(received.toString(StandardCharsets.US_ASCII), closed, List.copyOf(dispatchedUris));
+                }
             } finally {
                 group.shutdownGracefully().await();
             }
-
-            synchronized (received) {
-                response = received.toString(StandardCharsets.US_ASCII);
-            }
         }
-
-        assertThat(dispatched.get(), equalTo(0));
-        return response;
     }
 
-    private void runMaxContentLengthTest(int maxContentLength, byte[] content, boolean gzip, HttpResponseStatus expectedStatus)
-        throws InterruptedException {
-        runMaxContentLengthTest(maxContentLength, content, gzip, expectedStatus, -1);
+    private record RawExchange(String response, boolean closed, List<String> dispatchedUris) {
     }
 
     private void runMaxContentLengthTest(
         int maxContentLength,
         byte[] content,
         boolean gzip,
+        boolean chunked,
         HttpResponseStatus expectedStatus,
         int expectedDispatchedContentLength
     ) throws InterruptedException {
@@ -730,11 +810,13 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
         final AtomicInteger dispatched = new AtomicInteger();
         final AtomicInteger dispatchedContentLength = new AtomicInteger(-1);
         final AtomicReference<HttpRequest.HttpVersion> dispatchedProtocol = new AtomicReference<>();
+        final AtomicReference<String> dispatchedContentLengthHeader = new AtomicReference<>();
         final HttpServerTransport.Dispatcher dispatcher = dispatcherBuilderWithDefaults().withDispatchRequest(
             (request, channel, threadContext) -> {
                 dispatched.incrementAndGet();
                 dispatchedContentLength.set(request.content().length());
                 dispatchedProtocol.set(request.getHttpRequest().protocolVersion());
+                dispatchedContentLengthHeader.set(request.header(HttpHeaderNames.CONTENT_LENGTH.toString()));
                 channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
             }
         ).build();
@@ -760,6 +842,7 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
                 dispatched.set(0);
                 dispatchedContentLength.set(-1);
                 dispatchedProtocol.set(null);
+                dispatchedContentLengthHeader.set(null);
 
                 try (ReactorHttpClient client = ReactorHttpClient.create(false, settings, protocol)) {
                     final FullHttpRequest request = new DefaultFullHttpRequest(
@@ -773,9 +856,14 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
                     if (gzip) {
                         request.headers().set(HttpHeaderNames.CONTENT_ENCODING, HttpHeaderValues.GZIP);
                     }
-                    HttpUtil.setContentLength(request, content.length);
 
-                    final FullHttpResponse response = client.send(remoteAddress.address(), request);
+                    final FullHttpResponse response;
+                    if (chunked) {
+                        response = client.sendChunked(remoteAddress.address(), request, chunks(content, randomIntBetween(2, 16)));
+                    } else {
+                        HttpUtil.setContentLength(request, content.length);
+                        response = client.send(remoteAddress.address(), request);
+                    }
                     try {
                         assertThat("protocol " + protocol, response.status(), equalTo(expectedStatus));
                     } finally {
@@ -784,6 +872,10 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
                 }
 
                 if (expectedStatus == HttpResponseStatus.OK) {
+                    if (chunked) {
+                        // Make sure the body really arrived without a content length (so it went through the consumer's check)
+                        assertThat("protocol " + protocol, dispatchedContentLengthHeader.get(), nullValue());
+                    }
                     assertThat("protocol " + protocol, dispatched.get(), equalTo(1));
                     assertThat("protocol " + protocol, dispatchedContentLength.get(), equalTo(expectedDispatchedContentLength));
                     assertThat(
@@ -802,6 +894,28 @@ public class ReactorNetty4HttpServerTransportTests extends OpenSearchTestCase {
         final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
         try (GZIPOutputStream out = new GZIPOutputStream(bytes)) {
             out.write(content);
+        }
+        return bytes.toByteArray();
+    }
+
+    private static List<byte[]> chunks(byte[] content, int count) {
+        final List<byte[]> chunks = new ArrayList<>(count);
+        final int chunkSize = (content.length + count - 1) / count;
+        for (int offset = 0; offset < content.length; offset += chunkSize) {
+            chunks.add(Arrays.copyOfRange(content, offset, Math.min(content.length, offset + chunkSize)));
+        }
+        return chunks;
+    }
+
+    private static byte[] chunkedBody(byte[] content, int count, boolean lastChunk) {
+        final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+        for (byte[] chunk : chunks(content, count)) {
+            bytes.writeBytes((Integer.toHexString(chunk.length) + "\r\n").getBytes(StandardCharsets.US_ASCII));
+            bytes.writeBytes(chunk);
+            bytes.writeBytes("\r\n".getBytes(StandardCharsets.US_ASCII));
+        }
+        if (lastChunk) {
+            bytes.writeBytes("0\r\n\r\n".getBytes(StandardCharsets.US_ASCII));
         }
         return bytes.toByteArray();
     }
