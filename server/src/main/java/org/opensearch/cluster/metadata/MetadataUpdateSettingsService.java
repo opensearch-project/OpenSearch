@@ -131,6 +131,28 @@ public class MetadataUpdateSettingsService {
         updateSettingsTaskKey = clusterService.registerClusterManagerTask(UPDATE_SETTINGS, true);
     }
 
+    /**
+     * Returns errors for scripted similarities and token filters that this update adds or changes and whose script language is
+     * disabled. Scripts that the index already has are left alone, so that unrelated settings can still be updated.
+     */
+    private List<String> newIndexLevelScriptLanguageErrors(Settings currentSettings, Settings update) {
+        if (indicesService.getScriptService() == null) {
+            return List.of();
+        }
+        Settings merged = Settings.builder().put(currentSettings).put(update).build();
+        Map<String, String> existing = indicesService.getScriptService().validateIndexLevelScriptLanguages(currentSettings);
+        List<String> errors = new ArrayList<>();
+        for (Map.Entry<String, String> error : indicesService.getScriptService().validateIndexLevelScriptLanguages(merged).entrySet()) {
+            String scriptKey = error.getKey();
+            boolean unchanged = existing.containsKey(scriptKey)
+                && currentSettings.getAsSettings(scriptKey).equals(merged.getAsSettings(scriptKey));
+            if (unchanged == false) {
+                errors.add(error.getValue());
+            }
+        }
+        return errors;
+    }
+
     public void updateSettings(
         final UpdateSettingsClusterStateUpdateRequest request,
         final ActionListener<ClusterStateUpdateResponse> listener
@@ -220,6 +242,7 @@ public class MetadataUpdateSettingsService {
                         } else {
                             closeIndices.add(index);
                         }
+                        validationErrors.addAll(newIndexLevelScriptLanguageErrors(metadata.getSettings(), normalizedSettings));
                         if (metadata.context() != null) {
                             validateOverlap(
                                 normalizedSettings.keySet(),

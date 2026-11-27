@@ -58,7 +58,7 @@ public class PredicateTokenFilterScriptFactory extends AbstractTokenFilterFactor
         if (script.getType() != ScriptType.INLINE) {
             throw new IllegalArgumentException("Cannot use stored scripts in tokenfilter [" + name + "]");
         }
-        this.factory = scriptService.compile(script, AnalysisPredicateScript.CONTEXT);
+        this.factory = scriptService.compileIndexLevelScript(script, AnalysisPredicateScript.CONTEXT);
     }
 
     @Override

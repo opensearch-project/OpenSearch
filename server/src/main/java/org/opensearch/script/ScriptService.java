@@ -69,6 +69,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -176,8 +177,19 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Enables or disables an individual script language, e.g. {@code script.engines.painless.enabled: false}.
+     * All languages are enabled by default.
+     */
+    public static final Setting.AffixSetting<Boolean> SCRIPT_ENGINE_ENABLED_SETTING = Setting.affixKeySetting(
+        "script.engines.",
+        "enabled",
+        key -> Setting.boolSetting(key, true, Property.NodeScope)
+    );
+
     private final Set<String> typesAllowed;
     private final Set<String> contextsAllowed;
+    private final Set<String> languagesDisabled;
 
     private final Map<String, ScriptEngine> engines;
     private final Map<String, ScriptContext<?>> contexts;
@@ -192,6 +204,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
     public ScriptService(Settings settings, Map<String, ScriptEngine> engines, Map<String, ScriptContext<?>> contexts) {
         this.engines = Objects.requireNonNull(engines);
         this.contexts = Objects.requireNonNull(contexts);
+        this.languagesDisabled = buildDisabledLanguages(settings, engines);
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
             throw new IllegalArgumentException(
@@ -400,6 +413,121 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         IOUtils.close(engines.values());
     }
 
+    private static Set<String> buildDisabledLanguages(Settings settings, Map<String, ScriptEngine> engines) {
+        Set<String> disabled = new HashSet<>();
+        for (String lang : SCRIPT_ENGINE_ENABLED_SETTING.getNamespaces(settings)) {
+            Setting<Boolean> setting = SCRIPT_ENGINE_ENABLED_SETTING.getConcreteSettingForNamespace(lang);
+            if (engines.containsKey(lang) == false) {
+                throw new IllegalArgumentException(
+                    "unknown script language ["
+                        + lang
+                        + "] in setting ["
+                        + setting.getKey()
+                        + "]; installed languages are "
+                        + engines.keySet()
+                );
+            }
+            if (setting.get(settings) == false) {
+                disabled.add(lang);
+            }
+        }
+        return Collections.unmodifiableSet(disabled);
+    }
+
+    /**
+     * Returns whether the given script language is enabled by {@link #SCRIPT_ENGINE_ENABLED_SETTING}. Unlike
+     * {@link #isLangSupported(String)}, this does not check whether the language is installed.
+     */
+    public boolean isLangEnabled(String lang) {
+        return languagesDisabled.contains(lang) == false;
+    }
+
+    private void checkLangEnabled(String lang) {
+        if (isLangEnabled(lang) == false) {
+            throw new IllegalArgumentException(
+                "script language ["
+                    + lang
+                    + "] is disabled by ["
+                    + SCRIPT_ENGINE_ENABLED_SETTING.getConcreteSettingForNamespace(lang).getKey()
+                    + "]"
+            );
+        }
+    }
+
+    /**
+     * Returns an error, keyed by the script's setting prefix, for every script, inline or stored, in the given index settings (scripted
+     * similarities and scripted token filters) whose language is disabled by {@link #SCRIPT_ENGINE_ENABLED_SETTING}. Used to reject new index definitions
+     * (index creation, templates, restores and settings updates) while still allowing existing indices to open, see
+     * {@link #compileIndexLevelScript(Script, ScriptContext)}.
+     */
+    public Map<String, String> validateIndexLevelScriptLanguages(Settings indexSettings) {
+        if (languagesDisabled.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, String> errors = new TreeMap<>();
+        // templates may hold settings without the "index." prefix
+        indexSettings = Settings.builder().put(indexSettings).normalizePrefix("index.").build();
+        Map<String, Settings> similarities = indexSettings.getGroups("index.similarity", true);
+        for (Map.Entry<String, Settings> similarity : similarities.entrySet()) {
+            if ("scripted".equals(similarity.getValue().get("type"))) {
+                for (String scriptKey : List.of("script", "weight_script")) {
+                    checkIndexLevelScript(
+                        "index.similarity." + similarity.getKey() + "." + scriptKey,
+                        similarity.getValue(),
+                        scriptKey,
+                        errors
+                    );
+                }
+            }
+        }
+        Map<String, Settings> filters = indexSettings.getGroups("index.analysis.filter", true);
+        for (Map.Entry<String, Settings> filter : filters.entrySet()) {
+            String type = filter.getValue().get("type");
+            if ("condition".equals(type) || "predicate_token_filter".equals(type)) {
+                checkIndexLevelScript("index.analysis.filter." + filter.getKey() + ".script", filter.getValue(), "script", errors);
+            }
+        }
+        return errors;
+    }
+
+    private void checkIndexLevelScript(String fullKey, Settings group, String scriptKey, Map<String, String> errors) {
+        Settings scriptSettings = group.getAsSettings(scriptKey);
+        if (scriptSettings.isEmpty()) {
+            return;
+        }
+        Script script;
+        try {
+            script = Script.parse(scriptSettings);
+        } catch (Exception e) {
+            return; // malformed scripts are reported by the regular index validation
+        }
+        String lang = script.getType() == ScriptType.STORED ? storedScriptLang(script.getIdOrCode()) : script.getLang();
+        if (lang != null && isLangEnabled(lang) == false) {
+            errors.put(
+                fullKey,
+                "["
+                    + fullKey
+                    + "] uses script language ["
+                    + lang
+                    + "], which is disabled by ["
+                    + SCRIPT_ENGINE_ENABLED_SETTING.getConcreteSettingForNamespace(lang).getKey()
+                    + "]"
+            );
+        }
+    }
+
+    /** The language of a stored script, or {@code null} if it does not exist; a missing script fails when compiled. */
+    private String storedScriptLang(String id) {
+        if (clusterState == null) {
+            return null;
+        }
+        try {
+            return getScriptFromClusterState(id).getLang();
+        } catch (ResourceNotFoundException e) {
+            return null;
+        }
+    }
+
     private ScriptEngine getEngine(String lang) {
         ScriptEngine scriptEngine = engines.get(lang);
         if (scriptEngine == null) {
@@ -466,6 +594,24 @@ public class ScriptService implements Closeable, ClusterStateApplier {
      * @return a compiled script which may be used to construct instances of a script for the given context
      */
     public <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context) {
+        return compile(script, context, true);
+    }
+
+    /**
+     * Compiles a script that is part of index metadata (index settings or mappings, e.g. a scripted similarity or a
+     * scripted token filter). Such scripts were accepted when the index was created, so they are compiled even if their
+     * language has since been disabled with {@link #SCRIPT_ENGINE_ENABLED_SETTING}; otherwise existing indices would fail
+     * to open. New definitions are checked when they are added, see {@link #validateIndexLevelScriptLanguages(Settings)}.
+     */
+    public <FactoryType> FactoryType compileIndexLevelScript(Script script, ScriptContext<FactoryType> context) {
+        if (languagesDisabled.isEmpty()) {
+            // nothing to skip: keep using the public method, which subclasses (for example in tests) may override
+            return compile(script, context);
+        }
+        return compile(script, context, false);
+    }
+
+    private <FactoryType> FactoryType compile(Script script, ScriptContext<FactoryType> context, boolean checkLanguage) {
         Objects.requireNonNull(script);
         Objects.requireNonNull(context);
 
@@ -489,6 +635,9 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         }
 
         ScriptEngine scriptEngine = getEngine(lang);
+        if (checkLanguage) {
+            checkLangEnabled(lang);
+        }
 
         if (isTypeEnabled(type) == false) {
             throw new IllegalArgumentException("cannot execute [" + type + "] scripts");
@@ -596,6 +745,7 @@ public class ScriptService implements Closeable, ClusterStateApplier {
         if (isLangSupported(source.getLang()) == false) {
             throw new IllegalArgumentException("unable to put stored script with unsupported lang [" + source.getLang() + "]");
         }
+        checkLangEnabled(source.getLang());
 
         try {
             ScriptEngine scriptEngine = getEngine(source.getLang());

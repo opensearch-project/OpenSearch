@@ -122,7 +122,7 @@ public class ContextAwareGroupingFieldMapperTests extends OpenSearchTestCase {
         ContextAwareGroupingScript.Factory mockFactory = mock(ContextAwareGroupingScript.Factory.class);
         ContextAwareGroupingScript mockScript = mock(ContextAwareGroupingScript.class);
 
-        when(mockScriptService.compile(any(Script.class), eq(ContextAwareGroupingScript.CONTEXT))).thenReturn(mockFactory);
+        when(mockScriptService.compileIndexLevelScript(any(Script.class), eq(ContextAwareGroupingScript.CONTEXT))).thenReturn(mockFactory);
         when(mockFactory.newInstance()).thenReturn(mockScript);
 
         ContextAwareGroupingFieldMapper.Builder builder = (ContextAwareGroupingFieldMapper.Builder) ContextAwareGroupingFieldMapper.PARSER
