@@ -37,6 +37,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.opensearch.common.lucene.search.NamedQuery;
 import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.core.ParseField;
 import org.opensearch.core.common.ParsingException;
@@ -344,9 +345,15 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         List<QueryBuilder> clauses,
         Occur occurs
     ) throws IOException {
-        for (QueryBuilder query : clauses) {
-            Query luceneQuery = query.toQuery(context);
-            booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
+        for (QueryBuilder queryBuilder : clauses) {
+            Query luceneQuery = queryBuilder.toQuery(context);
+            /// 23046 ugly work around
+            if (luceneQuery != null && queryBuilder.queryName() != null) {
+                luceneQuery = new NamedQuery(luceneQuery, queryBuilder.queryName());
+            }
+            if (luceneQuery != null) { // one more null check ? why not ?
+                booleanQueryBuilder.add(new BooleanClause(luceneQuery, occurs));
+            }
         }
     }
 

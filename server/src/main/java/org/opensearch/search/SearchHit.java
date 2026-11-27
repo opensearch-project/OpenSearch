@@ -1004,6 +1004,7 @@ public final class SearchHit implements Writeable, ToXContentObject, Iterable<Do
         return Explanation.match(value, description, details);
     }
 
+    // 23046
     private void buildExplanation(XContentBuilder builder, Explanation explanation) throws IOException {
         builder.startObject();
         builder.field(Fields.VALUE, explanation.getValue());
