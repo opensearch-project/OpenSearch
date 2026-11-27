@@ -38,6 +38,7 @@ import org.opensearch.analytics.planner.rel.OpenSearchTableScan;
 import org.opensearch.analytics.planner.rel.OpenSearchValues;
 import org.opensearch.analytics.spi.FragmentConvertor;
 import org.opensearch.cluster.ClusterState;
+import org.opensearch.common.settings.Settings;
 
 import java.util.List;
 
@@ -170,7 +171,17 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
      * {@link #testQtfDag_multiShardFourStages}.
      */
     private QueryDAG buildQtfDag(String sql, int shardCount) {
-        ClusterState state = SqlPlannerTestFixture.clusterStateWith(ClickBench.INDEX, ClickBench.BASIC_FIELDS, "parquet", shardCount);
+        return buildQtfDag(sql, shardCount, Settings.EMPTY);
+    }
+
+    private QueryDAG buildQtfDag(String sql, int shardCount, Settings indexSettings) {
+        ClusterState state = SqlPlannerTestFixture.clusterStateWith(
+            ClickBench.INDEX,
+            ClickBench.BASIC_FIELDS,
+            "parquet",
+            shardCount,
+            indexSettings
+        );
         PlannerContext context = new PlannerContext(
             new CapabilityRegistry(List.of(DATAFUSION, LUCENE), FieldStorageResolver::new),
             state,
@@ -236,6 +247,123 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
         assertNull("scan stage carries no input decorator", scan.getInputSinkDecorator());
         assertNotNull("scan stage must have a target resolver", scan.getTargetResolver());
         assertEquals(0, scan.getChildStages().size());
+    }
+
+    /**
+     * Single-shard QTF: no ExchangeReducer, so the wrapper's input is itself the shard fragment.
+     * <pre>
+     *   Stage 0 SHARD_FRAGMENT       (Sort+Limit ← Filter ← narrowed Scan+___row_id)
+     *   Stage 1 LATE_MATERIALIZATION (wrapper over StageInputScan(0); its input sink stamps ___ugsi)
+     *   Stage 2 COORDINATOR_REDUCE   (post-LM Project) ← root
+     * </pre>
+     */
+    public void testQtfDag_singleShardThreeStages() {
+        QueryDAG dag = buildQtfDag("SELECT URL, EventDate FROM hits WHERE CounterID = 5 ORDER BY EventDate LIMIT 10", 1);
+        assertBottomUpIds(dag.rootStage());
+
+        Stage postLm = dag.rootStage();
+        assertEquals(StageExecutionType.COORDINATOR_REDUCE, postLm.getExecutionType());
+        assertNull("post-LM reduce carries no input decorator", postLm.getInputSinkDecorator());
+        assertEquals(1, postLm.getChildStages().size());
+
+        Stage lm = postLm.getChildStages().get(0);
+        assertEquals(StageExecutionType.LATE_MATERIALIZATION, lm.getExecutionType());
+        assertNotNull(
+            "LM fragment must contain OpenSearchLateMaterialization wrapper",
+            RelNodeUtils.findNode(lm.getFragment(), OpenSearchLateMaterialization.class)
+        );
+        assertNotNull("LM stage stamps ___ugsi when its child is the shard fragment", lm.getInputSinkDecorator());
+        assertEquals(1, lm.getChildStages().size());
+
+        // Declared only on an ExchangeReducer; here it exists only in the runtime batch schema.
+        OpenSearchStageInputScan lmInputScan = RelNodeUtils.findNode(lm.getFragment(), OpenSearchStageInputScan.class);
+        assertNotNull(lmInputScan);
+        assertFalse(
+            "single-shard StageInputScan rowType must NOT declare " + OpenSearchLateMaterialization.UGSI_FIELD,
+            lmInputScan.getRowType().getFieldNames().contains(OpenSearchLateMaterialization.UGSI_FIELD)
+        );
+
+        Stage shard = lm.getChildStages().get(0);
+        assertEquals(StageExecutionType.SHARD_FRAGMENT, shard.getExecutionType());
+        assertNull("shard fragment carries no input decorator", shard.getInputSinkDecorator());
+        assertNotNull("shard fragment must have a target resolver", shard.getTargetResolver());
+        assertEquals(0, shard.getChildStages().size());
+        assertNotNull(
+            "single-shard query phase must push the Sort into the shard fragment",
+            RelNodeUtils.findNode(shard.getFragment(), org.opensearch.analytics.planner.rel.OpenSearchSort.class)
+        );
+        OpenSearchTableScan shardScan = RelNodeUtils.findNode(shard.getFragment(), OpenSearchTableScan.class);
+        assertNotNull("shard fragment must contain an OpenSearchTableScan", shardScan);
+        assertTrue(
+            "shard-fragment Scan rowType must carry " + OpenSearchLateMaterialization.ROW_ID_FIELD,
+            shardScan.getRowType().getFieldNames().contains(OpenSearchLateMaterialization.ROW_ID_FIELD)
+        );
+    }
+
+    /**
+     * Single shard whose index sort serves the collation, with no filter beyond the sort key: the
+     * rewriter declines, so the DAG is the plain single-stage shard plan with no LM stage.
+     */
+    public void testQtfDag_singleShardIndexSorted_noLmStage() {
+        QueryDAG dag = buildQtfDag(
+            "SELECT URL, EventDate FROM hits ORDER BY EventDate DESC LIMIT 10",
+            1,
+            Settings.builder().putList("index.sort.field", "EventDate").putList("index.sort.order", "desc").build()
+        );
+        assertNoStageOfType(dag.rootStage(), StageExecutionType.LATE_MATERIALIZATION);
+        assertEquals(StageExecutionType.SHARD_FRAGMENT, dag.rootStage().getExecutionType());
+        assertEquals(0, dag.rootStage().getChildStages().size());
+        OpenSearchTableScan scan = RelNodeUtils.findNode(dag.rootStage().getFragment(), OpenSearchTableScan.class);
+        assertFalse(
+            "declined QTF must not add " + OpenSearchLateMaterialization.ROW_ID_FIELD,
+            scan.getRowType().getFieldNames().contains(OpenSearchLateMaterialization.ROW_ID_FIELD)
+        );
+    }
+
+    /** The same index sort on a multi-shard index does not suppress QTF: the four-stage shape is unchanged. */
+    public void testQtfDag_multiShardIndexSorted_stillFourStages() {
+        QueryDAG dag = buildQtfDag(
+            "SELECT URL, EventDate FROM hits ORDER BY EventDate DESC LIMIT 10",
+            2,
+            Settings.builder().putList("index.sort.field", "EventDate").putList("index.sort.order", "desc").build()
+        );
+        Stage lm = findStageOfType(dag.rootStage(), StageExecutionType.LATE_MATERIALIZATION);
+        assertNotNull("multi-shard QTF must still fire on a sorted index", lm);
+        assertNull("multi-shard LM stage does not stamp ___ugsi itself", lm.getInputSinkDecorator());
+        Stage reduce = lm.getChildStages().get(0);
+        assertEquals(StageExecutionType.COORDINATOR_REDUCE, reduce.getExecutionType());
+        assertNotNull("multi-shard reduce stamps ___ugsi", reduce.getInputSinkDecorator());
+        assertEquals(StageExecutionType.SHARD_FRAGMENT, reduce.getChildStages().get(0).getExecutionType());
+    }
+
+    /**
+     * Single-shard sorted index but with a filter on a non-sort column: the filter decodes every
+     * matching row anyway, so QTF fires and the three-stage single-shard shape is built.
+     */
+    public void testQtfDag_singleShardIndexSorted_filterOffSortKey_firesThreeStages() {
+        QueryDAG dag = buildQtfDag(
+            "SELECT URL, EventDate FROM hits WHERE CounterID = 5 ORDER BY EventDate DESC LIMIT 10",
+            1,
+            Settings.builder().putList("index.sort.field", "EventDate").putList("index.sort.order", "desc").build()
+        );
+        Stage lm = findStageOfType(dag.rootStage(), StageExecutionType.LATE_MATERIALIZATION);
+        assertNotNull(lm);
+        assertNotNull(lm.getInputSinkDecorator());
+        assertEquals(StageExecutionType.SHARD_FRAGMENT, lm.getChildStages().get(0).getExecutionType());
+    }
+
+    private static Stage findStageOfType(Stage stage, StageExecutionType type) {
+        if (stage.getExecutionType() == type) return stage;
+        for (Stage child : stage.getChildStages()) {
+            Stage found = findStageOfType(child, type);
+            if (found != null) return found;
+        }
+        return null;
+    }
+
+    private static void assertNoStageOfType(Stage root, StageExecutionType type) {
+        Stage found = findStageOfType(root, type);
+        assertNull("unexpected " + type + " stage " + (found == null ? "" : found.getStageId()), found);
     }
 
     /**
@@ -414,5 +542,101 @@ public class DAGBuilderTests extends BasePlannerRulesTests {
             StageExecutionType.COORDINATOR_REDUCE,
             dag.rootStage().getExecutionType()
         );
+    }
+
+    /**
+     * Single-shard counterpart of {@link #testQtfDag_lmAtRoot_noOuterProject_convertsCleanly}: no
+     * reducer and no above-ops, so the DAG is just {@code LM(root) ← SHARD_FRAGMENT}. Fork and
+     * conversion must succeed, and the shard fragment (not a reduce) must be what gets converted
+     * for the query phase.
+     */
+    public void testQtfDag_singleShard_lmAtRoot_noOuterProject_convertsCleanly() {
+        RecordingConvertor convertor = new RecordingConvertor();
+        PlannerContext context = buildContext("parquet", 1, ClickBench.BASIC_FIELDS, List.of(recordingDataFusion(convertor), LUCENE));
+        RelNode cbo = runPlanner(stubQtfSort(), context);
+
+        OpenSearchLateMaterialization wrapper = RelNodeUtils.findNode(cbo, OpenSearchLateMaterialization.class);
+        assertNotNull("QTF must fire on a single unsorted shard", wrapper);
+        assertSame(wrapper, RelNodeUtils.unwrapHep(cbo));
+        assertNull("single shard: no ExchangeReducer below the anchor", RelNodeUtils.findNode(cbo, OpenSearchExchangeReducer.class));
+
+        QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+
+        Stage root = dag.rootStage();
+        assertEquals(StageExecutionType.LATE_MATERIALIZATION, root.getExecutionType());
+        assertNotNull("LM root receives shard batches directly, so it stamps ___ugsi", root.getInputSinkDecorator());
+        assertEquals(1, root.getChildStages().size());
+        Stage shard = root.getChildStages().get(0);
+        assertEquals(StageExecutionType.SHARD_FRAGMENT, shard.getExecutionType());
+        assertNotNull(shard.getTargetResolver());
+        assertNull("shard fragment has no child stages, so no sink provider", shard.getExchangeSinkProvider());
+    }
+
+    /** Single shard with an outer Project: {@code COORDINATOR_REDUCE ← LM ← SHARD_FRAGMENT}, converts cleanly. */
+    public void testQtfDag_singleShard_withOuterProject_convertsCleanly() {
+        RelNode sort = stubQtfSort();
+        RelDataType varcharType = typeFactory.createSqlType(SqlTypeName.VARCHAR);
+        RelDataType dateType = typeFactory.createSqlType(SqlTypeName.DATE);
+        RelNode project = org.apache.calcite.rel.logical.LogicalProject.create(
+            sort,
+            List.of(),
+            List.of(rexBuilder.makeInputRef(varcharType, 2), rexBuilder.makeInputRef(dateType, 4)),
+            List.of("URL", "EventDate")
+        );
+
+        RecordingConvertor convertor = new RecordingConvertor();
+        PlannerContext context = buildContext("parquet", 1, ClickBench.BASIC_FIELDS, List.of(recordingDataFusion(convertor), LUCENE));
+        RelNode cbo = runPlanner(project, context);
+        assertNotNull(RelNodeUtils.findNode(cbo, OpenSearchLateMaterialization.class));
+
+        QueryDAG dag = DAGBuilder.build(cbo, context.getCapabilityRegistry(), mockClusterService(), TEST_RESOLVER);
+        PlanForker.forkAll(dag, context.getCapabilityRegistry());
+        FragmentConversionDriver.convertAll(dag, context.getCapabilityRegistry());
+
+        Stage root = dag.rootStage();
+        assertEquals(StageExecutionType.COORDINATOR_REDUCE, root.getExecutionType());
+        assertNull(root.getInputSinkDecorator());
+        Stage lm = root.getChildStages().get(0);
+        assertEquals(StageExecutionType.LATE_MATERIALIZATION, lm.getExecutionType());
+        assertNotNull(lm.getInputSinkDecorator());
+        assertEquals(StageExecutionType.SHARD_FRAGMENT, lm.getChildStages().get(0).getExecutionType());
+        assertBottomUpIds(root);
+    }
+
+    /** {@code Sort(EventDate ASC, fetch 10) ← Filter(CounterID = 5) ← Scan}: URL/Title/etc. are fetch-only. */
+    private RelNode stubQtfSort() {
+        RelNode scan = stubScan(
+            mockTable(
+                "test_index",
+                new String[] { "CounterID", "UserID", "URL", "Title", "EventDate", "AdvEngineID", "ParamPrice" },
+                new SqlTypeName[] {
+                    SqlTypeName.INTEGER,
+                    SqlTypeName.BIGINT,
+                    SqlTypeName.VARCHAR,
+                    SqlTypeName.VARCHAR,
+                    SqlTypeName.DATE,
+                    SqlTypeName.SMALLINT,
+                    SqlTypeName.BIGINT }
+            )
+        );
+        RelNode filter = makeFilter(scan, makeEquals(0, SqlTypeName.INTEGER, 5));
+        RelCollation collation = RelCollations.of(new RelFieldCollation(4, RelFieldCollation.Direction.ASCENDING));
+        return LogicalSort.create(
+            filter,
+            collation,
+            null,
+            rexBuilder.makeLiteral(10, typeFactory.createSqlType(SqlTypeName.INTEGER), true)
+        );
+    }
+
+    private static MockDataFusionBackend recordingDataFusion(RecordingConvertor convertor) {
+        return new MockDataFusionBackend() {
+            @Override
+            public FragmentConvertor getFragmentConvertor() {
+                return convertor;
+            }
+        };
     }
 }
