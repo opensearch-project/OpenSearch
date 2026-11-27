@@ -76,6 +76,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -740,6 +741,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      */
     public Iterable<MappedFieldType> fieldTypes() {
         return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes();
+    }
+
+    /**
+     * Returns the derived field types defined in the mapping, without iterating every mapped field.
+     */
+    public Collection<MappedFieldType> derivedFieldTypes() {
+        return this.mapper == null ? Collections.emptySet() : this.mapper.fieldTypes().derivedFieldTypes();
     }
 
     public boolean isCompositeIndexPresent() {
