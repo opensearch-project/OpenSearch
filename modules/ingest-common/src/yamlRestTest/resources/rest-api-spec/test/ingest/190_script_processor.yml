@@ -323,7 +323,7 @@ teardown:
   - match: { _source.boolean: true }
 
 ---
-"Test char type fails":
+"Test char type is serialized as a string":
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -346,10 +346,17 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      catch: bad_request
       index:
         index: test
         id: 1
         pipeline: "my_pipeline"
         body: {source_field: "FooBar"}
-  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { result: created }
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.char: "a" }
+  - match: { _source.other_field: "other_field" }
+  - match: { _source.source_field: "FooBar" }
