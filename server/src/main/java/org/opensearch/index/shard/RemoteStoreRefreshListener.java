@@ -30,6 +30,7 @@ import org.opensearch.index.engine.DataFormatAwareEngine;
 import org.opensearch.index.engine.EngineBackedIndexer;
 import org.opensearch.index.engine.EngineException;
 import org.opensearch.index.engine.InternalEngine;
+import org.opensearch.index.engine.exec.Indexer;
 import org.opensearch.index.engine.exec.coord.CatalogSnapshot;
 import org.opensearch.index.remote.RemoteSegmentTransferTracker;
 import org.opensearch.index.seqno.SequenceNumbers;
@@ -576,7 +577,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
      */
     private GatedCloseable<CatalogSnapshot> acquireLastCommittedCatalogSnapshot() {
         try {
-            org.opensearch.index.engine.exec.Indexer indexer = indexShard.getIndexerOrNull();
+            Indexer indexer = indexShard.getIndexerOrNull();
             if (indexer == null) {
                 return null;
             }

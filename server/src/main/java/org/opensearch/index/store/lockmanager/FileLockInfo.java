@@ -8,6 +8,9 @@
 
 package org.opensearch.index.store.lockmanager;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.List;
@@ -19,6 +22,8 @@ import java.util.stream.Collectors;
  * @opensearch.internal
  */
 public class FileLockInfo implements LockInfo {
+    private static final Logger logger = LogManager.getLogger(FileLockInfo.class);
+
     private String fileToLock;
     private String acquirerId;
     private static final int INVALID_INDEX = -1;
@@ -123,12 +128,14 @@ public class FileLockInfo implements LockInfo {
          * Returns the acquirer id parsed from a lock file name, or {@code null} when the file name does not
          * follow the lock-file naming format. The lock directory can contain foreign files (e.g. leftovers
          * from an interrupted upload or test filesystem injections) that are not lock files; skipping them
-         * keeps release robust instead of failing the lookup.
+         * keeps release robust instead of failing the lookup. The malformed name is logged so a planted or
+         * corrupted file is visible rather than silently overlooked.
          */
         public static String tryGetAcquirerIdFromLock(String lockName) {
             try {
                 return getAcquirerIdFromLock(lockName);
             } catch (IllegalArgumentException e) {
+                logger.warn("Ignoring file [{}] in the lock directory that is not a valid lock file", lockName, e);
                 return null;
             }
         }
