@@ -34,9 +34,12 @@ package org.opensearch.rest.action.admin.indices;
 
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.opensearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.opensearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.opensearch.action.support.IndicesOptions;
 import org.opensearch.common.logging.DeprecationLogger;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
 import org.opensearch.core.common.Strings;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.rest.BaseRestHandler;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.action.RestToXContentListener;
@@ -44,6 +47,7 @@ import org.opensearch.tasks.LoggingTaskListener;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 
 import static java.util.Arrays.asList;
@@ -87,7 +91,12 @@ public class RestForceMergeAction extends BaseRestHandler {
         // The upgrade + only_expunge_deletes conflict is validated centrally in
         // ForceMergeRequest#validate(), so it is enforced for transport/plugin callers too.
         if (request.paramAsBoolean("wait_for_completion", true)) {
-            return channel -> client.admin().indices().forceMerge(mergeRequest, new RestToXContentListener<>(channel));
+            return channel -> client.admin().indices().forceMerge(mergeRequest, new RestToXContentListener<ForceMergeResponse>(channel) {
+                @Override
+                protected RestStatus getStatus(ForceMergeResponse response) {
+                    return forceMergeStatus(response);
+                }
+            });
         } else {
             // running force merge asynchronously, return a task immediately and store the task's result when it completes
             mergeRequest.setShouldStoreResult(true);
@@ -98,4 +107,21 @@ public class RestForceMergeAction extends BaseRestHandler {
         }
     }
 
+    /**
+     * HTTP status of a synchronous force merge. It is {@code 429 TOO_MANY_REQUESTS} only when no shard succeeded and
+     * every reported shard failure is a {@code 429} (in practice, an admission control rejection), so that a caller
+     * whose request was rejected everywhere can tell it apart from one that did work. Every other response keeps the
+     * {@code 200 OK} that force merge has always returned, with the details in {@code _shards}: a partial rejection,
+     * shard failures for any other reason, and shards that were not available (unassigned, initializing, or the target
+     * of a relocation), which are counted in {@code _shards.total} but are not reported as failures.
+     */
+    static RestStatus forceMergeStatus(ForceMergeResponse response) {
+        final DefaultShardOperationFailedException[] failures = response.getShardFailures();
+        if (response.getSuccessfulShards() == 0
+            && failures.length > 0
+            && Arrays.stream(failures).allMatch(failure -> failure.status() == RestStatus.TOO_MANY_REQUESTS)) {
+            return RestStatus.TOO_MANY_REQUESTS;
+        }
+        return RestStatus.OK;
+    }
 }

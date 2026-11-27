@@ -90,6 +90,11 @@ public class NativeMemoryBasedAdmissionController extends AdmissionController {
      */
     @Override
     public void apply(String action, AdmissionControlActionType admissionControlActionType) {
+        // Force merge is not governed by native memory admission control. The service consults every registered
+        // controller, so skip explicitly instead of failing on an action type without a native memory threshold.
+        if (admissionControlActionType == AdmissionControlActionType.FORCE_MERGE) {
+            return;
+        }
         if (this.isEnabledForTransportLayer(this.settings.getTransportLayerAdmissionControllerMode())) {
             this.applyForTransportLayer(action, admissionControlActionType);
         }

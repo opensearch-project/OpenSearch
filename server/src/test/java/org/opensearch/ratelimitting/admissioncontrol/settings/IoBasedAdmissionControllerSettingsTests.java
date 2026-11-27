@@ -58,8 +58,36 @@ public class IoBasedAdmissionControllerSettingsTests extends OpenSearchTestCase 
                 Arrays.asList(
                     IoBasedAdmissionControllerSettings.IO_BASED_ADMISSION_CONTROLLER_TRANSPORT_LAYER_MODE,
                     IoBasedAdmissionControllerSettings.SEARCH_IO_USAGE_LIMIT,
-                    IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT
+                    IoBasedAdmissionControllerSettings.INDEXING_IO_USAGE_LIMIT,
+                    IoBasedAdmissionControllerSettings.FORCE_MERGE_IO_USAGE_LIMIT
                 )
+            )
+        );
+    }
+
+    public void testForceMergeIoLimitDefaultConfiguredAndDynamicUpdate() {
+        IoBasedAdmissionControllerSettings defaults = new IoBasedAdmissionControllerSettings(
+            clusterService.getClusterSettings(),
+            Settings.EMPTY
+        );
+        assertEquals(IoBasedAdmissionControllerSettings.Defaults.IO_USAGE_LIMIT, defaults.getForceMergeIOUsageLimit());
+
+        Settings configured = Settings.builder().put(IoBasedAdmissionControllerSettings.FORCE_MERGE_IO_USAGE_LIMIT.getKey(), 60).build();
+        IoBasedAdmissionControllerSettings ioSettings = new IoBasedAdmissionControllerSettings(
+            clusterService.getClusterSettings(),
+            configured
+        );
+        assertEquals(60, ioSettings.getForceMergeIOUsageLimit());
+
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(IoBasedAdmissionControllerSettings.FORCE_MERGE_IO_USAGE_LIMIT.getKey(), 30).build());
+        assertEquals(30, ioSettings.getForceMergeIOUsageLimit());
+        assertEquals(IoBasedAdmissionControllerSettings.Defaults.IO_USAGE_LIMIT, ioSettings.getIndexingIOUsageLimit().longValue());
+
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> IoBasedAdmissionControllerSettings.FORCE_MERGE_IO_USAGE_LIMIT.get(
+                Settings.builder().put(IoBasedAdmissionControllerSettings.FORCE_MERGE_IO_USAGE_LIMIT.getKey(), 101).build()
             )
         );
     }

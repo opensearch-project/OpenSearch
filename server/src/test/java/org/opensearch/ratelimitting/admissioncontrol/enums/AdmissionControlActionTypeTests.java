@@ -17,6 +17,9 @@ public class AdmissionControlActionTypeTests extends OpenSearchTestCase {
         assertEquals(AdmissionControlActionType.INDEXING.getType(), "indexing");
         assertEquals(AdmissionControlActionType.fromName("search"), AdmissionControlActionType.SEARCH);
         assertEquals(AdmissionControlActionType.fromName("indexing"), AdmissionControlActionType.INDEXING);
+        assertEquals(AdmissionControlActionType.FORCE_MERGE.getType(), "force_merge");
+        assertEquals(AdmissionControlActionType.fromName("force_merge"), AdmissionControlActionType.FORCE_MERGE);
+        assertEquals(AdmissionControlActionType.fromName("FORCE_MERGE"), AdmissionControlActionType.FORCE_MERGE);
     }
 
     public void testInValidActionType() {

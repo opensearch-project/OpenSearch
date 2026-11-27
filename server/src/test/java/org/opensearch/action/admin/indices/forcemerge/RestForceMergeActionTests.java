@@ -32,21 +32,114 @@
 
 package org.opensearch.action.admin.indices.forcemerge;
 
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.util.concurrent.ThreadContext;
+import org.opensearch.core.action.support.DefaultShardOperationFailedException;
+import org.opensearch.core.concurrency.OpenSearchRejectedExecutionException;
+import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
 import org.opensearch.rest.RestRequest;
+import org.opensearch.rest.RestResponse;
 import org.opensearch.rest.action.admin.indices.RestForceMergeAction;
+import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class RestForceMergeActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
         controller().registerHandler(new RestForceMergeAction());
+    }
+
+    public void testAllShardsRejectedReturns429() {
+        int total = randomIntBetween(1, 8);
+        ForceMergeResponse response = new ForceMergeResponse(total, 0, total, rejected(total));
+
+        RestResponse restResponse = forceMerge(response);
+
+        assertEquals(RestStatus.TOO_MANY_REQUESTS, restResponse.status());
+        // the body is unchanged: the caller can still see which shards were rejected
+        assertThat(restResponse.content().utf8ToString(), containsString("\"failed\":" + total));
+        assertThat(restResponse.content().utf8ToString(), containsString("\"failures\""));
+    }
+
+    public void testPartialRejectionReturns200() {
+        int total = randomIntBetween(2, 8);
+        int failed = randomIntBetween(1, total - 1);
+        ForceMergeResponse response = new ForceMergeResponse(total, total - failed, failed, rejected(failed));
+
+        RestResponse restResponse = forceMerge(response);
+
+        assertEquals(RestStatus.OK, restResponse.status());
+        assertThat(restResponse.content().utf8ToString(), containsString("\"failed\":" + failed));
+    }
+
+    public void testNoFailuresReturns200() {
+        int total = randomIntBetween(1, 8);
+        ForceMergeResponse response = new ForceMergeResponse(total, total, 0, List.of());
+
+        assertEquals(RestStatus.OK, forceMerge(response).status());
+    }
+
+    public void testAllShardsFailedForMixedReasonsReturns200() {
+        // no shard succeeded, but not every failure is a rejection: the status is unchanged from before admission control
+        List<DefaultShardOperationFailedException> failures = new ArrayList<>(rejected(1));
+        failures.add(new DefaultShardOperationFailedException("test", 1, new IOException("simulated merge failure")));
+        ForceMergeResponse response = new ForceMergeResponse(2, 0, 2, failures);
+
+        assertEquals(RestStatus.OK, forceMerge(response).status());
+    }
+
+    public void testAllShardsFailedForNonRejectionReasonReturns200() {
+        int total = randomIntBetween(1, 8);
+        List<DefaultShardOperationFailedException> failures = new ArrayList<>();
+        for (int shard = 0; shard < total; shard++) {
+            failures.add(new DefaultShardOperationFailedException("test", shard, new IOException("simulated merge failure")));
+        }
+        ForceMergeResponse response = new ForceMergeResponse(total, 0, total, failures);
+
+        RestResponse restResponse = forceMerge(response);
+
+        assertEquals(RestStatus.OK, restResponse.status());
+        assertThat(restResponse.content().utf8ToString(), containsString("\"failed\":" + total));
+    }
+
+    /**
+     * Dispatches a synchronous force merge request whose transport response is the given one and returns the REST response.
+     */
+    private RestResponse forceMerge(ForceMergeResponse response) {
+        verifyingClient.setExecuteVerifier((action, request) -> response);
+        RestRequest request = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withPath("/test/_forcemerge")
+            .withMethod(RestRequest.Method.POST)
+            .build();
+        FakeRestChannel channel = new FakeRestChannel(request, false, 1);
+        controller().dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
+        assertEquals("exactly one response must be sent", 1, channel.responses().get() + channel.errors().get());
+        return channel.capturedResponse();
+    }
+
+    private static List<DefaultShardOperationFailedException> rejected(int count) {
+        List<DefaultShardOperationFailedException> failures = new ArrayList<>();
+        for (int shard = 0; shard < count; shard++) {
+            failures.add(
+                new DefaultShardOperationFailedException(
+                    "test",
+                    shard,
+                    new OpenSearchRejectedExecutionException("CPU usage admission controller rejected the request")
+                )
+            );
+        }
+        return failures;
     }
 
     public void testDeprecationMessage() {

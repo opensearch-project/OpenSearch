@@ -115,6 +115,8 @@ public class CpuBasedAdmissionController extends AdmissionController {
                 return this.settings.getIndexingCPULimit();
             case CLUSTER_ADMIN:
                 return this.settings.getClusterAdminCPULimit();
+            case FORCE_MERGE:
+                return this.settings.getForceMergeCPULimit();
             default:
                 throw new IllegalArgumentException(
                     String.format(
