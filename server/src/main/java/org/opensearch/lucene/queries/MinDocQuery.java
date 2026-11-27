@@ -106,11 +106,11 @@ public final class MinDocQuery extends Query {
             @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final int maxDoc = context.reader().maxDoc();
-                if (context.docBase + maxDoc <= minDoc) {
+                final int segmentMinDoc = Math.max(0, minDoc - context.docBase);
+                if (segmentMinDoc >= maxDoc) {
                     return null;
                 }
-                final int segmentMinDoc = Math.max(0, minDoc - context.docBase);
-                final DocIdSetIterator disi = new MinDocIterator(segmentMinDoc, maxDoc);
+                final DocIdSetIterator disi = DocIdSetIterator.range(segmentMinDoc, maxDoc);
                 final Scorer scorer = new ConstantScoreScorer(score(), scoreMode, disi);
                 return new DefaultScorerSupplier(scorer);
             }
@@ -124,47 +124,6 @@ public final class MinDocQuery extends Query {
                 return false;
             }
         };
-    }
-
-    static class MinDocIterator extends DocIdSetIterator {
-        final int segmentMinDoc;
-        final int maxDoc;
-        int doc = -1;
-
-        MinDocIterator(int segmentMinDoc, int maxDoc) {
-            this.segmentMinDoc = segmentMinDoc;
-            this.maxDoc = maxDoc;
-        }
-
-        @Override
-        public int docID() {
-            return doc;
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            return advance(doc + 1);
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            assert target > doc;
-            if (doc == -1) {
-                // skip directly to minDoc
-                doc = Math.max(target, segmentMinDoc);
-            } else {
-                doc = target;
-            }
-            if (doc >= maxDoc) {
-                doc = NO_MORE_DOCS;
-            }
-            return doc;
-        }
-
-        @Override
-        public long cost() {
-            return maxDoc - segmentMinDoc;
-        }
     }
 
     @Override

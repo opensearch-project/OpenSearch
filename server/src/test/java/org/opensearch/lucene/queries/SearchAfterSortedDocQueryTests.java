@@ -33,21 +33,34 @@
 package org.opensearch.lucene.queries;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.ReaderUtil;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.search.SortedSetSortField;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.QueryUtils;
@@ -95,7 +108,7 @@ public class SearchAfterSortedDocQueryTests extends OpenSearchTestCase {
         final RandomIndexWriter w = new RandomIndexWriter(random(), dir, config);
         for (int i = 0; i < numDocs; ++i) {
             int rand = randomIntBetween(0, 10);
-            doc.add(new SortedNumericDocValuesField("number", rand));
+            doc.add(new SortedNumericDocValuesField("number1", rand));
             doc.add(new SortedDocValuesField("string", new BytesRef(randomAlphaOfLength(randomIntBetween(5, 50)))));
             w.addDocument(doc);
             doc.clear();
@@ -132,5 +145,76 @@ public class SearchAfterSortedDocQueryTests extends OpenSearchTestCase {
         w.close();
         reader.close();
         dir.close();
+    }
+
+    public void testFilteredPagination() throws IOException {
+        for (boolean reverse : new boolean[] { false, true }) {
+            for (int segments : new int[] { 1, 4 }) {
+                for (boolean deleteDocs : new boolean[] { false, true }) {
+                    assertFilteredPagination(reverse, segments, deleteDocs);
+                }
+            }
+        }
+    }
+
+    private void assertFilteredPagination(boolean reverse, int segments, boolean deleteDocs) throws IOException {
+        Sort sort = new Sort(new SortField("number", SortField.Type.LONG, reverse));
+        IndexWriterConfig config = new IndexWriterConfig().setIndexSort(sort).setMergePolicy(NoMergePolicy.INSTANCE);
+        try (Directory dir = newDirectory(); IndexWriter writer = new IndexWriter(dir, config)) {
+            for (int i = 0; i < 256; i++) {
+                Document doc = new Document();
+                doc.add(new NumericDocValuesField("number", i / 3));
+                doc.add(new StringField("id", Integer.toString(i), Field.Store.NO));
+                doc.add(new StringField("tag", i % 2 == 0 ? "even" : "odd", Field.Store.NO));
+                writer.addDocument(doc);
+                if ((i + 1) % (256 / segments) == 0) {
+                    writer.commit();
+                }
+            }
+            if (deleteDocs) {
+                for (int i = 0; i < 256; i += 7) {
+                    writer.deleteDocuments(new Term("id", Integer.toString(i)));
+                }
+            }
+            try (IndexReader reader = org.apache.lucene.index.DirectoryReader.open(writer)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+                searcher.setQueryCache(null);
+                Query filter = new TermQuery(new Term("tag", "even"));
+                for (int pageSize : new int[] { 1, 10, 100 }) {
+                    FieldDoc after = null;
+                    int collected = 0;
+                    while (true) {
+                        TopDocs expected = searcher.searchAfter(after, filter, pageSize, sort);
+                        Query query = after == null
+                            ? filter
+                            : new BooleanQuery.Builder().add(filter, BooleanClause.Occur.MUST)
+                                .add(new SearchAfterSortedDocQuery(sort, after), BooleanClause.Occur.FILTER)
+                                .build();
+                        TopDocs actual = searcher.search(query, pageSize, sort);
+                        assertEquals(expected.scoreDocs.length, actual.scoreDocs.length);
+                        if (actual.scoreDocs.length == 0) {
+                            break;
+                        }
+                        for (int i = 0; i < actual.scoreDocs.length; i++) {
+                            assertEquals(expected.scoreDocs[i].doc, actual.scoreDocs[i].doc);
+                            assertArrayEquals(((FieldDoc) expected.scoreDocs[i]).fields, ((FieldDoc) actual.scoreDocs[i]).fields);
+                        }
+                        collected += actual.scoreDocs.length;
+                        after = (FieldDoc) actual.scoreDocs[actual.scoreDocs.length - 1];
+                    }
+                    assertEquals(searcher.count(filter), collected);
+                }
+                FieldDoc beforeAll = new FieldDoc(-1, Float.NaN, new Object[] { reverse ? Long.MAX_VALUE : Long.MIN_VALUE });
+                Weight weight = searcher.createWeight(new SearchAfterSortedDocQuery(sort, beforeAll), ScoreMode.COMPLETE_NO_SCORES, 1f);
+                for (LeafReaderContext leaf : reader.leaves()) {
+                    DocIdSetIterator iterator = weight.scorer(leaf).iterator();
+                    assertEquals(0, iterator.nextDoc());
+                    assertEquals(leaf.reader().maxDoc(), iterator.docIDRunEnd());
+                    FixedBitSet bits = new FixedBitSet(leaf.reader().maxDoc());
+                    iterator.intoBitSet(leaf.reader().maxDoc(), bits, 0);
+                    assertEquals(leaf.reader().maxDoc(), bits.cardinality());
+                }
+            }
+        }
     }
 }
