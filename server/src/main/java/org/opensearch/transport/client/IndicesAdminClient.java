@@ -79,6 +79,9 @@ import org.opensearch.action.admin.indices.open.OpenIndexResponse;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.opensearch.action.admin.indices.readonly.RemoveIndexBlockRequest;
+import org.opensearch.action.admin.indices.readonly.RemoveIndexBlockRequestBuilder;
+import org.opensearch.action.admin.indices.readonly.RemoveIndexBlockResponse;
 import org.opensearch.action.admin.indices.recovery.RecoveryRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.opensearch.action.admin.indices.recovery.RecoveryResponse;
@@ -375,6 +378,22 @@ public interface IndicesAdminClient extends OpenSearchClient {
      * @see Requests#openIndexRequest(String)
      */
     void addBlock(AddIndexBlockRequest request, ActionListener<AddIndexBlockResponse> listener);
+
+    /**
+     * Removes a block from an index
+     *
+     * @param block   The block to remove
+     * @param indices The name of the indices to remove the block from
+     */
+    RemoveIndexBlockRequestBuilder prepareRemoveBlock(APIBlock block, String... indices);
+
+    /**
+     * Removes a block from an index
+     *
+     * @param request  The remove index block request
+     * @param listener A listener to be notified with a result
+     */
+    void removeBlock(RemoveIndexBlockRequest request, ActionListener<RemoveIndexBlockResponse> listener);
 
     /**
      * Opens one or more indices based on their index name.
@@ -950,6 +969,13 @@ public interface IndicesAdminClient extends OpenSearchClient {
     default CompletionStage<AddIndexBlockResponse> addBlockAsync(AddIndexBlockRequest request) {
         CompletableFuture<AddIndexBlockResponse> future = new CompletableFuture<>();
         addBlock(request, ActionListener.wrap(future::complete, future::completeExceptionally));
+        return future;
+    }
+
+    /** Remove index block - CompletionStage version */
+    default CompletionStage<RemoveIndexBlockResponse> removeBlockAsync(RemoveIndexBlockRequest request) {
+        CompletableFuture<RemoveIndexBlockResponse> future = new CompletableFuture<>();
+        removeBlock(request, ActionListener.wrap(future::complete, future::completeExceptionally));
         return future;
     }
 

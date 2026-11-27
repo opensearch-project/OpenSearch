@@ -258,6 +258,10 @@ import org.opensearch.action.admin.indices.readonly.AddIndexBlockAction;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockRequest;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockRequestBuilder;
 import org.opensearch.action.admin.indices.readonly.AddIndexBlockResponse;
+import org.opensearch.action.admin.indices.readonly.RemoveIndexBlockAction;
+import org.opensearch.action.admin.indices.readonly.RemoveIndexBlockRequest;
+import org.opensearch.action.admin.indices.readonly.RemoveIndexBlockRequestBuilder;
+import org.opensearch.action.admin.indices.readonly.RemoveIndexBlockResponse;
 import org.opensearch.action.admin.indices.recovery.RecoveryAction;
 import org.opensearch.action.admin.indices.recovery.RecoveryRequest;
 import org.opensearch.action.admin.indices.recovery.RecoveryRequestBuilder;
@@ -1750,6 +1754,16 @@ public abstract class AbstractClient implements Client {
         @Override
         public void addBlock(AddIndexBlockRequest request, ActionListener<AddIndexBlockResponse> listener) {
             execute(AddIndexBlockAction.INSTANCE, request, listener);
+        }
+
+        @Override
+        public RemoveIndexBlockRequestBuilder prepareRemoveBlock(APIBlock block, String... indices) {
+            return new RemoveIndexBlockRequestBuilder(this, RemoveIndexBlockAction.INSTANCE, block, indices);
+        }
+
+        @Override
+        public void removeBlock(RemoveIndexBlockRequest request, ActionListener<RemoveIndexBlockResponse> listener) {
+            execute(RemoveIndexBlockAction.INSTANCE, request, listener);
         }
 
         @Override
