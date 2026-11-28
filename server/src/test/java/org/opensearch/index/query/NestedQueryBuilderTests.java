@@ -623,4 +623,96 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         assertThat(visitedQueries.get(0), instanceOf(NestedQueryBuilder.class));
     }
 
+    @Override
+    public void testFilter() {
+        // NestedQueryBuilder overrides filter() to push filters into the inner query.
+        // The generic filter() assertions from AbstractQueryTestCase do not apply.
+    }
+
+    public void testFilterWithRandomNestedQuery() throws IOException {
+        NestedQueryBuilder nestedQuery = createTestQueryBuilder();
+        QueryBuilder filter = QueryBuilders.matchAllQuery();
+
+        assertEquals(nestedQuery, nestedQuery.filter(null));
+
+        QueryBuilder result = nestedQuery.filter(filter);
+        assertThat(result, instanceOf(NestedQueryBuilder.class));
+        NestedQueryBuilder filteredNestedQuery = (NestedQueryBuilder) result;
+        assertEquals(nestedQuery.path(), filteredNestedQuery.path());
+        assertEquals(nestedQuery.scoreMode(), filteredNestedQuery.scoreMode());
+        assertThat(filteredNestedQuery.query(), instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder filteredInnerQuery = (BoolQueryBuilder) filteredNestedQuery.query();
+        assertEquals(1, filteredInnerQuery.filter().size());
+        assertEquals(filter, filteredInnerQuery.filter().get(0));
+    }
+
+    public void testFilterPushesFilterToInnerQuery() {
+        MatchQueryBuilder innerQuery = new MatchQueryBuilder("nested1.text", "search terms");
+        NestedQueryBuilder nestedQuery = new NestedQueryBuilder("nested1", innerQuery, ScoreMode.Max);
+        TermQueryBuilder filter = new TermQueryBuilder("nested1.status", "active");
+
+        QueryBuilder result = nestedQuery.filter(filter);
+
+        assertThat(result, instanceOf(NestedQueryBuilder.class));
+        NestedQueryBuilder filteredNestedQuery = (NestedQueryBuilder) result;
+        assertThat(filteredNestedQuery.query(), instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder filteredInnerQuery = (BoolQueryBuilder) filteredNestedQuery.query();
+        assertThat(filteredInnerQuery.must().get(0), equalTo(innerQuery));
+        assertEquals(filter, filteredInnerQuery.filter().get(0));
+    }
+
+    public void testFilterNullReturnsThis() {
+        NestedQueryBuilder nestedQuery = new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.Max);
+        assertSame(nestedQuery, nestedQuery.filter(null));
+    }
+
+    public void testFilterDoesNotMutateOriginal() {
+        MatchQueryBuilder innerQuery = new MatchQueryBuilder("nested1.text", "search terms");
+        NestedQueryBuilder nestedQuery = new NestedQueryBuilder("nested1", innerQuery, ScoreMode.Max);
+        TermQueryBuilder filter = new TermQueryBuilder("nested1.status", "active");
+
+        NestedQueryBuilder filtered = (NestedQueryBuilder) nestedQuery.filter(filter);
+
+        assertNotSame(nestedQuery, filtered);
+        assertSame(innerQuery, nestedQuery.query());
+    }
+
+    public void testFilterPreservesMetadata() {
+        MatchQueryBuilder innerQuery = new MatchQueryBuilder("nested1.text", "search terms");
+        InnerHitBuilder innerHitBuilder = new InnerHitBuilder("inner_hits").setSize(10);
+        NestedQueryBuilder nestedQuery = new NestedQueryBuilder("nested1", innerQuery, ScoreMode.Max, innerHitBuilder).ignoreUnmapped(true)
+            .boost(2.0f)
+            .queryName("nested-query");
+        TermQueryBuilder filter = new TermQueryBuilder("nested1.status", "active");
+
+        NestedQueryBuilder result = (NestedQueryBuilder) nestedQuery.filter(filter);
+
+        assertEquals("nested1", result.path());
+        assertEquals(ScoreMode.Max, result.scoreMode());
+        assertTrue(result.ignoreUnmapped());
+        assertEquals(2.0f, result.boost(), 0.0f);
+        assertEquals("nested-query", result.queryName());
+        assertEquals(innerHitBuilder, result.innerHit());
+        BoolQueryBuilder filteredInnerQuery = (BoolQueryBuilder) result.query();
+        assertEquals(filter, filteredInnerQuery.filter().get(0));
+    }
+
+    public void testFilterNestedInNested() {
+        MatchQueryBuilder innerQuery = new MatchQueryBuilder("nested2.text", "search terms");
+        NestedQueryBuilder innerNestedQuery = new NestedQueryBuilder("nested2", innerQuery, ScoreMode.Max);
+        NestedQueryBuilder outerNestedQuery = new NestedQueryBuilder("nested1", innerNestedQuery, ScoreMode.Max);
+        TermQueryBuilder filter = new TermQueryBuilder("nested2.status", "active");
+
+        QueryBuilder result = outerNestedQuery.filter(filter);
+
+        assertThat(result, instanceOf(NestedQueryBuilder.class));
+        NestedQueryBuilder filteredOuter = (NestedQueryBuilder) result;
+        assertThat(filteredOuter.query(), instanceOf(NestedQueryBuilder.class));
+        NestedQueryBuilder filteredInner = (NestedQueryBuilder) filteredOuter.query();
+        assertThat(filteredInner.query(), instanceOf(BoolQueryBuilder.class));
+        BoolQueryBuilder filteredInnermost = (BoolQueryBuilder) filteredInner.query();
+        assertThat(filteredInnermost.must().get(0), equalTo(innerQuery));
+        assertEquals(filter, filteredInnermost.filter().get(0));
+    }
+
 }
