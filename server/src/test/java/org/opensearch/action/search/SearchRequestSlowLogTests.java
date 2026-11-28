@@ -32,13 +32,19 @@
 
 package org.opensearch.action.search;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.status.StatusConsoleListener;
+import org.apache.logging.log4j.status.StatusData;
+import org.apache.logging.log4j.status.StatusListener;
+import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.lucene.search.TotalHits;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.MockAppender;
+import org.opensearch.common.logging.OpenSearchLogMessage;
 import org.opensearch.common.logging.SlowLogLevel;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
@@ -52,10 +58,13 @@ import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Phaser;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -199,6 +208,24 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
         verify(logger, times(numRequestsLogged)).info(any(SearchRequestSlowLog.SearchRequestSlowLogMessage.class));
         verify(logger, never()).debug(any(SearchRequestSlowLog.SearchRequestSlowLogMessage.class));
         verify(logger, never()).trace(any(SearchRequestSlowLog.SearchRequestSlowLogMessage.class));
+    }
+
+    public void testSourceWithPlaceholdersIsNotParsedAsLogPattern() {
+        SearchSourceBuilder source = SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("field", "a{}b{}c"));
+        SearchRequest searchRequest = new SearchRequest().source(source);
+        SearchPhaseContext searchPhaseContext = new MockSearchPhaseContext(1, searchRequest);
+        SearchRequestContext searchRequestContext = new SearchRequestContext(
+            new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+            searchRequest,
+            () -> null
+        );
+        SearchRequestSlowLog.SearchRequestSlowLogMessage p = new SearchRequestSlowLog.SearchRequestSlowLogMessage(
+            searchPhaseContext,
+            10,
+            searchRequestContext
+        );
+
+        assertThat(formatWithoutStatusWarnings(p), containsString("a{}b{}c"));
     }
 
     public void testSearchRequestSlowLogHasJsonFields_EmptySearchRequestContext() {
@@ -426,6 +453,24 @@ public class SearchRequestSlowLogTests extends OpenSearchTestCase {
                 "failed to parse setting [cluster.search.request.slowlog.threshold.warn] with value [NOT A TIME VALUE] as a time value";
             assertThat(ex, hasToString(containsString(expected)));
             assertThat(ex, instanceOf(IllegalArgumentException.class));
+        }
+    }
+
+    private static String formatWithoutStatusWarnings(OpenSearchLogMessage message) {
+        List<StatusData> statusData = new CopyOnWriteArrayList<>();
+        StatusListener listener = new StatusConsoleListener(Level.WARN) {
+            @Override
+            public void log(StatusData data) {
+                statusData.add(data);
+            }
+        };
+        StatusLogger.getLogger().registerListener(listener);
+        try {
+            String formatted = message.getFormattedMessage();
+            assertThat(statusData.stream().map(StatusData::getFormattedStatus).collect(Collectors.toList()), empty());
+            return formatted;
+        } finally {
+            StatusLogger.getLogger().removeListener(listener);
         }
     }
 }

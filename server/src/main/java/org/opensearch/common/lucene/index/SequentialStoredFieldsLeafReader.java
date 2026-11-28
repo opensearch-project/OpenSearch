@@ -36,6 +36,7 @@ import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
+import org.opensearch.secure_sm.AccessController;
 
 import java.io.IOException;
 
@@ -71,7 +72,9 @@ public abstract class SequentialStoredFieldsLeafReader extends FilterLeafReader 
     public StoredFieldsReader getSequentialStoredFieldsReader() throws IOException {
         if (in instanceof CodecReader) {
             CodecReader reader = (CodecReader) in;
-            return doGetSequentialStoredFieldsReader(reader.getFieldsReader().getMergeInstance());
+            // Lucene may reopen the segment file when preparing a merge reader for a scripted source lookup.
+            StoredFieldsReader mergeReader = AccessController.doPrivilegedChecked(reader.getFieldsReader()::getMergeInstance);
+            return doGetSequentialStoredFieldsReader(mergeReader);
         } else if (in instanceof SequentialStoredFieldsLeafReader) {
             SequentialStoredFieldsLeafReader reader = (SequentialStoredFieldsLeafReader) in;
             return doGetSequentialStoredFieldsReader(reader.getSequentialStoredFieldsReader());

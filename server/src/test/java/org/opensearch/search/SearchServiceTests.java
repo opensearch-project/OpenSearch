@@ -35,7 +35,10 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.opensearch.OpenSearchException;
 import org.opensearch.action.OriginalIndices;
@@ -135,7 +138,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
-import static java.util.Collections.singletonList;
 import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.opensearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
@@ -178,9 +180,11 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
     @Before
     private void resetCount() {
         numWrapInvocations = new AtomicInteger(0);
+        queryRewriteCount.set(0);
     }
 
     private static AtomicInteger numWrapInvocations = new AtomicInteger(0);
+    private static final AtomicInteger queryRewriteCount = new AtomicInteger();
 
     private static DirectoryReader apply(DirectoryReader directoryReader) throws IOException {
         numWrapInvocations.incrementAndGet();
@@ -921,9 +925,75 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
     public static class FailOnRewriteQueryPlugin extends Plugin implements SearchPlugin {
         @Override
         public List<QuerySpec<?>> getQueries() {
-            return singletonList(new QuerySpec<>("fail_on_rewrite_query", FailOnRewriteQueryBuilder::new, parseContext -> {
+            return List.of(new QuerySpec<>("fail_on_rewrite_query", FailOnRewriteQueryBuilder::new, parseContext -> {
+                throw new UnsupportedOperationException("No query parser for this plugin");
+            }), new QuerySpec<>("counting_rewrite_query", CountingRewriteQueryBuilder::new, parseContext -> {
                 throw new UnsupportedOperationException("No query parser for this plugin");
             }));
+        }
+    }
+
+    public static class CountingRewriteQueryBuilder extends AbstractQueryBuilder<CountingRewriteQueryBuilder> {
+
+        public CountingRewriteQueryBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public CountingRewriteQueryBuilder() {}
+
+        @Override
+        protected void doWriteTo(StreamOutput out) {}
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) {}
+
+        @Override
+        protected Query doToQuery(QueryShardContext context) {
+            return new CountingRewriteQuery();
+        }
+
+        @Override
+        protected boolean doEquals(CountingRewriteQueryBuilder other) {
+            return true;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "counting_rewrite_query";
+        }
+    }
+
+    private static class CountingRewriteQuery extends Query {
+
+        @Override
+        public Query rewrite(IndexSearcher indexSearcher) {
+            queryRewriteCount.incrementAndGet();
+            return new MatchAllDocsQuery();
+        }
+
+        @Override
+        public void visit(QueryVisitor visitor) {
+            visitor.visitLeaf(this);
+        }
+
+        @Override
+        public String toString(String field) {
+            return "counting_rewrite_query";
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return sameClassAs(other);
+        }
+
+        @Override
+        public int hashCode() {
+            return classHash();
         }
     }
 
@@ -1360,6 +1430,47 @@ public class SearchServiceTests extends OpenSearchSingleNodeTestCase {
         assertNotNull("Profile results should contain fetch phase data", fetchResult.getProfileResults().getFetchProfileResult());
 
         service.freeReaderContext(queryResult.getContextId());
+    }
+
+    public void testFetchPhaseDoesNotRewriteMainQuery() throws Exception {
+        createIndex("index");
+        client().prepareIndex("index").setId("1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
+
+        SearchService service = getInstanceFromNode(SearchService.class);
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        IndexService indexService = indicesService.indexServiceSafe(resolveIndex("index"));
+        IndexShard indexShard = indexService.getShard(0);
+
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true).scroll(new Scroll(TimeValue.timeValueMinutes(1)));
+        searchRequest.source(new SearchSourceBuilder().query(new CountingRewriteQueryBuilder()));
+        ShardSearchRequest shardSearchRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            2,
+            new AliasFilter(null, Strings.EMPTY_ARRAY),
+            1.0f,
+            -1,
+            null,
+            null
+        );
+
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        PlainActionFuture<SearchPhaseResult> queryFuture = new PlainActionFuture<>();
+        service.executeQueryPhase(shardSearchRequest, true, task, queryFuture);
+        SearchPhaseResult queryResult = queryFuture.get();
+        assertEquals(1, queryRewriteCount.get());
+
+        try {
+            ShardFetchRequest fetchRequest = new ShardFetchRequest(queryResult.getContextId(), List.of(0), null);
+            PlainActionFuture<FetchSearchResult> fetchFuture = new PlainActionFuture<>();
+            service.executeFetchPhase(fetchRequest, task, fetchFuture);
+            fetchFuture.get();
+
+            assertEquals("fetch-only context creation must not rewrite the main query", 1, queryRewriteCount.get());
+        } finally {
+            service.freeReaderContext(queryResult.getContextId());
+        }
     }
 
     public void testExecuteFetchPhaseWithoutProfiler() throws Exception {

@@ -61,7 +61,9 @@ public class MaximumResourceTaskSelectionStrategy implements TaskSelectionStrate
         double accumulated = 0;
         for (WorkloadGroupTask task : sortedTasks) {
             selectedTasks.add(task);
-            accumulated += resourceType.getResourceUsageCalculator().calculateTaskResourceUsage(task);
+            // Measure the task like the group usage, so it is in the units of the limit. For CPU the task level usage is in
+            // cores, while the group usage is a share of the node's cores
+            accumulated += resourceType.getResourceUsageCalculator().calculateResourceUsage(List.of(task));
             if ((accumulated - limit) > MIN_VALUE) {
                 break;
             }

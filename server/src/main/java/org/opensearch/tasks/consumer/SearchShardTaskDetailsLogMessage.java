@@ -22,7 +22,7 @@ import java.util.Map;
  */
 public final class SearchShardTaskDetailsLogMessage extends OpenSearchLogMessage {
     SearchShardTaskDetailsLogMessage(SearchShardTask task) {
-        super(prepareMap(task), message(task));
+        super(prepareMap(task), "{}", message(task));
     }
 
     private static Map<String, Object> prepareMap(SearchShardTask task) {

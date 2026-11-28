@@ -96,7 +96,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         HistogramFactory factory = (HistogramFactory) histo;
 
         List<Bucket> newBuckets = new ArrayList<>();
-        EvictingQueue<Double> values = new EvictingQueue<>(this.window);
+        EvictingQueue<Double> values = new EvictingQueue<>(Math.min(this.window, buckets.size()));
 
         Number lastValidKey = 0;
         int lastValidPosition = 0;
@@ -141,6 +141,8 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         }
 
         if (buckets.size() > 0 && predict > 0) {
+            int existingBuckets = newBuckets.size() - lastValidPosition - 1;
+            reduceContext.consumeBucketsAndMaybeBreak(Math.max(0, predict - existingBuckets));
             double[] predictions = model.predict(values, predict);
             for (int i = 0; i < predictions.length; i++) {
 
@@ -183,6 +185,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         MultiBucketsAggregation histo,
         MovAvgModel model
     ) {
+        if ((long) window * 2 > buckets.size()) {
+            return model;
+        }
 
         int counter = 0;
         EvictingQueue<Double> values = new EvictingQueue<>(this.window);

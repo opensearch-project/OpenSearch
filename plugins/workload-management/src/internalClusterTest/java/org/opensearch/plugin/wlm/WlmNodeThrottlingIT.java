@@ -49,6 +49,7 @@ import org.opensearch.rule.RuleRoutingServiceRegistry;
 import org.opensearch.rule.action.CreateRuleAction;
 import org.opensearch.rule.action.CreateRuleRequest;
 import org.opensearch.rule.autotagging.AutoTaggingRegistry;
+import org.opensearch.rule.autotagging.AutoTaggingRegistryTestUtils;
 import org.opensearch.rule.autotagging.FeatureType;
 import org.opensearch.rule.autotagging.Rule;
 import org.opensearch.script.MockScriptPlugin;
@@ -114,9 +115,8 @@ public class WlmNodeThrottlingIT extends OpenSearchIntegTestCase {
     @Before
     public void registerFeatureTypeIfMissingOnAllNodes() {
         // The registry is JVM-static but each test gets a new cluster, so re-register this cluster's feature type.
-        AutoTaggingRegistry.featureTypesRegistryMap.remove(WorkloadGroupFeatureType.NAME);
         FeatureType featureType = WlmAutoTaggingIT.TestWorkloadManagementPlugin.featureType;
-        AutoTaggingRegistry.registerFeatureType(featureType);
+        AutoTaggingRegistryTestUtils.replaceFeatureType(featureType);
 
         for (String node : internalCluster().getNodeNames()) {
             RulePersistenceServiceRegistry persistenceRegistry = internalCluster().getInstance(RulePersistenceServiceRegistry.class, node);

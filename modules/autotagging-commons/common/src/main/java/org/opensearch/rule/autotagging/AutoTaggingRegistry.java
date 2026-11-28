@@ -25,7 +25,7 @@ public class AutoTaggingRegistry {
      * featureTypesRegistryMap should be concurrently readable but not concurrently writable.
      * The registration of FeatureType should only be done during boot-up.
      */
-    public static final Map<String, FeatureType> featureTypesRegistryMap = new HashMap<>();
+    private static final Map<String, FeatureType> featureTypesRegistryMap = new HashMap<>();
     /**
      * Max chars a feature type can assume
      */
@@ -47,6 +47,16 @@ public class AutoTaggingRegistry {
             throw new IllegalStateException("Feature type " + name + " is already registered. Duplicate feature type is not allowed.");
         }
         featureTypesRegistryMap.put(name, featureType);
+    }
+
+    /**
+     * Replaces any registered feature type with the same name, without the duplicate check of registerFeatureType.
+     * Only for tests that rebuild clusters in the same JVM, through AutoTaggingRegistryTestUtils.
+     * @param featureType
+     */
+    static void replaceFeatureType(FeatureType featureType) {
+        validateFeatureType(featureType);
+        featureTypesRegistryMap.put(featureType.getName(), featureType);
     }
 
     private static void validateFeatureType(FeatureType featureType) {
