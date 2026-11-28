@@ -230,11 +230,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
         }));
 
-        Country country = response.getCountry();
-        City city = response.getCity();
-        Location location = response.getLocation();
-        Continent continent = response.getContinent();
-        Subdivision subdivision = response.getMostSpecificSubdivision();
+        Country country = response.country();
+        City city = response.city();
+        Location location = response.location();
+        Continent continent = response.continent();
+        Subdivision subdivision = response.mostSpecificSubdivision();
 
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
@@ -243,19 +243,19 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     geoData.put("ip", NetworkAddress.format(ipAddress));
                     break;
                 case COUNTRY_ISO_CODE:
-                    String countryIsoCode = country.getIsoCode();
+                    String countryIsoCode = country.isoCode();
                     if (countryIsoCode != null) {
                         geoData.put("country_iso_code", countryIsoCode);
                     }
                     break;
                 case COUNTRY_NAME:
-                    String countryName = country.getName();
+                    String countryName = country.name();
                     if (countryName != null) {
                         geoData.put("country_name", countryName);
                     }
                     break;
                 case CONTINENT_NAME:
-                    String continentName = continent.getName();
+                    String continentName = continent.name();
                     if (continentName != null) {
                         geoData.put("continent_name", continentName);
                     }
@@ -263,34 +263,34 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 case REGION_ISO_CODE:
                     // ISO 3166-2 code for country subdivisions.
                     // See iso.org/iso-3166-country-codes.html
-                    String countryIso = country.getIsoCode();
-                    String subdivisionIso = subdivision.getIsoCode();
+                    String countryIso = country.isoCode();
+                    String subdivisionIso = subdivision.isoCode();
                     if (countryIso != null && subdivisionIso != null) {
                         String regionIsoCode = countryIso + "-" + subdivisionIso;
                         geoData.put("region_iso_code", regionIsoCode);
                     }
                     break;
                 case REGION_NAME:
-                    String subdivisionName = subdivision.getName();
+                    String subdivisionName = subdivision.name();
                     if (subdivisionName != null) {
                         geoData.put("region_name", subdivisionName);
                     }
                     break;
                 case CITY_NAME:
-                    String cityName = city.getName();
+                    String cityName = city.name();
                     if (cityName != null) {
                         geoData.put("city_name", cityName);
                     }
                     break;
                 case TIMEZONE:
-                    String locationTimeZone = location.getTimeZone();
+                    String locationTimeZone = location.timeZone();
                     if (locationTimeZone != null) {
                         geoData.put("timezone", locationTimeZone);
                     }
                     break;
                 case LOCATION:
-                    Double latitude = location.getLatitude();
-                    Double longitude = location.getLongitude();
+                    Double latitude = location.latitude();
+                    Double longitude = location.longitude();
                     if (latitude != null && longitude != null) {
                         Map<String, Object> locationObject = new HashMap<>();
                         locationObject.put("lat", latitude);
@@ -316,8 +316,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
         }));
 
-        Country country = response.getCountry();
-        Continent continent = response.getContinent();
+        Country country = response.country();
+        Continent continent = response.continent();
 
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
@@ -326,19 +326,19 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     geoData.put("ip", NetworkAddress.format(ipAddress));
                     break;
                 case COUNTRY_ISO_CODE:
-                    String countryIsoCode = country.getIsoCode();
+                    String countryIsoCode = country.isoCode();
                     if (countryIsoCode != null) {
                         geoData.put("country_iso_code", countryIsoCode);
                     }
                     break;
                 case COUNTRY_NAME:
-                    String countryName = country.getName();
+                    String countryName = country.name();
                     if (countryName != null) {
                         geoData.put("country_name", countryName);
                     }
                     break;
                 case CONTINENT_NAME:
-                    String continentName = continent.getName();
+                    String continentName = continent.name();
                     if (continentName != null) {
                         geoData.put("continent_name", continentName);
                     }
@@ -361,9 +361,9 @@ public final class GeoIpProcessor extends AbstractProcessor {
             }
         }));
 
-        Long asn = response.getAutonomousSystemNumber();
-        String organization_name = response.getAutonomousSystemOrganization();
-        Network network = response.getNetwork();
+        Long asn = response.autonomousSystemNumber();
+        String organization_name = response.autonomousSystemOrganization();
+        Network network = response.network();
 
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
