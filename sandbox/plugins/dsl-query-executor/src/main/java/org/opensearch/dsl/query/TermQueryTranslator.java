@@ -14,6 +14,7 @@ import org.apache.calcite.rex.RexNode;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
+import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 import org.opensearch.index.query.TermQueryBuilder;
 
@@ -44,6 +45,14 @@ public class TermQueryTranslator implements QueryTranslator {
         TermQueryBuilder termQuery = (TermQueryBuilder) query;
         String fieldName = termQuery.fieldName();
         Object value = termQuery.value();
+
+        if (termQuery.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+            throw new ConversionException("Term query parameter 'boost' is not supported");
+        }
+        // matched_queries is not surfaced by this path
+        if (termQuery.queryName() != null) {
+            throw new ConversionException("Term query parameter '_name' is not supported");
+        }
 
         RelDataTypeField field = ctx.getField(fieldName);
         RelDataType fieldType = field.getType();
