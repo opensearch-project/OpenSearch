@@ -81,6 +81,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     static final ParseField MAX_SLICE_NODE_TIME_RAW = new ParseField("max_slice_time_in_nanos");
     static final ParseField MIN_SLICE_NODE_TIME_RAW = new ParseField("min_slice_time_in_nanos");
     static final ParseField AVG_SLICE_NODE_TIME_RAW = new ParseField("avg_slice_time_in_nanos");
+    static final ParseField SLICES = new ParseField("slices");
     static final ParseField CHILDREN = new ParseField("children");
 
     private final String type;
@@ -91,6 +92,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     private Long maxSliceNodeTime;
     private Long minSliceNodeTime;
     private Long avgSliceNodeTime;
+    private final List<SliceProfileResult> sliceProfileResults;
     private final List<ProfileResult> children;
 
     public ProfileResult(
@@ -101,7 +103,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         long nodeTime,
         List<ProfileResult> children
     ) {
-        this(type, description, breakdown, debug, nodeTime, children, null, null, null);
+        this(type, description, breakdown, debug, nodeTime, children, null, null, null, null);
     }
 
     public ProfileResult(
@@ -115,6 +117,21 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         Long minSliceNodeTime,
         Long avgSliceNodeTime
     ) {
+        this(type, description, breakdown, debug, nodeTime, children, maxSliceNodeTime, minSliceNodeTime, avgSliceNodeTime, null);
+    }
+
+    public ProfileResult(
+        String type,
+        String description,
+        Map<String, Long> breakdown,
+        Map<String, Object> debug,
+        long nodeTime,
+        List<ProfileResult> children,
+        Long maxSliceNodeTime,
+        Long minSliceNodeTime,
+        Long avgSliceNodeTime,
+        List<SliceProfileResult> sliceProfileResults
+    ) {
         this.type = type;
         this.description = description;
         this.breakdown = Objects.requireNonNull(breakdown, "required breakdown argument missing");
@@ -124,6 +141,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         this.maxSliceNodeTime = maxSliceNodeTime;
         this.minSliceNodeTime = minSliceNodeTime;
         this.avgSliceNodeTime = avgSliceNodeTime;
+        this.sliceProfileResults = sliceProfileResults == null ? List.of() : sliceProfileResults;
     }
 
     /**
@@ -145,6 +163,11 @@ public final class ProfileResult implements Writeable, ToXContentObject {
             this.minSliceNodeTime = null;
             this.avgSliceNodeTime = null;
         }
+        if (in.getVersion().onOrAfter(Version.V_3_8_0)) {
+            this.sliceProfileResults = in.readList(SliceProfileResult::new);
+        } else {
+            this.sliceProfileResults = List.of();
+        }
     }
 
     @Override
@@ -159,6 +182,9 @@ public final class ProfileResult implements Writeable, ToXContentObject {
             out.writeOptionalLong(maxSliceNodeTime);
             out.writeOptionalLong(minSliceNodeTime);
             out.writeOptionalLong(avgSliceNodeTime);
+        }
+        if (out.getVersion().onOrAfter(Version.V_3_8_0)) {
+            out.writeList(sliceProfileResults);
         }
     }
 
@@ -212,6 +238,15 @@ public final class ProfileResult implements Writeable, ToXContentObject {
     }
 
     /**
+     * Returns the additive per-slice profiling results for this node, or an empty list if none were
+     * captured (e.g. non-concurrent execution or an older node). These are the raw per-slice detail
+     * behind the {@code max_/min_/avg_slice_time} aggregates.
+     */
+    public List<SliceProfileResult> getSliceProfileResults() {
+        return Collections.unmodifiableList(sliceProfileResults);
+    }
+
+    /**
      * Returns a list of all profiled children queries
      */
     public List<ProfileResult> getProfiledChildren() {
@@ -248,6 +283,14 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         createBreakdownView(builder);
         if (false == debug.isEmpty()) {
             builder.field(DEBUG.getPreferredName(), debug);
+        }
+
+        if (false == sliceProfileResults.isEmpty()) {
+            builder.startArray(SLICES.getPreferredName());
+            for (SliceProfileResult sliceProfileResult : sliceProfileResults) {
+                builder = sliceProfileResult.toXContent(builder, params);
+            }
+            builder.endArray();
         }
 
         if (false == children.isEmpty()) {
@@ -293,6 +336,7 @@ public final class ProfileResult implements Writeable, ToXContentObject {
         parser.declareLong(optionalConstructorArg(), MAX_SLICE_NODE_TIME_RAW);
         parser.declareLong(optionalConstructorArg(), MIN_SLICE_NODE_TIME_RAW);
         parser.declareLong(optionalConstructorArg(), AVG_SLICE_NODE_TIME_RAW);
+        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> SliceProfileResult.fromXContent(p), SLICES);
         PARSER = parser.build();
     }
 

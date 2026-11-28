@@ -39,5 +39,15 @@ public abstract class ContextualProfileBreakdown extends AbstractProfileBreakdow
 
     public void associateCollectorToLeaves(Collector collector, LeafReaderContext leaf) {}
 
+    /**
+     * Associate a collector (slice) with a leaf it searched, along with the doc-id range
+     * {@code [minDocId, maxDocId)} it was searched over. Enables additive per-slice/per-partition
+     * profiling to report doc-ranges (including intra-segment partitions). Defaults to ignoring the
+     * range and delegating to {@link #associateCollectorToLeaves(Collector, LeafReaderContext)}.
+     */
+    public void associateCollectorToLeaves(Collector collector, LeafReaderContext leaf, int minDocId, int maxDocId) {
+        associateCollectorToLeaves(collector, leaf);
+    }
+
     public void associateCollectorsToLeaves(Map<Collector, List<LeafReaderContext>> collectorToLeaves) {}
 }
