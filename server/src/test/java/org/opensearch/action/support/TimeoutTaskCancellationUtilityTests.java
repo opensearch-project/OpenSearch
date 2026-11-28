@@ -58,20 +58,18 @@ public class TimeoutTaskCancellationUtilityTests extends OpenSearchTestCase {
         verify(threadPool).schedule(any(), eq(DEFAULT_TIMEOUT), eq(ThreadPool.Names.GENERIC));
     }
 
-    public void testNoTimeoutIntervalArmsNoTimer() {
+    public void testNegativeIntervalArmsNoTimer() {
         CancellableTask task = task(randomFrom(TimeValue.timeValueSeconds(1), null));
-        assertSame(listener, wrap(task, SearchService.NO_TIMEOUT));
+        for (TimeValue interval : List.of(SearchService.NO_TIMEOUT, TimeValue.timeValueSeconds(-1), TimeValue.timeValueMinutes(-1))) {
+            assertSame(listener, wrap(task, interval));
+        }
         verify(threadPool, never()).schedule(any(), any(), any());
     }
 
-    public void testZeroOrNegativeIntervalIsScheduledRatherThanTurningCancellationOff() {
-        // Guards existing behavior, pending a decision on rejecting these values in a workload group's settings: only -1
-        // (NO_TIMEOUT, which is -1ms) turns cancellation off, so 0 and negative durations such as -1s cancel the task at once.
-        for (TimeValue interval : List.of(TimeValue.ZERO, TimeValue.timeValueSeconds(-1), TimeValue.timeValueMinutes(-1))) {
-            assertNotEquals(SearchService.NO_TIMEOUT, interval);
-            assertNotSame(listener, wrap(task(null), interval));
-            verify(threadPool).schedule(any(), eq(interval), eq(ThreadPool.Names.GENERIC));
-        }
+    public void testZeroIntervalIsScheduledRatherThanTurningCancellationOff() {
+        // Guards existing behavior, pending a decision on what 0 should mean: it cancels the task at once.
+        assertNotSame(listener, wrap(task(null), TimeValue.ZERO));
+        verify(threadPool).schedule(any(), eq(TimeValue.ZERO), eq(ThreadPool.Names.GENERIC));
     }
 
     public void testWithoutAnIntervalTheTasksOwnTimeoutApplies() {

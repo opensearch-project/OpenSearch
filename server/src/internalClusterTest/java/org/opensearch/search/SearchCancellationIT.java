@@ -288,6 +288,40 @@ public class SearchCancellationIT extends ParameterizedStaticSettingsOpenSearchI
         ensureSearchWasCancelled(searchResponse);
     }
 
+    public void testNegativeIntervalOnRequestTurnsCancellationOff() throws Exception {
+        List<ScriptedBlockPlugin> plugins = initBlockFactory();
+        indexTestData();
+
+        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
+            .setCancelAfterTimeInterval(randomFrom(TimeValue.timeValueSeconds(-1), TimeValue.timeValueMinutes(-1)))
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())))
+            .execute();
+        ensureSearchWasNotCancelled(plugins, searchResponse);
+    }
+
+    public void testNegativeIntervalInClusterSettingTurnsCancellationOff() throws Exception {
+        List<ScriptedBlockPlugin> plugins = initBlockFactory();
+        indexTestData();
+
+        client().admin()
+            .cluster()
+            .prepareUpdateSettings()
+            .setPersistentSettings(Settings.builder().put(SEARCH_CANCEL_AFTER_TIME_INTERVAL_SETTING_KEY, randomFrom("-1s", "-1m")).build())
+            .get();
+        ActionFuture<SearchResponse> searchResponse = client().prepareSearch("test")
+            .setQuery(scriptQuery(new Script(ScriptType.INLINE, "mockscript", ScriptedBlockPlugin.SCRIPT_NAME, Collections.emptyMap())))
+            .execute();
+        ensureSearchWasNotCancelled(plugins, searchResponse);
+    }
+
+    private void ensureSearchWasNotCancelled(List<ScriptedBlockPlugin> plugins, ActionFuture<SearchResponse> searchResponse)
+        throws Exception {
+        awaitForBlock(plugins);
+        sleepForAtLeast(100);
+        disableBlocks(plugins);
+        assertNoFailures(searchResponse.actionGet());
+    }
+
     public void testCancellationDuringFetchPhase() throws Exception {
         List<ScriptedBlockPlugin> plugins = initBlockFactory();
         indexTestData();
