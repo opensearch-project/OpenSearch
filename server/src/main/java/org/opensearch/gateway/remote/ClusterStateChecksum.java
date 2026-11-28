@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
 import com.jcraft.jzlib.JZlib;
@@ -76,46 +77,47 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
         long start = threadpool.relativeTimeInNanos();
         ExecutorService executorService = threadpool.executor(ThreadPool.Names.REMOTE_STATE_CHECKSUM);
         CountDownLatch latch = new CountDownLatch(COMPONENT_SIZE);
+        AtomicReference<Exception> firstFailure = new AtomicReference<>();
 
         executeChecksumTask((stream) -> {
             clusterState.routingTable().writeVerifiableTo(stream);
             return null;
-        }, checksum -> routingTableChecksum = checksum, executorService, latch);
+        }, checksum -> routingTableChecksum = checksum, executorService, latch, firstFailure);
 
         executeChecksumTask((stream) -> {
             clusterState.nodes().writeVerifiableTo(stream);
             return null;
-        }, checksum -> nodesChecksum = checksum, executorService, latch);
+        }, checksum -> nodesChecksum = checksum, executorService, latch, firstFailure);
 
         executeChecksumTask((stream) -> {
             clusterState.coordinationMetadata().writeVerifiableTo(stream);
             return null;
-        }, checksum -> coordinationMetadataChecksum = checksum, executorService, latch);
+        }, checksum -> coordinationMetadataChecksum = checksum, executorService, latch, firstFailure);
 
         executeChecksumTask((stream) -> {
             Settings.writeSettingsToStream(clusterState.metadata().persistentSettings(), stream);
             return null;
-        }, checksum -> settingMetadataChecksum = checksum, executorService, latch);
+        }, checksum -> settingMetadataChecksum = checksum, executorService, latch, firstFailure);
 
         executeChecksumTask((stream) -> {
             Settings.writeSettingsToStream(clusterState.metadata().transientSettings(), stream);
             return null;
-        }, checksum -> transientSettingsMetadataChecksum = checksum, executorService, latch);
+        }, checksum -> transientSettingsMetadataChecksum = checksum, executorService, latch, firstFailure);
 
         executeChecksumTask((stream) -> {
             clusterState.metadata().templatesMetadata().writeVerifiableTo(stream);
             return null;
-        }, checksum -> templatesMetadataChecksum = checksum, executorService, latch);
+        }, checksum -> templatesMetadataChecksum = checksum, executorService, latch, firstFailure);
 
         executeChecksumTask((stream) -> {
             stream.writeStringCollection(clusterState.metadata().customs().keySet());
             return null;
-        }, checksum -> customMetadataMapChecksum = checksum, executorService, latch);
+        }, checksum -> customMetadataMapChecksum = checksum, executorService, latch, firstFailure);
 
         executeChecksumTask((stream) -> {
             ((DiffableStringMap) clusterState.metadata().hashesOfConsistentSettings()).writeTo(stream);
             return null;
-        }, checksum -> hashesOfConsistentSettingsChecksum = checksum, executorService, latch);
+        }, checksum -> hashesOfConsistentSettingsChecksum = checksum, executorService, latch, firstFailure);
 
         executeChecksumTask((stream) -> {
             stream.writeMapValues(
@@ -123,22 +125,27 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
                 (checksumStream, value) -> value.writeVerifiableTo((BufferedChecksumStreamOutput) checksumStream)
             );
             return null;
-        }, checksum -> indicesChecksum = checksum, executorService, latch);
+        }, checksum -> indicesChecksum = checksum, executorService, latch, firstFailure);
 
         executeChecksumTask((stream) -> {
             clusterState.blocks().writeVerifiableTo(stream);
             return null;
-        }, checksum -> blocksChecksum = checksum, executorService, latch);
+        }, checksum -> blocksChecksum = checksum, executorService, latch, firstFailure);
 
         executeChecksumTask((stream) -> {
             stream.writeStringCollection(clusterState.customs().keySet());
             return null;
-        }, checksum -> clusterStateCustomsChecksum = checksum, executorService, latch);
+        }, checksum -> clusterStateCustomsChecksum = checksum, executorService, latch, firstFailure);
 
         try {
             latch.await();
         } catch (InterruptedException e) {
-            throw new RemoteStateTransferException("Failed to create checksum for cluster state.", e);
+            Thread.currentThread().interrupt();
+            throw new RemoteStateTransferException("Interrupted while creating checksum for cluster state.", e);
+        }
+        Exception failure = firstFailure.get();
+        if (failure != null) {
+            throw new RemoteStateTransferException("Failed to create checksum for cluster state.", failure);
         }
         createClusterStateChecksum();
         logger.debug("Checksum execution time {}", TimeValue.nsecToMSec(threadpool.relativeTimeInNanos() - start));
@@ -148,17 +155,29 @@ public class ClusterStateChecksum implements ToXContentFragment, Writeable {
         CheckedFunction<BufferedChecksumStreamOutput, Void, IOException> checksumTask,
         Consumer<Long> checksumConsumer,
         ExecutorService executorService,
-        CountDownLatch latch
+        CountDownLatch latch,
+        AtomicReference<Exception> firstFailure
     ) {
-        executorService.execute(() -> {
-            try {
-                long checksum = createChecksum(checksumTask);
-                checksumConsumer.accept(checksum);
-                latch.countDown();
-            } catch (IOException e) {
-                throw new RemoteStateTransferException("Failed to execute checksum task", e);
-            }
-        });
+        try {
+            executorService.execute(() -> {
+                try {
+                    long checksum = createChecksum(checksumTask);
+                    checksumConsumer.accept(checksum);
+                } catch (Exception e) {
+                    logger.error("Failed to compute cluster state component checksum", e);
+                    firstFailure.compareAndSet(null, e);
+                } finally {
+                    latch.countDown();
+                }
+            });
+        } catch (Exception e) {
+            // Guard against the executor rejecting the task (for example due to a
+            // saturated queue or executor shutdown). Without this fallback the latch
+            // would never reach zero and the calling thread would block indefinitely.
+            logger.error("Failed to submit cluster state checksum task", e);
+            firstFailure.compareAndSet(null, e);
+            latch.countDown();
+        }
     }
 
     private long createChecksum(CheckedFunction<BufferedChecksumStreamOutput, Void, IOException> task) throws IOException {
