@@ -139,6 +139,25 @@ public class SettingsTests extends OpenSearchTestCase {
         assertThat(fooSettings.get("baz"), equalTo("ghi"));
     }
 
+    /**
+     * getAsIntStrict: same as getAsInt for null/valid values, but a value that cannot be
+     * parsed as an integer (e.g. "1.0") throws IllegalArgumentException (HTTP 400) naming the
+     * setting and offending value, instead of SettingsException. getAsInt semantics are
+     * unchanged.
+     */
+    public void testGetAsIntStrict() {
+        final Settings settings = Settings.builder().put("min_gram", "1.0").put("max_gram", "2").build();
+        assertEquals(Integer.valueOf(2), settings.getAsIntStrict("max_gram", 7));
+        assertEquals(Integer.valueOf(7), settings.getAsIntStrict("absent", 7));
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> settings.getAsIntStrict("min_gram", 1)
+        );
+        assertEquals("[min_gram] must be an integer, got [1.0]", e.getMessage());
+        // the lenient variant keeps throwing SettingsException for the same value
+        expectThrows(SettingsException.class, () -> settings.getAsInt("min_gram", 1));
+    }
+
     public void testMultLevelGetPrefix() {
         Settings settings = Settings.builder()
             .put("1.2.3", "hello world")

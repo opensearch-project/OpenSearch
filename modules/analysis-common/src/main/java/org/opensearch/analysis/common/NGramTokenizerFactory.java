@@ -126,8 +126,8 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
     NGramTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, settings, name);
         int maxAllowedNgramDiff = indexSettings.getMaxNgramDiff();
-        this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
-        this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
+        this.minGram = settings.getAsIntStrict("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
+        this.maxGram = settings.getAsIntStrict("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         int ngramDiff = maxGram - minGram;
         if (ngramDiff > maxAllowedNgramDiff) {
             throw new IllegalArgumentException(
