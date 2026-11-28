@@ -44,6 +44,7 @@ import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.geo.GeometryTestUtils;
 import org.opensearch.geometry.Geometry;
+import org.opensearch.geometry.LinearRing;
 import org.opensearch.geometry.utils.GeographyValidator;
 import org.opensearch.test.AbstractXContentTestCase;
 import org.opensearch.test.OpenSearchTestCase;
@@ -61,6 +62,7 @@ import static org.opensearch.geo.GeometryTestUtils.randomMultiPoint;
 import static org.opensearch.geo.GeometryTestUtils.randomMultiPolygon;
 import static org.opensearch.geo.GeometryTestUtils.randomPoint;
 import static org.opensearch.geo.GeometryTestUtils.randomPolygon;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoJsonSerializationTests extends OpenSearchTestCase {
@@ -119,6 +121,23 @@ public class GeoJsonSerializationTests extends OpenSearchTestCase {
 
     public void testLineString() throws IOException {
         xContentTest(() -> randomLine(randomBoolean()));
+    }
+
+    public void testLinearRing() throws IOException {
+        // a LinearRing is a closed linestring, so it is serialized as a GeoJSON LineString (see #12324)
+        LinearRing ring = new LinearRing(new double[] { -25, -35, -25 }, new double[] { -25, -35, -25 });
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        GeoJson.toXContent(ring, builder, ToXContent.EMPTY_PARAMS);
+        String json = BytesReference.bytes(builder).utf8ToString();
+        assertThat(json, containsString("\"type\":\"LineString\""));
+
+        StreamInput input = BytesReference.bytes(builder).streamInput();
+        try (
+            XContentParser parser = MediaTypeRegistry.JSON.xContent()
+                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input)
+        ) {
+            assertThat(parser.map(), equalTo(GeoJson.toMap(ring)));
+        }
     }
 
     public void testMultiLineString() throws IOException {

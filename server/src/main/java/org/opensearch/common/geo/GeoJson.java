@@ -125,8 +125,9 @@ public final class GeoJson {
             }
 
             @Override
-            public XContentBuilder visit(LinearRing ring) {
-                throw new UnsupportedOperationException("linearRing cannot be serialized using GeoJson");
+            public XContentBuilder visit(LinearRing ring) throws IOException {
+                builder.field(ShapeParser.FIELD_COORDINATES.getPreferredName());
+                return coordinatesToXContent(ring);
             }
 
             @Override
@@ -254,7 +255,8 @@ public final class GeoJson {
 
             @Override
             public Void visit(LinearRing ring) {
-                throw new UnsupportedOperationException("linearRing cannot be serialized using GeoJson");
+                root.put(ShapeParser.FIELD_COORDINATES.getPreferredName(), coordinatesToList(ring));
+                return null;
             }
 
             @Override
@@ -558,7 +560,7 @@ public final class GeoJson {
 
             @Override
             public String visit(LinearRing ring) {
-                throw new UnsupportedOperationException("line ring cannot be serialized using GeoJson");
+                return "LineString";
             }
 
             @Override
