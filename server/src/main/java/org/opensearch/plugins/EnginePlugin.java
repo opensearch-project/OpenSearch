@@ -32,16 +32,22 @@
 
 package org.opensearch.plugins;
 
+import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.ExperimentalApi;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.codec.AdditionalCodecs;
+import org.opensearch.index.codec.CodecDecorator;
 import org.opensearch.index.codec.CodecService;
 import org.opensearch.index.codec.CodecServiceFactory;
+import org.opensearch.index.codec.CompositeDelegatingPerFieldCodec;
+import org.opensearch.index.codec.DecoratedCodec;
+import org.opensearch.index.codec.PerFieldCodecBuilder;
 import org.opensearch.index.engine.DefaultPrimaryOperationPolicy;
 import org.opensearch.index.engine.EngineFactory;
 import org.opensearch.index.engine.PrimaryOperationPolicy;
 import org.opensearch.index.engine.exec.commit.Committer;
 import org.opensearch.index.engine.exec.commit.CommitterFactory;
+import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.seqno.RetentionLeases;
 import org.opensearch.index.translog.TranslogDeletionPolicy;
 import org.opensearch.index.translog.TranslogDeletionPolicyFactory;
@@ -106,6 +112,50 @@ public interface EnginePlugin {
      * well as custom {@code CodecServiceFactory} through {@code CodecServiceConfig}.
      */
     default Optional<AdditionalCodecs> getAdditionalCodecs(IndexSettings indexSettings) {
+        return Optional.empty();
+    }
+
+    /**
+     * EXPERT:
+     * The plugins which only need to encode / decode the fields they own (a {@code knn_vector} field,
+     * for example) should contribute a {@link PerFieldCodecBuilder} instead of replacing the whole
+     * {@link CodecService} through {@link #getCustomCodecServiceFactory(IndexSettings)}. In contrast to
+     * the latter, any number of plugins may contribute a {@link PerFieldCodecBuilder} for the same
+     * index: the per-field formats of all of them are injected into the {@link org.apache.lucene.codecs.Codec}
+     * the index is configured with (see please {@link CompositeDelegatingPerFieldCodec}).
+     *
+     * <p>
+     * The method is invoked every time a {@link CodecService} is created for the index.
+     *
+     * @param mapperService mapper service (if available)
+     * @param indexSettings index settings
+     * @return an optional per-field codec builder
+     */
+    @ExperimentalApi
+    default Optional<PerFieldCodecBuilder> getPerFieldCodecBuilder(@Nullable MapperService mapperService, IndexSettings indexSettings) {
+        return Optional.empty();
+    }
+
+    /**
+     * EXPERT:
+     * The formats which are not per-field but per-segment (the {@link org.apache.lucene.codecs.CompoundFormat}
+     * and the {@link org.apache.lucene.codecs.StoredFieldsFormat}) are contributed through a
+     * {@link CodecDecorator}. Any number of plugins may contribute a decorator for the same index: the
+     * decorators are applied on top of the {@link org.apache.lucene.codecs.Codec} the index is configured
+     * with (see please {@link DecoratedCodec}), although only one of them may customize the stored fields.
+     *
+     * <p>
+     * The method is invoked every time a {@link CodecService} is created for the index. The returned instance
+     * may carry index-level context but, since the decorators are resolved by name (through the service
+     * loader) while reading the segments they wrote, the formats of the instance the service loader creates
+     * have to be able to read any segment on their own.
+     *
+     * @param mapperService mapper service (if available)
+     * @param indexSettings index settings
+     * @return an optional codec decorator
+     */
+    @ExperimentalApi
+    default Optional<CodecDecorator> getCodecDecorator(@Nullable MapperService mapperService, IndexSettings indexSettings) {
         return Optional.empty();
     }
 

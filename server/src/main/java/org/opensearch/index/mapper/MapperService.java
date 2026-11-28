@@ -82,8 +82,11 @@ import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -230,6 +233,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final IndexAnalyzers indexAnalyzers;
 
     private volatile DocumentMapper mapper;
+    private final List<Consumer<MapperService>> mergeValidators = new CopyOnWriteArrayList<>();
 
     private final DocumentMapperParser documentParser;
     private final Version indexVersionCreated;
@@ -545,6 +549,17 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return internalMerge(documentMapper, reason);
     }
 
+    /**
+     * Registers a validator of the merged mappings, for the checks which need the merged mapping to be
+     * visible through this mapper service. It is invoked (on the cluster-manager, while a mapping is created
+     * or updated) after the merged mapping is applied, which is reverted if the validator throws.
+     *
+     * @opensearch.internal
+     */
+    public void addMergeValidator(Consumer<MapperService> validator) {
+        mergeValidators.add(Objects.requireNonNull(validator));
+    }
+
     static void validateTypeName(String type) {
         if (type.length() == 0) {
             throw new InvalidTypeNameException("mapping type name is empty");
@@ -599,7 +614,20 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
         // commit the change
         if (newMapper != null) {
+            final DocumentMapper previousMapper = this.mapper;
             this.mapper = newMapper;
+
+            // only the mappings being created or updated are validated, the recovered ones were validated already
+            if (reason == MergeReason.MAPPING_UPDATE || reason == MergeReason.INDEX_TEMPLATE) {
+                try {
+                    for (final Consumer<MapperService> validator : mergeValidators) {
+                        validator.accept(this);
+                    }
+                } catch (final RuntimeException ex) {
+                    this.mapper = previousMapper;
+                    throw ex;
+                }
+            }
         }
 
         assert results.values().stream().allMatch(this::assertSerialization);
