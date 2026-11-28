@@ -9,6 +9,7 @@
 package org.opensearch.javaagent;
 
 import org.opensearch.javaagent.bootstrap.AgentPolicy;
+import org.opensearch.secure_sm.policy.Policy;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -25,7 +26,6 @@ import java.nio.file.StandardOpenOption;
 import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Permissions;
-import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.UUID;
 
