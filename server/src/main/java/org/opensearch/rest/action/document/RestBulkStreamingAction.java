@@ -101,11 +101,11 @@ public class RestBulkStreamingAction extends BaseRestHandler {
         final boolean hasBatchSize = request.hasParam("batch_size"); /* is batch_size explicitly specified or default is used */
 
         if (batchInterval != null && batchInterval.duration() <= 0) {
-            throw new IllegalArgumentException("The batch_interval value should be non-negative [" + batchInterval.millis() + "ms].");
+            throw new IllegalArgumentException("The batch_interval value should be positive [" + batchInterval.millis() + "ms].");
         }
 
         if (batchSize <= 0) {
-            throw new IllegalArgumentException("The batch_size value should be non-negative [" + batchSize + "].");
+            throw new IllegalArgumentException("The batch_size value should be positive [" + batchSize + "].");
         }
 
         final StreamingRestChannelConsumer consumer = (channel) -> {
