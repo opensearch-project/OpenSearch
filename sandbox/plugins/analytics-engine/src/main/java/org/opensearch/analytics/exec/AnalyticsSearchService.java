@@ -63,6 +63,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.Consumer;
 
 /**
  * Data-node service that executes plan fragments against local shards.
@@ -238,14 +239,52 @@ public class AnalyticsSearchService implements AutoCloseable {
         String sortColumn,
         ActionListener<AnalyticsCanMatchResponse> listener
     ) {
+        canMatch(shard, filterBytes, backendId, sortColumn, Runnable::run, listener);
+    }
+
+    /**
+     * As {@link #canMatch(IndexShard, byte[], String, String, ActionListener)}, resuming the
+     * can-match evaluation on {@code executor} after any pending refresh completes.
+     */
+    public void canMatch(
+        IndexShard shard,
+        byte[] filterBytes,
+        String backendId,
+        String sortColumn,
+        Executor executor,
+        ActionListener<AnalyticsCanMatchResponse> listener
+    ) {
         try {
-            AnalyticsSearchBackendPlugin backend = backends.get(backendId);
-            if (backend == null) {
-                listener.onResponse(new AnalyticsCanMatchResponse(true));
-                return;
-            }
-            AnalyticsSearchBackendPlugin.CanMatchResult result = backend.canMatchWithBounds(shard, filterBytes, sortColumn);
-            listener.onResponse(new AnalyticsCanMatchResponse(result.canMatch(), result.bounds()));
+            awaitShardSearchActive(shard, ignored -> submitCanMatch(shard, filterBytes, backendId, sortColumn, executor, listener));
+        } catch (Exception e) {
+            listener.onResponse(new AnalyticsCanMatchResponse(true));
+        }
+    }
+
+    private void submitCanMatch(
+        IndexShard shard,
+        byte[] filterBytes,
+        String backendId,
+        String sortColumn,
+        Executor executor,
+        ActionListener<AnalyticsCanMatchResponse> listener
+    ) {
+        try {
+            executor.execute(() -> {
+                AnalyticsCanMatchResponse response;
+                try {
+                    AnalyticsSearchBackendPlugin backend = backends.get(backendId);
+                    if (backend == null) {
+                        response = new AnalyticsCanMatchResponse(true);
+                    } else {
+                        AnalyticsSearchBackendPlugin.CanMatchResult result = backend.canMatchWithBounds(shard, filterBytes, sortColumn);
+                        response = new AnalyticsCanMatchResponse(result.canMatch(), result.bounds());
+                    }
+                } catch (Exception e) {
+                    response = new AnalyticsCanMatchResponse(true);
+                }
+                listener.onResponse(response);
+            });
         } catch (Exception e) {
             listener.onResponse(new AnalyticsCanMatchResponse(true));
         }
@@ -325,6 +364,24 @@ public class AnalyticsSearchService implements AutoCloseable {
      * </ul>
      */
     public void executeFragmentStreamingAsync(
+        FragmentExecutionRequest request,
+        IndexShard shard,
+        AnalyticsShardTask task,
+        StreamingFragmentResponseHandler responseHandler,
+        Executor executor
+    ) {
+        try {
+            awaitShardSearchActive(shard, ignored -> submitFragment(request, shard, task, responseHandler, executor));
+        } catch (Exception e) {
+            responseHandler.onFailure(e);
+        }
+    }
+
+    void awaitShardSearchActive(IndexShard shard, Consumer<Boolean> listener) {
+        shard.awaitShardSearchActive(listener);
+    }
+
+    private void submitFragment(
         FragmentExecutionRequest request,
         IndexShard shard,
         AnalyticsShardTask task,
