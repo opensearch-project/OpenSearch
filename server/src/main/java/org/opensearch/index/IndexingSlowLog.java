@@ -223,6 +223,7 @@ public final class IndexingSlowLog implements IndexingOperationListener {
         IndexingSlowLogMessage(Index index, ParsedDocument doc, long tookInNanos, boolean reformat, int maxSourceCharsToLog) {
             super(
                 prepareMap(index, doc, tookInNanos, reformat, maxSourceCharsToLog),
+                "{}",
                 message(index, doc, tookInNanos, reformat, maxSourceCharsToLog)
             );
         }
