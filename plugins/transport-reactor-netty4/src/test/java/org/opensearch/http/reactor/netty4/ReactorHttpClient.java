@@ -99,9 +99,13 @@ public class ReactorHttpClient implements Closeable {
     }
 
     public ReactorHttpClient(boolean compression, boolean secure, Settings settings) {
+        this(compression, secure, settings, randomProtocol(secure, settings));
+    }
+
+    public ReactorHttpClient(boolean compression, boolean secure, Settings settings, HttpProtocol protocol) {
         this.compression = compression;
         this.secure = secure;
-        this.protocol = randomProtocol(secure, settings);
+        this.protocol = protocol;
         this.settings = settings;
     }
 
@@ -115,6 +119,14 @@ public class ReactorHttpClient implements Closeable {
 
     public static ReactorHttpClient https(Settings settings) {
         return new ReactorHttpClient(true, true, settings);
+    }
+
+    public static ReactorHttpClient create(boolean compression, Settings settings, HttpProtocol protocol) {
+        return new ReactorHttpClient(compression, false, settings, protocol);
+    }
+
+    public static ReactorHttpClient https(Settings settings, HttpProtocol protocol) {
+        return new ReactorHttpClient(true, true, settings, protocol);
     }
 
     public List<FullHttpResponse> get(InetSocketAddress remoteAddress, String... uris) throws InterruptedException {
@@ -169,6 +181,37 @@ public class ReactorHttpClient implements Closeable {
         );
         assert responses.size() == 1 : "expected 1 and only 1 http response";
         return responses.get(0);
+    }
+
+    /**
+     * Sends the request with its body streamed in the given chunks and without a content length: over HTTP/1.1 the body
+     * is sent with chunked transfer encoding, and h2c is used with prior knowledge because the server aggregates the body
+     * of an HTTP/1.1 upgrade request and sets its content length.
+     */
+    public final FullHttpResponse sendChunked(InetSocketAddress remoteAddress, HttpRequest httpRequest, List<byte[]> chunks) {
+        final EventLoopGroup eventLoopGroup = new MultiThreadIoEventLoopGroup(1, NioIoHandler.newFactory());
+        try {
+            final HttpClient client = createClient(remoteAddress, eventLoopGroup);
+            return (protocol == HttpProtocol.H2C ? client.protocol(HttpProtocol.H2C) : client).headers(h -> h.add(httpRequest.headers()))
+                .baseUrl(httpRequest.uri())
+                .request(httpRequest.method())
+                .send(Flux.fromIterable(chunks).map(Unpooled::wrappedBuffer))
+                .responseSingle(
+                    (r, body) -> body.switchIfEmpty(Mono.just(Unpooled.EMPTY_BUFFER))
+                        .map(
+                            b -> new DefaultFullHttpResponse(
+                                r.version(),
+                                r.status(),
+                                b.retain(),
+                                r.responseHeaders(),
+                                EmptyHttpHeaders.INSTANCE
+                            )
+                        )
+                )
+                .block();
+        } finally {
+            eventLoopGroup.shutdownGracefully().awaitUninterruptibly();
+        }
     }
 
     public final Collection<FullHttpResponse> put(InetSocketAddress remoteAddress, List<Tuple<String, CharSequence>> urisAndBodies)

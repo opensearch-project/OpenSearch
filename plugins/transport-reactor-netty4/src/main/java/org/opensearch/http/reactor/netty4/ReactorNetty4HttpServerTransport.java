@@ -66,6 +66,9 @@ import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpContentDecompressor;
+import io.netty.handler.codec.http.HttpHeaderNames;
+import io.netty.handler.codec.http.HttpHeaderValues;
+import io.netty.handler.codec.http.HttpHeaders;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.quic.QuicSslContextBuilder;
 import io.netty.handler.ssl.ApplicationProtocolConfig;
@@ -552,12 +555,21 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
             incomingStream(new ReactorNetty4HttpRequest(request, responseHeadersFactory), consumer.httpChannel());
             return response.sendObject(consumer);
         } else {
+            if (isDeclaredContentLengthTooLarge(request)) {
+                // Reject without reading the body. As with the netty4 transport, a keep-alive HTTP/1.1 connection stays
+                // usable: Reactor Netty reads and discards the rest of the body once the response is sent. Unlike the
+                // netty4 transport, Reactor Netty closes the connection when the request expects 100-continue, since its
+                // body was never asked for.
+                return response.status(HttpResponseStatus.REQUEST_ENTITY_TOO_LARGE).send();
+            }
+
             final ReactorNetty4NonStreamingRequestConsumer<HttpContent> consumer = new ReactorNetty4NonStreamingRequestConsumer<>(
                 this,
                 responseHeadersFactory,
                 request,
                 response,
-                maxCompositeBufferComponents
+                maxCompositeBufferComponents,
+                maxContentLength.getBytes()
             );
 
             request.receiveContent()
@@ -576,6 +588,31 @@ public class ReactorNetty4HttpServerTransport extends AbstractHttpServerTranspor
                 final ByteBuf content = r.content().copy();
                 return Mono.from(response.sendObject(content));
             });
+        }
+    }
+
+    /**
+     * Checks the declared content length of a request with a non-encoded body against {@code http.max_content_length}.
+     * The size of an encoded (for example, compressed) body is only known once it is decoded, so it is enforced
+     * by {@link ReactorNetty4NonStreamingRequestConsumer} as the decoded content is being received.
+     */
+    private boolean isDeclaredContentLengthTooLarge(HttpServerRequest request) {
+        final HttpHeaders headers = request.requestHeaders();
+        final String contentEncoding = headers.get(HttpHeaderNames.CONTENT_ENCODING);
+        if (contentEncoding != null && HttpHeaderValues.IDENTITY.contentEqualsIgnoreCase(contentEncoding.trim()) == false) {
+            return false;
+        }
+
+        final String contentLength = headers.get(HttpHeaderNames.CONTENT_LENGTH);
+        if (contentLength == null) {
+            return false;
+        }
+
+        try {
+            return Long.parseLong(contentLength.trim()) > maxContentLength.getBytes();
+        } catch (final NumberFormatException ex) {
+            // Malformed content length is handled by the HTTP codec
+            return false;
         }
     }
 
