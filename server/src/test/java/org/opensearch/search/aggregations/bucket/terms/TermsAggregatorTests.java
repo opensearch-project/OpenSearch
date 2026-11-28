@@ -1807,6 +1807,63 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }
     }
 
+    /**
+     * The per-bucket selection must be sized by the buckets of the owning bucket, not by every global ordinal
+     * on the shard. Otherwise a sub-terms aggregation with a large size allocates a valueCount-sized array
+     * for each parent bucket, see https://github.com/opensearch-project/OpenSearch/issues/23763.
+     */
+    public void testResultSelectionSizedByBucketsInOwningOrd() throws IOException {
+        try (Directory directory = newDirectory()) {
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+                for (int i = 0; i < 100; i++) {
+                    Document document = new Document();
+                    document.add(new SortedSetDocValuesField("string", new BytesRef("value" + i)));
+                    indexWriter.addDocument(document);
+                }
+                indexWriter.forceMerge(1);
+            }
+
+            try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+                MappedFieldType stringFieldType = new KeywordFieldMapper.KeywordFieldType("string");
+                TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("string")
+                    .userValueTypeHint(ValueType.STRING)
+                    .order(BucketOrder.count(false))
+                    .size(10)
+                    .shardSize(10);
+                TermsAggregatorFactory.REMAP_GLOBAL_ORDS = true;
+                try {
+                    GlobalOrdinalsStringTermsAggregator aggregator = createAggregatorWithCustomizableSearchContext(
+                        new MatchAllDocsQuery(),
+                        aggregationBuilder,
+                        indexSearcher,
+                        createIndexSettings(),
+                        new MultiBucketConsumerService.MultiBucketConsumer(
+                            DEFAULT_MAX_BUCKETS,
+                            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
+                        ),
+                        searchContext -> when(searchContext.bucketSelectionStrategyFactor()).thenReturn(5),
+                        stringFieldType
+                    );
+                    // collect 3 of the 100 terms: 3 buckets fit in size 10, so all of them are selected.
+                    // Sized by the 100 global ordinals instead, 10 * 5 < 100 would pick the priority queue.
+                    LeafBucketCollector leafCollector = aggregator.getLeafCollector(
+                        indexReader.leaves().get(0),
+                        LeafBucketCollector.NO_OP_COLLECTOR
+                    );
+                    for (int docId = 0; docId < 3; docId++) {
+                        leafCollector.collect(docId, 0);
+                    }
+                    StringTerms result = (StringTerms) aggregator.buildAggregations(new long[] { 0 })[0];
+                    assertEquals("select_all", aggregator.getResultSelectionStrategy());
+                    assertEquals(3, result.getBuckets().size());
+                } finally {
+                    TermsAggregatorFactory.REMAP_GLOBAL_ORDS = null;
+                }
+            }
+        }
+    }
+
     private GlobalOrdinalsStringTermsAggregator createAndTestAggregator(
         IndexSearcher indexSearcher,
         MappedFieldType stringFieldType,

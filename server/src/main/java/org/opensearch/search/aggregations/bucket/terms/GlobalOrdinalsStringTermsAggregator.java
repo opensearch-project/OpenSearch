@@ -722,6 +722,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * Convert the global ordinal into a bucket ordinal.
          */
         abstract long getOrAddBucketOrd(long owningBucketOrd, long globalOrd) throws IOException;
+
+        /**
+         * Upper bound on the number of buckets that {@link #forEach} visits
+         * for {@code owningBucketOrd}.
+         */
+        abstract long bucketsInOrd(long owningBucketOrd);
     }
 
     interface BucketInfoConsumer {
@@ -775,6 +781,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         @Override
         long getOrAddBucketOrd(long owningBucketOrd, long globalOrd) {
             return globalOrdToBucketOrd(owningBucketOrd, globalOrd);
+        }
+
+        @Override
+        long bucketsInOrd(long owningBucketOrd) {
+            assert owningBucketOrd == 0;
+            return valueCount;
         }
 
         @Override
@@ -864,6 +876,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
+        long bucketsInOrd(long owningBucketOrd) {
+            // with minDocCount == 0, forEach visits every global ordinal, collected or not
+            return bucketCountThresholds.getMinDocCount() == 0 ? valueCount : bucketOrds.bucketsInOrd(owningBucketOrd);
+        }
+
+        @Override
         public void close() {
             bucketOrds.close();
         }
@@ -914,19 +932,15 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
                 // processing each owning bucket
                 checkCancelled();
-                final int size;
-                if (localBucketCountThresholds.getMinDocCount() == 0) {
-                    // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
-                    size = (int) Math.min(valueCount, localBucketCountThresholds.getRequiredSize());
-                } else {
-                    size = (int) Math.min(maxBucketOrd(), localBucketCountThresholds.getRequiredSize());
-                }
+                // size the per-bucket structures by the buckets of this owning bucket, not by every ordinal on the shard
+                final long bucketsInOrd = collectionStrategy.bucketsInOrd(owningBucketOrds[ordIdx]);
+                final int size = (int) Math.min(bucketsInOrd, localBucketCountThresholds.getRequiredSize());
 
                 // partiallyBuiltBucketComparator is null for significantTerm Aggregations use case and the way buckets sorted in the
                 // priority queue is based on the significanceScore
                 BucketSelectionStrategy strategy = BucketSelectionStrategy.determine(
                     size,
-                    valueCount,
+                    bucketsInOrd,
                     order,
                     partiallyBuiltBucketComparator,
                     context.bucketSelectionStrategyFactor()
@@ -972,7 +986,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                     resultSelectionStrategy = "priority_queue";
                 } else {
                     final int finalOrdIdx = ordIdx;
-                    Object[] bucketsForOrdArr = new Object[(int) valueCount];
+                    Object[] bucketsForOrdArr = new Object[(int) bucketsInOrd];
                     int[] tot = { 0 };
                     BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx]);
                     collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
