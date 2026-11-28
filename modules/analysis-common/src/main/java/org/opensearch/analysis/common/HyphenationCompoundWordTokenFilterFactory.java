@@ -36,6 +36,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter;
 import org.apache.lucene.analysis.compound.hyphenation.HyphenationTree;
+import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.env.Environment;
 import org.opensearch.index.IndexSettings;
@@ -54,6 +55,8 @@ import org.xml.sax.InputSource;
  */
 public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundWordTokenFilterFactory {
 
+    private static final Setting<String> HYPHENATION_PATTERNS_PATH_SETTING = Setting.relativePathSetting("hyphenation_patterns_path");
+
     private final boolean noSubMatches;
     private final boolean noOverlappingMatches;
     private final HyphenationTree hyphenationTree;
@@ -64,10 +67,10 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
         noSubMatches = settings.getAsBoolean("no_sub_matches", false);
         noOverlappingMatches = settings.getAsBoolean("no_overlapping_matches", false);
 
-        String hyphenationPatternsPath = settings.get("hyphenation_patterns_path", null);
-        if (hyphenationPatternsPath == null) {
+        if (HYPHENATION_PATTERNS_PATH_SETTING.exists(settings) == false) {
             throw new IllegalArgumentException("hyphenation_patterns_path is a required setting.");
         }
+        String hyphenationPatternsPath = HYPHENATION_PATTERNS_PATH_SETTING.get(settings);
 
         Path hyphenationPatternsFile = Analysis.resolveAnalyzerPath(env, hyphenationPatternsPath);
 
