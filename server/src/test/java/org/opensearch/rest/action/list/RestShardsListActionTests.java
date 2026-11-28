@@ -73,4 +73,14 @@ public class RestShardsListActionTests extends OpenSearchTestCase {
         assertEquals("asc", pageParams.getSort());
     }
 
+    public void testGroupByAndAggregateAreRejectedBeforeAnyWork() {
+        // The list APIs return one page of the data, so aggregating it would produce wrong totals.
+        for (String param : new String[] { "group_by", "aggregate" }) {
+            Map<String, String> params = new HashMap<>();
+            params.put(param, param.equals("group_by") ? "index" : "count(shard)");
+            RestRequest restRequest = new FakeRestRequest(params);
+            IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(restRequest, null));
+            assertTrue(e.getMessage().contains("not supported on paginated APIs"));
+        }
+    }
 }

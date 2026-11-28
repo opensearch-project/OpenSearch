@@ -17,7 +17,9 @@ import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.transport.client.node.NodeClient;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class AbstractCatActionTests extends OpenSearchTestCase {
@@ -73,5 +75,34 @@ public class AbstractCatActionTests extends OpenSearchTestCase {
         );
         action.prepareRequest(new FakeRestRequest.Builder(xContentRegistry()).build(), null);
         assertEquals(2, action.doCatRequestCalls.get());
+    }
+
+    public void testInvalidGroupByOrAggregateIsRejectedBeforeDoCatRequest() {
+        String[][] invalid = new String[][] {
+            { "group_by", "index" },                      // group_by without aggregate
+            { "aggregate", "" },                          // nothing to aggregate
+            { "aggregate", "docs" },                      // not function(column)
+            { "aggregate", "median(docs)" } };            // unknown function
+        for (String[] param : invalid) {
+            TestCatAction action = new TestCatAction();
+            RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(Collections.singletonMap(param[0], param[1]))
+                .build();
+            expectThrows(IllegalArgumentException.class, () -> action.prepareRequest(request, null));
+            assertEquals("doCatRequest must not run for " + param[0] + "=" + param[1], 0, action.doCatRequestCalls.get());
+        }
+    }
+
+    public void testValidGroupByAndAggregateReachDoCatRequest() throws Exception {
+        TestCatAction action = new TestCatAction();
+        Map<String, String> params = new HashMap<>();
+        params.put("group_by", "index");
+        params.put("aggregate", "count(shard)");
+        action.prepareRequest(new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build(), null);
+        assertEquals(1, action.doCatRequestCalls.get());
+    }
+
+    public void testGroupByAndAggregateAreAcceptedResponseParams() {
+        assertTrue(new TestCatAction().responseParams().contains("group_by"));
+        assertTrue(new TestCatAction().responseParams().contains("aggregate"));
     }
 }
