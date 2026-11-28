@@ -886,6 +886,12 @@ public class OpenSearchNode implements TestClusterConfiguration {
 
     @Override
     @Internal
+    public String getAuxTransportPortURI(String auxTransportType) {
+        return getAuxTransportPortInternal(auxTransportType).get(0);
+    }
+
+    @Override
+    @Internal
     public List<String> getAllHttpSocketURI() {
         waitForAllConditions();
         return getHttpPortInternal();
@@ -1313,6 +1319,14 @@ public class OpenSearchNode implements TestClusterConfiguration {
             return readPortsFile(httpPortsFile);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read http ports file: " + httpPortsFile + " for " + this, e);
+        }
+    }
+
+    private List<String> getAuxTransportPortInternal(String auxTransportType) {
+        try {
+            return readPortsFile(confPathLogs.resolve(auxTransportType + ".ports"));
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to read " + auxTransportType + " ports file for " + this, e);
         }
     }
 
