@@ -10,8 +10,8 @@
 (*   2. Creates its own with create-if-absent. A lower-term incumbent never *)
 (*      writes that key, so the create cannot be defeated.                  *)
 (*   3. Deletes every lower-term object, unconditionally. This is the act   *)
-(*      that fences the incumbent, whose next CAS then finds its object     *)
-(*      gone.                                                               *)
+(*      that fences the incumbent, whose next fence check then finds        *)
+(*      its object gone.                                                    *)
 (*   4. Lists again, and if a grant issued during the window superseded it, *)
 (*      withdraws its own object and stands down.                           *)
 (*                                                                          *)
@@ -62,21 +62,28 @@
 (*    refuse.                                                               *)
 (*                                                                          *)
 (* ASSUMED, not modeled: the object store is strongly consistent            *)
-(* read-after-write, and its conditional write is atomic per key. Both hold *)
-(* for S3, GCS and Azure. A store with stale reads would break the protocol *)
-(* and is out of scope.                                                     *)
+(* read-after-write AND read-after-delete, and its conditional write is     *)
+(* atomic per key. All hold for S3, GCS and Azure's primary region. The     *)
+(* ack-time fence check is a read, so these are what it stands on: a        *)
+(* read served after a claim's write or a sweep's delete completed must see *)
+(* it, which is why Ack below reads the CURRENT pathToken and paths. A      *)
+(* store with stale reads - an asynchronous replica, say - would break the  *)
+(* protocol and is out of scope. A version token must also not repeat for   *)
+(* a different writer, which the abstraction gets for free: tokens only     *)
+(* ever increase. See the README for what S3's content-hash ETags give.     *)
 (*                                                                          *)
 (* Deliberate abstractions. An acknowledgement is one atomic step - the     *)
-(* implementation runs the metadata upload alongside the CAS and joins both *)
-(* before acking, so a fenced writer can leave an orphan metadata file,     *)
-(* which is a storage artifact and never an acknowledgement. VerifyClaim is *)
-(* one atomic action here where the implementation performs two reads - an  *)
-(* own-token GET, then a listing - with a window between them; that window  *)
-(* is safe because completing a claim conveys nothing by itself: a writer   *)
-(* whose token went stale inside it fails its very next CAS, and a grant    *)
-(* issued inside it sweeps this writer's path exactly as one issued after   *)
-(* the claim would. Equal-term handoff ordering belongs to the relocation   *)
-(* protocol and is modeled separately in FenceHandoff.tla.                  *)
+(* implementation uploads the metadata, then reads the fence, and acks only *)
+(* if both succeed, so a fenced writer can leave an orphan metadata file,   *)
+(* which is a storage artifact and never an acknowledgement. Splitting the  *)
+(* two, and the ordering between them, is RemoteStoreFence.tla's subject.   *)
+(* VerifyClaim is one atomic action here where the implementation performs  *)
+(* two reads - an own-token GET, then a listing - with a window between     *)
+(* them; that window is safe because completing a claim conveys nothing by  *)
+(* itself: a writer whose token went stale inside it fails its very next    *)
+(* check, and a grant issued inside it sweeps this writer's path exactly as *)
+(* one issued after the claim would. Equal-term handoff ordering belongs to *)
+(* the relocation protocol and is modeled separately in FenceHandoff.tla.   *)
 (***************************************************************************)
 EXTENDS Integers, FiniteSets, TLC
 
@@ -329,17 +336,18 @@ ReAdoptTake(w) ==
             /\ UNCHANGED <<paths, pathToken, pathOwner, wTerm, wState, wHeld, wCreated, wTook,
                            wListed, wFencedTerm, restore, hasRead, acked, ackedBy, nextOp>>
 
+(* An acknowledgement READS the writer's own path and compares the token with the one its own last
+   write produced; it writes nothing. A missing path (swept by a higher term) or a changed token
+   (taken by an equal-term twin) is terminal. Only claims and re-adoption advance pathToken. *)
 Ack(w) ==
   /\ wState[w] = "active"
   /\ nextOp <= MaxOps
   /\ IF wTerm[w] \in paths /\ wHeld[w] = pathToken[wTerm[w]]
-       THEN /\ pathToken' = [pathToken EXCEPT ![wTerm[w]] = pathToken[wTerm[w]] + 1]
-            /\ wHeld' = [wHeld EXCEPT ![w] = pathToken[wTerm[w]] + 1]
-            /\ acked' = acked \cup {nextOp}
+       THEN /\ acked' = acked \cup {nextOp}
             /\ ackedBy' = [ackedBy EXCEPT ![w] = @ \cup {nextOp}]
             /\ nextOp' = nextOp + 1
-            /\ UNCHANGED <<paths, pathOwner, wTerm, wState, wObserved, wCreated, wTook, wListed,
-                           wFencedTerm, restore, hasRead>>
+            /\ UNCHANGED <<paths, pathToken, pathOwner, wTerm, wState, wHeld, wObserved, wCreated,
+                           wTook, wListed, wFencedTerm, restore, hasRead>>
        ELSE /\ Fenced(w, Max(paths \cup {0}))
             /\ UNCHANGED <<paths, pathToken, pathOwner, wTerm, wHeld, wObserved, wCreated, wTook,
                            wListed, restore, hasRead, acked, ackedBy, nextOp>>

@@ -532,7 +532,7 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
      * <p>
      * Sealing first is what makes the restore point trustworthy. A copy that read the restore point before claiming the
      * fence would leave a window in which a previous primary — alive but no longer in the cluster's view, e.g. behind a
-     * network partition — still holds a valid CAS token and can therefore keep acknowledging writes that land after the
+     * network partition — still holds a valid fence token and can therefore keep acknowledging writes that land after the
      * restore point was read. Those writes would be acknowledged and then lost. Claiming the chain first invalidates
      * the old primary's token, so its very next upload fails and it can acknowledge nothing this copy will not see.
      * <p>
@@ -825,7 +825,7 @@ public class RemoteFsTranslog extends Translog implements RemoteStoreFenceOwners
         }
 
         // Deleting remote generations mutates state shared with any other live copy of this shard, and is not on the
-        // acknowledgement path the fence CAS gates, so it is gated on this copy still owning the fence. A superseded
+        // acknowledgement path the fence gates, so it is gated on this copy still owning the fence. A superseded
         // copy collecting garbage can remove files a legitimate owner is still recovering from. See FenceSegmentFlow.tla.
         // Fails CLOSED, unlike the segment publish gate: a wrongly permitted delete is not recoverable, so an
         // unreadable fence skips the cleanup rather than proceeding with it.

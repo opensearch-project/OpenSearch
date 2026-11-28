@@ -234,7 +234,7 @@ public final class RemoteStoreRefreshListener extends ReleasableRetryableRefresh
         }
 
         // Publishing segment metadata and collecting stale segments both mutate state shared with any other live copy
-        // of this shard, and neither is on the acknowledgement path that the fence CAS gates. A superseded copy doing
+        // of this shard, and neither is on the acknowledgement path that the fence gates. A superseded copy doing
         // either can break a legitimate owner: an unfenced publish moves the reference set that collection prunes to,
         // so the owner's own collection then deletes files it is still hydrating. Both are therefore gated on this copy
         // still owning the fence - but on SEPARATE checks with OPPOSITE failure directions. This one gates the
