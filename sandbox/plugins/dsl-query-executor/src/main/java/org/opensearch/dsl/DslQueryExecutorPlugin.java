@@ -20,12 +20,14 @@ import org.opensearch.dsl.action.SearchActionFilter;
 import org.opensearch.dsl.action.TransportExecuteAction;
 import org.opensearch.dsl.action.TransportValidateAction;
 import org.opensearch.dsl.action.ValidateAction;
+import org.opensearch.dsl.aggregation.metric.InternalAnalyticsCardinality;
 import org.opensearch.env.Environment;
 import org.opensearch.env.NodeEnvironment;
 import org.opensearch.plugins.ActionPlugin;
 import org.opensearch.plugins.Plugin;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.script.ScriptService;
+import org.opensearch.search.aggregations.InternalAggregation;
 import org.opensearch.threadpool.ThreadPool;
 import org.opensearch.transport.client.Client;
 import org.opensearch.transport.client.node.NodeClient;
@@ -76,5 +78,16 @@ public class DslQueryExecutorPlugin extends Plugin implements ActionPlugin {
     @Override
     public List<ActionFilter> getActionFilters() {
         return searchActionFilter != null ? List.of(searchActionFilter) : List.of();
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(
+                InternalAggregation.class,
+                InternalAnalyticsCardinality.NAME,
+                InternalAnalyticsCardinality::new
+            )
+        );
     }
 }

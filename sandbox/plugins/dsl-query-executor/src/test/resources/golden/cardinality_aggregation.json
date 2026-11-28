@@ -1,0 +1,46 @@
+{
+  "testName": "cardinality_aggregation",
+  "indexName": "test-index",
+  "indexMapping": {
+    "service": "VARCHAR",
+    "latency": "DOUBLE"
+  },
+  "planType": "AGGREGATION",
+  "inputDsl": {
+    "size": 0,
+    "aggregations": {
+      "service_count": {
+        "cardinality": {
+          "field": "service"
+        }
+      }
+    }
+  },
+  "expectedRelNodePlan": [
+    "LogicalAggregate(group=[{}], service_count=[APPROX_COUNT_DISTINCT($0)])",
+    "  LogicalTableScan(table=[[test-index]])"
+  ],
+  "mockResultFieldNames": ["service_count"],
+  "mockResultRows": [
+    [2]
+  ],
+  "mockCountRow": {
+    "_total": 3
+  },
+  "expectedOutputDsl": {
+    "num_reduce_phases": 0,
+    "hits": {
+      "total": {
+        "value": 3,
+        "relation": "eq"
+      },
+      "max_score": null,
+      "hits": []
+    },
+    "aggregations": {
+      "service_count": {
+        "value": 2
+      }
+    }
+  }
+}
