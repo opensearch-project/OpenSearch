@@ -24,6 +24,80 @@
               "description":"A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
             }
           }
+        },
+        {
+          "path":"/_cluster/stats/{metric}/nodes/{node_id}/",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "metric":{
+              "type":"list",
+              "options":[
+                "_all",
+                "indices",
+                "os",
+                "process",
+                "jvm",
+                "fs",
+                "plugins",
+                "ingest",
+                "network_types",
+                "discovery_types",
+                "packaging_types"
+              ],
+              "description":"Limit the information returned to the specified metrics"
+            },
+            "node_id":{
+              "type":"list",
+              "description":"A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
+            }
+          }
+        },
+        {
+          "path":"/_cluster/stats/{metric}/{index_metric}/nodes/{node_id}/",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "metric":{
+              "type":"list",
+              "options":[
+                "_all",
+                "indices",
+                "os",
+                "process",
+                "jvm",
+                "fs",
+                "plugins",
+                "ingest",
+                "network_types",
+                "discovery_types",
+                "packaging_types"
+              ],
+              "description":"Limit the information returned to the specified metrics"
+            },
+            "index_metric":{
+              "type":"list",
+              "options":[
+                "_all",
+                "shards",
+                "docs",
+                "store",
+                "fielddata",
+                "query_cache",
+                "completion",
+                "segments",
+                "mappings",
+                "analysis"
+              ],
+              "description":"Limit the information returned for `indices` metric to the specific index metrics. Isn't used if `indices` (or `all`) metric isn't specified."
+            },
+            "node_id":{
+              "type":"list",
+              "description":"A comma-separated list of node IDs or names to limit the returned information; use `_local` to return information from the node you're connecting to, leave empty to get information from all nodes"
+            }
+          }
         }
       ]
     },
