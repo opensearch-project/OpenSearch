@@ -107,7 +107,29 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
 
     @Override
     protected ClusterStateResponse read(StreamInput in) throws IOException {
-        return new ClusterStateResponse(in);
+        ClusterStateResponse response = new ClusterStateResponse(in);
+        ClusterState state = response.getState();
+        if (state == null) {
+            return response;
+        }
+        // A forwarded response may come from a cluster manager that does not yet filter private index metadata.
+        Metadata.Builder metadata = null;
+        for (IndexMetadata index : state.metadata()) {
+            IndexMetadata filtered = index.filterCustomDataForContext(Metadata.XContentContext.API);
+            if (filtered != index) {
+                if (metadata == null) {
+                    metadata = Metadata.builder(state.metadata());
+                }
+                metadata.put(filtered, false);
+            }
+        }
+        return metadata == null
+            ? response
+            : new ClusterStateResponse(
+                response.getClusterName(),
+                ClusterState.builder(state).metadata(metadata).build(),
+                response.isWaitForTimedOut()
+            );
     }
 
     @Override
@@ -212,11 +234,14 @@ public class TransportClusterStateAction extends TransportClusterManagerNodeRead
                 for (String filteredIndex : indices) {
                     IndexMetadata indexMetadata = currentState.metadata().index(filteredIndex);
                     if (indexMetadata != null) {
-                        mdBuilder.put(indexMetadata, false);
+                        mdBuilder.put(indexMetadata.filterCustomDataForContext(Metadata.XContentContext.API), false);
                     }
                 }
             } else {
                 mdBuilder = Metadata.builder(currentState.metadata());
+                for (IndexMetadata indexMetadata : currentState.metadata()) {
+                    mdBuilder.put(indexMetadata.filterCustomDataForContext(Metadata.XContentContext.API), false);
+                }
             }
 
             // filter out metadata that shouldn't be returned by the API

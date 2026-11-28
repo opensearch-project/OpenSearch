@@ -55,9 +55,11 @@ import org.opensearch.core.index.Index;
 import org.opensearch.core.index.shard.ShardId;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.core.xcontent.NamedXContentRegistry;
+import org.opensearch.core.xcontent.ToXContent;
 import org.opensearch.core.xcontent.XContentBuilder;
 import org.opensearch.core.xcontent.XContentParser;
 import org.opensearch.index.IndexSettings;
+import org.opensearch.index.fielddomain.IndexFieldDomainMetadata;
 import org.opensearch.indices.IndicesModule;
 import org.opensearch.indices.replication.common.ReplicationType;
 import org.opensearch.test.OpenSearchTestCase;
@@ -67,6 +69,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -157,6 +160,7 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             .setRoutingNumShards(32)
             .system(system)
             .putCustom("my_custom", customMap)
+            .putCustom(IndexFieldDomainMetadata.CUSTOM_KEY, customMap)
             .putRolloverInfo(
                 new RolloverInfo(
                     randomAlphaOfLength(5),
@@ -197,7 +201,12 @@ public class IndexMetadataTests extends OpenSearchTestCase {
         assertEquals(metadata.primaryTerm(0), fromXContentMeta.primaryTerm(0));
         assertEquals(metadata.isSystem(), fromXContentMeta.isSystem());
         assertEquals(metadata.context(), fromXContentMeta.context());
-        final Map<String, DiffableStringMap> expectedCustom = Map.of("my_custom", new DiffableStringMap(customMap));
+        final Map<String, DiffableStringMap> expectedCustom = Map.of(
+            "my_custom",
+            new DiffableStringMap(customMap),
+            IndexFieldDomainMetadata.CUSTOM_KEY,
+            new DiffableStringMap(customMap)
+        );
         assertEquals(metadata.getCustomData(), expectedCustom);
         assertEquals(metadata.getCustomData(), fromXContentMeta.getCustomData());
 
@@ -220,6 +229,112 @@ public class IndexMetadataTests extends OpenSearchTestCase {
             assertEquals(metadata.getCustomData(), deserialized.getCustomData());
             assertEquals(metadata.isSystem(), deserialized.isSystem());
             assertEquals(metadata.context(), deserialized.context());
+        }
+    }
+
+    public void testFieldDomainsAreExcludedFromApiXContent() throws IOException {
+        Map<String, String> customData = Map.of("private-field", "private-value");
+        IndexMetadata metadata = IndexMetadata.builder(createIndexMetadata(new Index("test", "uuid"), 1L))
+            .putCustom(IndexFieldDomainMetadata.CUSTOM_KEY, customData)
+            .putCustom("public_custom", Map.of("key", "value"))
+            .putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, Map.of("path_type", "FIXED"))
+            .build();
+        for (ToXContent.Params params : List.of(
+            ToXContent.EMPTY_PARAMS,
+            new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API))
+        )) {
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                builder.startObject();
+                metadata.toXContent(builder, params);
+                builder.endObject();
+                try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                    Map<?, ?> index = (Map<?, ?>) parser.map().get("test");
+                    assertFalse(index.containsKey(IndexFieldDomainMetadata.CUSTOM_KEY));
+                    assertEquals(Map.of("key", "value"), index.get("public_custom"));
+                    assertEquals(Map.of("path_type", "FIXED"), index.get(IndexMetadata.REMOTE_STORE_CUSTOM_KEY));
+                }
+            }
+        }
+        assertEquals(customData, metadata.getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY));
+    }
+
+    public void testFieldDomainsArePreservedInPersistenceXContent() throws IOException {
+        Map<String, String> customData = Map.of("private-field", "private-value");
+        IndexMetadata metadata = IndexMetadata.builder(createIndexMetadata(new Index("test", "uuid"), 1L))
+            .putCustom(IndexFieldDomainMetadata.CUSTOM_KEY, customData)
+            .putCustom("public_custom", Map.of("key", "value"))
+            .putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, Map.of("path_type", "FIXED"))
+            .build();
+        for (String context : List.of(Metadata.CONTEXT_MODE_GATEWAY, Metadata.CONTEXT_MODE_SNAPSHOT)) {
+            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                builder.startObject();
+                metadata.toXContent(builder, new ToXContent.MapParams(Map.of(Metadata.CONTEXT_MODE_PARAM, context)));
+                builder.endObject();
+                try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                    IndexMetadata restored = IndexMetadata.fromXContent(parser);
+                    assertEquals(metadata, restored);
+                    assertEquals(customData, restored.getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY));
+                }
+            }
+        }
+    }
+
+    public void testFilterCustomDataForApiContext() {
+        IndexMetadata original = IndexMetadata.builder(createIndexMetadata(new Index("test", "uuid"), 42L))
+            .putCustom(IndexFieldDomainMetadata.CUSTOM_KEY, Map.of("private-field", "private-value"))
+            .putCustom("plugin_metadata", Map.of("key", "value"))
+            .putCustom(IndexMetadata.REMOTE_STORE_CUSTOM_KEY, Map.of("path_type", "FIXED"))
+            .build();
+
+        IndexMetadata filtered = original.filterCustomDataForContext(Metadata.XContentContext.API);
+        IndexMetadata.Builder expected = IndexMetadata.builder(original);
+        expected.removeCustom(IndexFieldDomainMetadata.CUSTOM_KEY);
+        assertEquals(expected.build(), filtered);
+        assertEquals(original.getVersion(), filtered.getVersion());
+        assertEquals(Map.of("private-field", "private-value"), original.getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY));
+        assertSame(filtered, filtered.filterCustomDataForContext(Metadata.XContentContext.API));
+    }
+
+    public void testFilterCustomDataReturnsOriginalForPersistenceContexts() {
+        IndexMetadata metadata = IndexMetadata.builder(createIndexMetadata(new Index("test", "uuid"), 1L))
+            .putCustom(IndexFieldDomainMetadata.CUSTOM_KEY, Map.of("private-field", "private-value"))
+            .build();
+        assertSame(metadata, metadata.filterCustomDataForContext(Metadata.XContentContext.GATEWAY));
+        assertSame(metadata, metadata.filterCustomDataForContext(Metadata.XContentContext.SNAPSHOT));
+    }
+
+    public void testFilterCustomDataReturnsOriginalForUnregisteredMetadata() {
+        IndexMetadata metadata = createIndexMetadata(new Index("test", "uuid"), 1L);
+        for (Metadata.XContentContext context : Metadata.XContentContext.values()) {
+            assertSame(metadata, metadata.filterCustomDataForContext(context));
+        }
+        metadata = IndexMetadata.builder(metadata).putCustom("plugin_metadata", Map.of("key", "value")).build();
+        for (Metadata.XContentContext context : Metadata.XContentContext.values()) {
+            assertSame(metadata, metadata.filterCustomDataForContext(context));
+        }
+    }
+
+    public void testFilterCustomDataRejectsMissingContext() {
+        IndexMetadata metadata = createIndexMetadata(new Index("test", "uuid"), 1L);
+        expectThrows(NullPointerException.class, () -> metadata.filterCustomDataForContext(null));
+    }
+
+    public void testFieldDomainsArePreservedInInternalDiffs() throws IOException {
+        IndexMetadata previous = createIndexMetadata(new Index("test", "uuid"), 1L);
+        for (String value : List.of("initial-value", "updated-value")) {
+            IndexMetadata updated = IndexMetadata.builder(previous)
+                .version(previous.getVersion() + 1)
+                .putCustom(IndexFieldDomainMetadata.CUSTOM_KEY, Map.of("private-field", value))
+                .build();
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                updated.diff(previous).writeTo(out);
+                try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writableRegistry())) {
+                    IndexMetadata restored = IndexMetadata.readDiffFrom(in).apply(previous);
+                    assertEquals(updated, restored);
+                    assertEquals(Map.of("private-field", value), restored.getCustomData(IndexFieldDomainMetadata.CUSTOM_KEY));
+                }
+            }
+            previous = updated;
         }
     }
 
