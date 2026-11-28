@@ -287,7 +287,16 @@ public class MetadataUpdateSettingsService {
                              *
                              * TODO: should we update the in-sync allocation IDs once the data is deleted by the node?
                              */
-                            routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
+                            for (String index : actualIndices) {
+                                final IndexMetadata indexMd = currentState.metadata().index(index);
+                                int minFromSetting = IndexMetadata.INDEX_MIN_NUMBER_OF_REPLICAS_SETTING.exists(openSettings)
+                                    ? IndexMetadata.INDEX_MIN_NUMBER_OF_REPLICAS_SETTING.get(openSettings)
+                                    : (indexMd != null
+                                        ? IndexMetadata.INDEX_MIN_NUMBER_OF_REPLICAS_SETTING.get(indexMd.getSettings())
+                                        : -1);
+                                int minReplicas = minFromSetting == -1 ? updatedNumberOfReplicas : minFromSetting;
+                                routingTableBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, minReplicas, new String[] { index });
+                            }
                             metadataBuilder.updateNumberOfReplicas(updatedNumberOfReplicas, actualIndices);
                             logger.info("updating number_of_replicas to [{}] for indices {}", updatedNumberOfReplicas, actualIndices);
                         }
