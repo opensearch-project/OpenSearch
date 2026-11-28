@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.opensearch.analytics.exec.canmatch.CanMatchFilter;
 import org.opensearch.analytics.exec.canmatch.CanMatchFilterSerializer;
 import org.opensearch.analytics.exec.canmatch.LongRange;
+import org.opensearch.analytics.exec.canmatch.LongSet;
 import org.opensearch.analytics.spi.AnalyticsSearchBackendPlugin.CanMatchResult;
 import org.opensearch.analytics.spi.ShardSortBounds;
 import org.opensearch.be.datafusion.nativelib.NativeBridge;
@@ -104,13 +105,17 @@ final class ParquetRangeEvaluator {
 
                 // AND across filters: all must pass
                 for (CanMatchFilter filter : filters) {
-                    if (filter instanceof LongRange range) {
-                        long result = NativeBridge.canMatch(runtimePtr, shardViewPtr, range.column(), range.min(), range.max());
-                        // Only a definite NO prunes; YES and UNKNOWN both keep the shard.
-                        if (result == NativeBridge.CAN_MATCH_NO) {
-                            // Pruned, so nobody will read this shard's bounds — skip the fold.
-                            return CanMatchResult.pruned();
-                        }
+                    long result = switch (filter) {
+                        case LongRange range -> NativeBridge.canMatch(runtimePtr, shardViewPtr, range.column(), range.min(), range.max());
+                        case LongSet set -> NativeBridge.canMatchSet(runtimePtr, shardViewPtr, set.column(), set.values());
+                        // A filter variant this backend does not implement proves
+                        // nothing, so it must not prune.
+                        default -> NativeBridge.CAN_MATCH_UNKNOWN;
+                    };
+                    // Only a definite NO prunes; YES and UNKNOWN both keep the shard.
+                    if (result == NativeBridge.CAN_MATCH_NO) {
+                        // Pruned, so nobody will read this shard's bounds — skip the fold.
+                        return CanMatchResult.pruned();
                     }
                 }
 
