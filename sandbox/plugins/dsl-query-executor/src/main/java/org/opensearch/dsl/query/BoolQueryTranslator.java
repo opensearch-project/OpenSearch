@@ -14,7 +14,6 @@ import org.apache.calcite.rex.RexUtil;
 import org.apache.calcite.sql.fun.SqlStdOperatorTable;
 import org.opensearch.dsl.converter.ConversionContext;
 import org.opensearch.dsl.converter.ConversionException;
-import org.opensearch.index.query.AbstractQueryBuilder;
 import org.opensearch.index.query.BoolQueryBuilder;
 import org.opensearch.index.query.QueryBuilder;
 
@@ -51,12 +50,7 @@ public class BoolQueryTranslator implements QueryTranslator {
         BoolQueryBuilder boolQuery = (BoolQueryBuilder) query;
 
         // Citation: AbstractQueryBuilder.toQuery lines 130-139 (boost wrapping + named query registration).
-        if (boolQuery.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            throw new ConversionException("Bool query does not support non-default boost");
-        }
-        if (boolQuery.queryName() != null) {
-            throw new ConversionException("Bool query does not support _name");
-        }
+        rejectScoringParams(boolQuery, "Bool");
         // Citation: BoolQueryBuilder.doToQuery:338 only calls fixNegativeQueryIfNeeded when
         // adjustPureNegative is true. Citation: Queries.isNegativeQuery:113-119 requires every
         // clause to be prohibited. Citation: Queries.fixNegativeQueryIfNeeded:121-130 injects

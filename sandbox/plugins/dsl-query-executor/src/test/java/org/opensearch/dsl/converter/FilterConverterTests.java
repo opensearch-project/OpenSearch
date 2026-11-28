@@ -40,6 +40,24 @@ public class FilterConverterTests extends OpenSearchTestCase {
         assertSame(scan, result);
     }
 
+    public void testMatchAllWithBoostIsApplicable() {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery().boost(2.0f));
+        ConversionContext ctx = TestUtils.createContext(source);
+
+        // A parameterised match_all is now applicable, so it reaches the translator which rejects boost.
+        ConversionException e = expectThrows(ConversionException.class, () -> converter.convert(scan, ctx));
+        assertEquals("Match all query parameter 'boost' is not supported", e.getMessage());
+    }
+
+    public void testMatchAllWithNameIsApplicable() {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.matchAllQuery().queryName("all"));
+        ConversionContext ctx = TestUtils.createContext(source);
+
+        // A named match_all is now applicable, so it reaches the translator which rejects _name.
+        ConversionException e = expectThrows(ConversionException.class, () -> converter.convert(scan, ctx));
+        assertEquals("Match all query parameter '_name' is not supported", e.getMessage());
+    }
+
     public void testTermQueryProducesLogicalFilter() throws ConversionException {
         SearchSourceBuilder source = new SearchSourceBuilder().query(QueryBuilders.termQuery("name", "laptop"));
         ConversionContext ctx = TestUtils.createContext(source);

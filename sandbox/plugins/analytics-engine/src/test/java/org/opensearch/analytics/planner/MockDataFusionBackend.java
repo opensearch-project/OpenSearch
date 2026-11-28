@@ -64,6 +64,8 @@ public class MockDataFusionBackend extends MockBackend implements SearchBackEndP
         ScalarFunction.LESS_THAN_OR_EQUAL,
         ScalarFunction.IS_NULL,
         ScalarFunction.IS_NOT_NULL,
+        // IS_TRUE mirrors DataFusionAnalyticsBackendPlugin, which declares it for bare boolean predicates.
+        ScalarFunction.IS_TRUE,
         ScalarFunction.IN,
         ScalarFunction.LIKE
     );
