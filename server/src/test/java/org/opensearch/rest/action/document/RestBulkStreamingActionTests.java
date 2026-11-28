@@ -8,27 +8,48 @@
 
 package org.opensearch.rest.action.document;
 
+import org.opensearch.OpenSearchException;
 import org.opensearch.Version;
+import org.opensearch.action.ActionRequestValidationException;
+import org.opensearch.action.bulk.BulkItemResponse;
 import org.opensearch.action.bulk.BulkRequest;
 import org.opensearch.action.bulk.BulkResponse;
 import org.opensearch.common.SetOnce;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentType;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.http.HttpChunk;
+import org.opensearch.rest.AbstractRestChannel;
+import org.opensearch.rest.BytesRestResponse;
 import org.opensearch.rest.RestChannel;
 import org.opensearch.rest.RestRequest;
 import org.opensearch.rest.RestResponse;
+import org.opensearch.rest.StreamingRestChannel;
 import org.opensearch.test.OpenSearchTestCase;
 import org.opensearch.test.client.NoOpNodeClient;
+import org.opensearch.test.rest.FakeRestChannel;
 import org.opensearch.test.rest.FakeRestRequest;
 import org.opensearch.transport.client.node.NodeClient;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.function.BiConsumer;
 
 import org.mockito.ArgumentCaptor;
+import org.reactivestreams.Subscriber;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -86,4 +107,217 @@ public class RestBulkStreamingActionTests extends OpenSearchTestCase {
             );
         }
     }
+
+    public void testMissingIndexErrorIsCompleteResponse() throws Exception {
+        final TestStreamingChannel channel = streamingChannel(Map.of(), "{\"index\":{}}\n{\"field\":\"value\"}\n");
+        execute(channel, (request, listener) -> listener.onFailure(request.validate()));
+        assertEquals(1, channel.responses.size());
+        final RestResponse response = channel.responses.get(0);
+        assertEquals(RestStatus.BAD_REQUEST, response.status());
+        assertThat(response.content().utf8ToString(), containsString("index is missing"));
+        assertFalse(response.content().utf8ToString().endsWith("\n"));
+        assertTrue(channel.chunks.isEmpty());
+    }
+
+    public void testErrorAfterSuccessfulChunkHasChunkDelimiter() throws Exception {
+        final TestStreamingChannel channel = streamingChannel(
+            Map.of(),
+            "{\"index\":{\"_index\":\"test\"}}\n{\"field\":\"value\"}\n",
+            "{\"index\":{}}\n{\"field\":\"value\"}\n"
+        );
+        execute(channel, (request, listener) -> {
+            final ActionRequestValidationException error = request.validate();
+            if (error == null) {
+                listener.onResponse(new BulkResponse(new BulkItemResponse[0], 1));
+            } else {
+                assertEquals(1, channel.chunks.size());
+                listener.onFailure(error);
+            }
+        });
+        assertEquals(List.of("{\"took\":1,\"errors\":false,\"items\":[]}\r\n"), channel.chunks);
+        assertEquals(1, channel.responses.size());
+        assertEquals(RestStatus.BAD_REQUEST, channel.responses.get(0).status());
+        assertTrue(channel.responses.get(0).content().utf8ToString().endsWith("\r\n"));
+        assertEquals(0, channel.lastChunks);
+    }
+
+    public void testMalformedBulkErrorIsCompleteResponse() throws Exception {
+        final TestStreamingChannel channel = streamingChannel(Map.of(), "{\"invalid\":{}}\n");
+        execute(channel, (request, listener) -> fail("Malformed metadata must not reach bulk execution"));
+        assertEquals(1, channel.responses.size());
+        assertEquals(RestStatus.BAD_REQUEST, channel.responses.get(0).status());
+        assertThat(channel.responses.get(0).content().utf8ToString(), containsString("illegal_argument_exception"));
+        assertFalse(channel.responses.get(0).content().utf8ToString().endsWith("\n"));
+    }
+
+    public void testInputErrorDuringSuccessfulChunkHasDelimiter() throws Exception {
+        final HttpChunk requestChunk = mock(HttpChunk.class);
+        when(requestChunk.content()).thenReturn(new BytesArray("{\"index\":{\"_index\":\"test\"}}\n{}\n"));
+        final Sinks.Empty<HttpChunk> failure = Sinks.empty();
+        final CountDownLatch errorStarted = new CountDownLatch(1);
+        final CountDownLatch responseSent = new CountDownLatch(1);
+        final ExecutorService executor = Executors.newSingleThreadExecutor();
+        final SetOnce<Future<?>> errorTask = new SetOnce<>();
+        try {
+            final TestStreamingChannel channel = new TestStreamingChannel(
+                streamingChannel(Map.of()).request(),
+                Flux.concat(Flux.just(requestChunk), failure.asMono().doOnError(error -> errorStarted.countDown()))
+            ) {
+                @Override
+                public void sendChunk(HttpChunk chunk) {
+                    super.sendChunk(chunk);
+                    errorTask.set(executor.submit(() -> {
+                        assertEquals(Sinks.EmitResult.OK, failure.tryEmitError(new IllegalArgumentException("invalid next chunk")));
+                    }));
+                    try {
+                        assertTrue(errorStarted.await(10, TimeUnit.SECONDS));
+                        // Allow the input error to race with this response before sendChunk returns.
+                        responseSent.await(1, TimeUnit.SECONDS);
+                    } catch (InterruptedException e) {
+                        throw new AssertionError(e);
+                    }
+                }
+
+                @Override
+                public void sendResponse(RestResponse response) {
+                    super.sendResponse(response);
+                    responseSent.countDown();
+                }
+            };
+            final SetOnce<ActionListener<BulkResponse>> completion = new SetOnce<>();
+            execute(channel, (request, listener) -> completion.set(listener));
+            completion.get().onResponse(new BulkResponse(new BulkItemResponse[0], 1));
+            errorTask.get().get(10, TimeUnit.SECONDS);
+            assertEquals(List.of("{\"took\":1,\"errors\":false,\"items\":[]}\r\n"), channel.chunks);
+            assertEquals(1, channel.responses.size());
+            final String error = channel.responses.get(0).content().utf8ToString();
+            assertThat(error, containsString("invalid next chunk"));
+            assertTrue(error, error.endsWith("\r\n"));
+            assertEquals(0, channel.lastChunks);
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testFirstErrorPreservesResponseMetadata() throws Exception {
+        for (Map<String, String> params : List.of(
+            Map.<String, String>of(),
+            Map.of("pretty", "true"),
+            Map.of("error_trace", "true"),
+            Map.of("format", "yaml")
+        )) {
+            final OpenSearchException error = new OpenSearchException("streaming failure");
+            error.addHeader("test-header", "first", "second");
+            final TestStreamingChannel channel = streamingChannel(params, "{\"index\":{\"_index\":\"test\"}}\n{}\n");
+            final BytesRestResponse expected = new BytesRestResponse(new FakeRestChannel(channel.request(), true, 1), error);
+            execute(channel, (request, listener) -> listener.onFailure(error));
+            assertEquals(1, channel.responses.size());
+            final RestResponse response = channel.responses.get(0);
+            assertEquals(expected.status(), response.status());
+            assertEquals(expected.contentType(), response.contentType());
+            assertEquals(expected.getHeaders(), response.getHeaders());
+            assertEquals(expected.content(), response.content());
+        }
+    }
+
+    public void testSuccessfulStreamHasChunkDelimiterAndLastChunk() throws Exception {
+        final TestStreamingChannel channel = streamingChannel(Map.of(), "{\"index\":{\"_index\":\"test\"}}\n{}\n");
+        execute(channel, (request, listener) -> listener.onResponse(new BulkResponse(new BulkItemResponse[0], 1)));
+        assertEquals(List.of("{\"took\":1,\"errors\":false,\"items\":[]}\r\n"), channel.chunks);
+        assertEquals(1, channel.lastChunks);
+        assertTrue(channel.responses.isEmpty());
+    }
+
+    public void testNonStreamingErrorIsUnchanged() throws Exception {
+        final RestRequest request = streamingChannel(Map.of()).request();
+        final FakeRestChannel channel = new FakeRestChannel(request, true, 1);
+        final ActionRequestValidationException error = new ActionRequestValidationException();
+        error.addValidationError("Unable to initiate request / response streaming over non-streaming channel");
+        final BytesRestResponse expected = new BytesRestResponse(new FakeRestChannel(request, true, 1), error);
+        try (NodeClient client = new NoOpNodeClient(getTestName())) {
+            new RestBulkStreamingAction(Settings.EMPTY).handleRequest(request, channel, client);
+        }
+        assertEquals(expected.status(), channel.capturedResponse().status());
+        assertEquals(expected.content(), channel.capturedResponse().content());
+    }
+
+    private TestStreamingChannel streamingChannel(Map<String, String> params, String... bodies) {
+        final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_bulk/stream")
+            .withMethod(RestRequest.Method.POST)
+            .withParams(new HashMap<>(params))
+            .withContent(BytesArray.EMPTY, MediaTypeRegistry.JSON)
+            .build();
+        final List<HttpChunk> chunks = new ArrayList<>();
+        for (int i = 0; i < bodies.length; i++) {
+            final HttpChunk chunk = mock(HttpChunk.class);
+            when(chunk.content()).thenReturn(new BytesArray(bodies[i]));
+            when(chunk.isLast()).thenReturn(i == bodies.length - 1);
+            chunks.add(chunk);
+        }
+        return new TestStreamingChannel(request, Flux.fromIterable(chunks));
+    }
+
+    private void execute(TestStreamingChannel channel, BiConsumer<BulkRequest, ActionListener<BulkResponse>> bulk) throws Exception {
+        try (NodeClient client = new NoOpNodeClient(getTestName()) {
+            @Override
+            public void bulk(BulkRequest request, ActionListener<BulkResponse> listener) {
+                bulk.accept(request, listener);
+            }
+        }) {
+            new RestBulkStreamingAction(Settings.EMPTY).handleRequest(channel.request(), channel, client);
+        }
+    }
+
+    private static class TestStreamingChannel extends AbstractRestChannel implements StreamingRestChannel {
+        private final Flux<HttpChunk> input;
+        private final List<String> chunks = new ArrayList<>();
+        private final List<RestResponse> responses = new ArrayList<>();
+        private int lastChunks;
+
+        TestStreamingChannel(RestRequest request, Flux<HttpChunk> input) {
+            super(request, true);
+            this.input = input;
+        }
+
+        @Override
+        public void subscribe(Subscriber<? super HttpChunk> subscriber) {
+            input.subscribe(subscriber);
+        }
+
+        @Override
+        public void sendChunk(HttpChunk chunk) {
+            try (chunk) {
+                if (chunk.isLast()) {
+                    lastChunks++;
+                } else {
+                    chunks.add(chunk.content().utf8ToString());
+                }
+            }
+        }
+
+        @Override
+        public void sendResponse(RestResponse response) {
+            final BytesRestResponse copy = new BytesRestResponse(
+                response.status(),
+                response.contentType(),
+                BytesReference.toBytes(response.content())
+            );
+            response.getHeaders().forEach((name, values) -> values.forEach(value -> copy.addHeader(name, value)));
+            responses.add(copy);
+        }
+
+        @Override
+        public void prepareResponse(RestStatus status, Map<String, List<String>> headers) {}
+
+        @Override
+        public boolean isReadable() {
+            return true;
+        }
+
+        @Override
+        public boolean isWritable() {
+            return true;
+        }
+    }
+
 }

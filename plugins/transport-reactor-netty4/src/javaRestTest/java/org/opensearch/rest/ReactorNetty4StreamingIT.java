@@ -8,6 +8,12 @@
 
 package org.opensearch.rest;
 
+import org.apache.hc.client5.http.impl.async.HttpAsyncClients;
+import org.apache.hc.core5.http.ContentType;
+import org.apache.hc.core5.http.message.BasicHttpRequest;
+import org.apache.hc.core5.http.nio.support.BasicRequestProducer;
+import org.apache.hc.core5.reactive.ReactiveEntityProducer;
+import org.apache.hc.core5.reactive.ReactiveResponseConsumer;
 import org.opensearch.client.Request;
 import org.opensearch.client.RequestOptions;
 import org.opensearch.client.Response;
@@ -18,19 +24,24 @@ import org.opensearch.test.rest.OpenSearchRestTestCase;
 import org.opensearch.test.rest.yaml.ObjectPath;
 import org.junit.After;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Locale;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Sinks;
 import reactor.test.StepVerifier;
 import reactor.test.scheduler.VirtualTimeScheduler;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.collection.IsEmptyCollection.empty;
 
 public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
@@ -387,6 +398,61 @@ public class ReactorNetty4StreamingIT extends OpenSearchRestTestCase {
 
         assertThat(streamingResponse.getStatusLine().getStatusCode(), equalTo(200));
         assertThat(streamingResponse.getWarnings(), empty());
+    }
+
+    public void testStreamingErrorAfterSuccessHasDelimiter() throws Exception {
+        assertTerminalError(true);
+    }
+
+    public void testStreamingFirstErrorIsCompleteResponse() throws Exception {
+        assertTerminalError(false);
+    }
+
+    private void assertTerminalError(boolean afterSuccess) throws Exception {
+        final Sinks.One<String> firstRequest = Sinks.one();
+        final Sinks.One<String> invalidRequest = Sinks.one();
+        final String invalid = "{\"index\":{}}\n{}\n";
+        final ByteArrayOutputStream body = new ByteArrayOutputStream();
+        final AtomicBoolean errorSent = new AtomicBoolean();
+        try (var client = HttpAsyncClients.createDefault()) {
+            client.start();
+            final ReactiveResponseConsumer consumer = new ReactiveResponseConsumer();
+            final var input = afterSuccess ? Flux.concat(firstRequest.asMono(), invalidRequest.asMono()) : Flux.from(firstRequest.asMono());
+            final BasicHttpRequest request = new BasicHttpRequest("POST", getClusterHosts().get(0), "/_bulk/stream");
+            final BasicRequestProducer producer = new BasicRequestProducer(
+                request,
+                new ReactiveEntityProducer(input.map(StandardCharsets.UTF_8::encode), -1, ContentType.APPLICATION_JSON, null)
+            );
+            final var exchange = client.execute(producer, consumer, null);
+            final var response = consumer.getResponseFuture().get(30, TimeUnit.SECONDS);
+            // Headers can be committed before any request data or successful response chunk.
+            assertEquals(200, response.getHead().getCode());
+            assertEquals("application/json", ContentType.parse(response.getHead().getFirstHeader("Content-Type").getValue()).getMimeType());
+            assertEquals(
+                Sinks.EmitResult.OK,
+                firstRequest.tryEmitValue(afterSuccess ? "{\"index\":{\"_index\":\"test-streaming\"}}\n{}\n" : invalid)
+            );
+            StepVerifier.create(Flux.from(response.getBody()).doOnNext(buffer -> {
+                final byte[] bytes = new byte[buffer.remaining()];
+                buffer.get(bytes);
+                body.writeBytes(bytes);
+                if (afterSuccess && body.toString(StandardCharsets.UTF_8).contains("\r\n") && errorSent.compareAndSet(false, true)) {
+                    assertEquals(Sinks.EmitResult.OK, invalidRequest.tryEmitValue(invalid));
+                }
+            }).then()).expectComplete().verify(Duration.ofSeconds(30));
+            exchange.get(30, TimeUnit.SECONDS);
+        }
+        final String content = body.toString(StandardCharsets.UTF_8);
+        assertThat(content, containsString("index is missing"));
+        if (afterSuccess) {
+            final String[] records = content.split("\r\n", -1);
+            assertEquals(content, 3, records.length);
+            assertThat(records[0], containsString("created"));
+            assertThat(records[1], containsString("index is missing"));
+            assertEquals("", records[2]);
+        } else {
+            assertFalse(content, content.endsWith("\n"));
+        }
     }
 
     public void testStreamingLargeDocument() throws IOException {
