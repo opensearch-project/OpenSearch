@@ -374,7 +374,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
             // also gather jars from plugins/lib/<plugin_name>/ if it exists.
             // opensearch-plugin installs shared library jars there when a plugin zip
-            // contains a top-level lib/ directory.
+            // contains a top-level shared/ directory.
             Set<URL> libUrls = new LinkedHashSet<>();
             if (dir.getParent() != null) {
                 Path sharedLibDir = dir.getParent().resolve("lib").resolve(dir.getFileName());
@@ -837,16 +837,16 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             extendedLoaders.add(extLoader);
         }
 
-        // create a child to load the plugin in this bundle
         ClassLoader parentLoader = PluginLoaderIndirection.createLoader(getClass().getClassLoader(), extendedLoaders);
-        ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), parentLoader);
-
-        // if this plugin has lib jars, build a scoped classloader containing only those jars
-        // so that plugins extending this one see only the public API surface
+        Set<URL> implementationUrls = new LinkedHashSet<>(bundle.urls);
+        // The plugin and its extensions must resolve shared API classes through the same loader.
+        // Keep implementation jars private, and retain all bundle URLs for jar-hell checks.
         if (bundle.libUrls.isEmpty() == false) {
-            ClassLoader libParent = PluginLoaderIndirection.createLoader(getClass().getClassLoader(), extendedLoaders);
-            libLoaders.put(name, URLClassLoader.newInstance(bundle.libUrls.toArray(new URL[0]), libParent));
+            parentLoader = URLClassLoader.newInstance(bundle.libUrls.toArray(new URL[0]), parentLoader);
+            libLoaders.put(name, parentLoader);
+            implementationUrls.removeAll(bundle.libUrls);
         }
+        ClassLoader loader = URLClassLoader.newInstance(implementationUrls.toArray(new URL[0]), parentLoader);
 
         // reload SPI with any new services from the plugin
         reloadLuceneSPI(loader);
