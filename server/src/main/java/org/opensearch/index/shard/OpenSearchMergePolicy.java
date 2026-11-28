@@ -34,12 +34,15 @@ package org.opensearch.index.shard;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.lucene90.Lucene90StoredFieldsFormat;
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.opensearch.Version;
+import org.opensearch.common.Nullable;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -71,9 +74,18 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
 
     private static final int MAX_CONCURRENT_UPGRADE_MERGES = 5;
 
-    /** @param delegate the merge policy to wrap */
-    public OpenSearchMergePolicy(MergePolicy delegate) {
+    private final Codec actualCodec;
+    private final Lucene90StoredFieldsFormat.Mode targetCompressionMode;
+
+    /**
+     * @param delegate the merge policy to wrap
+     * @param codec the codec used for newly written segments
+     * @param targetCompressionMode the configured stored fields compression mode, or null if unknown
+     */
+    public OpenSearchMergePolicy(MergePolicy delegate, Codec codec, @Nullable Lucene90StoredFieldsFormat.Mode targetCompressionMode) {
         super(delegate);
+        this.actualCodec = codec;
+        this.targetCompressionMode = targetCompressionMode;
     }
 
     /** return the wrapped merge policy */
@@ -81,22 +93,43 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
         return in;
     }
 
-    private boolean shouldUpgrade(SegmentCommitInfo info) {
+    // VisibleForTesting
+    boolean shouldUpgrade(SegmentCommitInfo info) {
         org.apache.lucene.util.Version old = info.info.getVersion();
         org.apache.lucene.util.Version cur = Version.CURRENT.luceneVersion;
 
         // Something seriously wrong if this trips:
-        assert old.major <= cur.major;
+        assert cur.major >= old.major;
 
         if (cur.major > old.major) {
             // Always upgrade segment if Lucene's major version is too old
             return true;
         }
-        if (upgradeOnlyAncientSegments == false && cur.minor > old.minor) {
-            // If it's only a minor version difference, and we are not upgrading only ancient segments,
-            // also upgrade:
+
+        if (upgradeOnlyAncientSegments) {
+            // Skip other checks, because we already check major versions and we are upgrading only ancient segments
+            return false;
+        }
+
+        if (cur.minor > old.minor) {
             return true;
         }
+
+        if (info.info.getCodec().getName().equals(actualCodec.getName()) == false) {
+            // If difference in Codec we should upgrade segment
+            return true;
+        }
+
+        if (targetCompressionMode != null
+            && info.info.getCodec().storedFieldsFormat() instanceof Lucene90StoredFieldsFormat
+            && actualCodec.storedFieldsFormat() instanceof Lucene90StoredFieldsFormat) {
+            // Reopened codecs use their default write mode. The segment attribute records the mode actually used on disk.
+            String segmentCompressionMode = info.info.getAttribute(Lucene90StoredFieldsFormat.MODE_KEY);
+            // Lucene90 writers always record the mode and readers require it. Skip this comparison if the attribute is missing;
+            // an upgrade cannot repair that metadata because merging also needs to read the stored fields.
+            return segmentCompressionMode != null && targetCompressionMode.name().equals(segmentCompressionMode) == false;
+        }
+
         // Version matches, or segment is not ancient and we are only upgrading ancient segments:
         return false;
     }
@@ -115,8 +148,7 @@ public final class OpenSearchMergePolicy extends FilterMergePolicy {
 
                 if (shouldUpgrade(info)) {
 
-                    // TODO: Use IndexUpgradeMergePolicy instead. We should be comparing codecs,
-                    // for now we just assume every minor upgrade has a new format.
+                    // TODO: Use IndexUpgradeMergePolicy instead
                     logger.debug("Adding segment {} to be upgraded", info.info.name);
                     spec.add(new OneMerge(Collections.singletonList(info)));
                 }
