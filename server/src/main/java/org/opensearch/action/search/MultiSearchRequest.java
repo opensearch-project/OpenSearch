@@ -281,6 +281,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                                 searchRequest.setCancelAfterTimeInterval(nodeTimeValue(value, null));
                             } else if ("phase_took".equals(entry.getKey())) {
                                 searchRequest.setPhaseTook(nodeBooleanValue(value));
+                            } else if ("shard_info".equals(entry.getKey())) {
+                                // an explicit null leaves the section unrequested; any other non-boolean value is a client error
+                                searchRequest.shardInfo(value == null ? null : nodeBooleanValue(value, entry.getKey()));
                             } else {
                                 throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
                             }
@@ -384,6 +387,9 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         }
         if (request.isPhaseTook() != null) {
             xContentBuilder.field("phase_took", request.isPhaseTook());
+        }
+        if (request.shardInfo() != null) {
+            xContentBuilder.field("shard_info", request.shardInfo());
         }
         xContentBuilder.endObject();
     }

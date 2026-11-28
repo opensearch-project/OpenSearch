@@ -144,6 +144,177 @@ public class SearchResponseMergerTests extends OpenSearchTestCase {
         assertEquals(TimeUnit.NANOSECONDS.toMillis(currentRelativeTime), searchResponse.getTook().millis());
     }
 
+    public void testMergeShardInfo() {
+        SearchShardInfo.Entry localSuccess = new SearchShardInfo.Entry.Builder("local-idx", 0).nodeId("node-l")
+            .primary(true)
+            .state("STARTED")
+            .build();
+        SearchShardInfo.Entry remoteSuccess = new SearchShardInfo.Entry.Builder("remote-idx", 0).nodeId("node-r")
+            .primary(true)
+            .state("STARTED")
+            .cluster("remote1")
+            .build();
+        SearchShardInfo.Entry remoteFailed = new SearchShardInfo.Entry.Builder("remote-idx", 1).nodeId("node-r").cluster("remote1").build();
+
+        SearchShardInfo localInfo = new SearchShardInfo(List.of(localSuccess), Collections.emptyList(), Collections.emptyList());
+        SearchShardInfo remoteInfo = new SearchShardInfo(List.of(remoteSuccess), Collections.emptyList(), List.of(remoteFailed));
+
+        List<SearchResponse> responses = new ArrayList<>();
+        responses.add(responseWithShardInfo(localInfo, 1));
+        responses.add(responseWithShardInfo(remoteInfo, 2));
+        // a response without shard_info must not break the merger
+        responses.add(
+            new SearchResponse(
+                InternalSearchResponse.empty(),
+                null,
+                1,
+                1,
+                0,
+                10L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            )
+        );
+        // the merged result must not depend on the order responses arrive in
+        Collections.shuffle(responses, random());
+
+        SearchTimeProvider timeProvider = new SearchTimeProvider(0, 0, () -> 0L);
+        SearchResponseMerger merger = new SearchResponseMerger(
+            0,
+            0,
+            SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+            timeProvider,
+            emptyReduceContextBuilder()
+        );
+        responses.forEach(merger::add);
+
+        SearchResponse merged = merger.getMergedResponse(
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                new SearchRequest().shardInfo(true),
+                () -> null
+            )
+        );
+
+        SearchShardInfo mergedInfo = merged.getShardInfo();
+        assertNotNull(mergedInfo);
+        // local entries (no cluster alias) sort before remote ones
+        assertEquals(List.of(localSuccess, remoteSuccess), mergedInfo.getSuccessful());
+        assertEquals(List.of(remoteFailed), mergedInfo.getFailed());
+        assertTrue(mergedInfo.getSkipped().isEmpty());
+    }
+
+    public void testMergeShardInfoIgnoredWhenNotRequested() {
+        SearchShardInfo contributed = new SearchShardInfo(
+            List.of(new SearchShardInfo.Entry.Builder("idx", 0).nodeId("node-r").cluster("remote1").build()),
+            Collections.emptyList(),
+            Collections.emptyList()
+        );
+        SearchTimeProvider timeProvider = new SearchTimeProvider(0, 0, () -> 0L);
+        SearchResponseMerger merger = new SearchResponseMerger(
+            0,
+            0,
+            SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+            timeProvider,
+            emptyReduceContextBuilder()
+        );
+        merger.add(responseWithShardInfo(contributed, 1));
+
+        SearchResponse merged = merger.getMergedResponse(
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                new SearchRequest(),
+                () -> null
+            )
+        );
+        // a cluster that reports a section unasked must not put it in a response the caller never opted into
+        assertNull(merged.getShardInfo());
+    }
+
+    private static SearchResponse responseWithShardInfo(SearchShardInfo shardInfo, int totalShards) {
+        return new SearchResponse(
+            InternalSearchResponse.empty(),
+            null,
+            totalShards,
+            1,
+            0,
+            10L,
+            null,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY,
+            null,
+            shardInfo
+        );
+    }
+
+    public void testMergeShardInfoAllNullStaysNull() {
+        SearchTimeProvider timeProvider = new SearchTimeProvider(0, 0, () -> 0L);
+        SearchResponseMerger merger = new SearchResponseMerger(
+            0,
+            0,
+            SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+            timeProvider,
+            emptyReduceContextBuilder()
+        );
+        merger.add(
+            new SearchResponse(
+                InternalSearchResponse.empty(),
+                null,
+                1,
+                1,
+                0,
+                10L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            )
+        );
+        SearchResponse merged = merger.getMergedResponse(
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                new SearchRequest(),
+                () -> null
+            )
+        );
+        assertNull(merged.getShardInfo());
+    }
+
+    public void testMergeShardInfoOmittedWhenNoClusterContributes() {
+        SearchTimeProvider timeProvider = new SearchTimeProvider(0, 0, () -> 0L);
+        SearchResponseMerger merger = new SearchResponseMerger(
+            0,
+            0,
+            SearchContext.TRACK_TOTAL_HITS_ACCURATE,
+            timeProvider,
+            emptyReduceContextBuilder()
+        );
+        // every searched cluster predates the feature, so none of them reports shard info
+        merger.add(
+            new SearchResponse(
+                InternalSearchResponse.empty(),
+                null,
+                1,
+                1,
+                0,
+                10L,
+                ShardSearchFailure.EMPTY_ARRAY,
+                SearchResponse.Clusters.EMPTY
+            )
+        );
+        SearchResponse merged = merger.getMergedResponse(
+            SearchResponse.Clusters.EMPTY,
+            new SearchRequestContext(
+                new SearchRequestOperationsListener.CompositeListener(List.of(), LogManager.getLogger()),
+                new SearchRequest().shardInfo(true),
+                () -> null
+            )
+        );
+        // the caller opted in, but no cluster was able to report a section, so the key is omitted entirely
+        assertNull(merged.getShardInfo());
+    }
+
     public void testMergeShardFailures() throws InterruptedException {
         SearchTimeProvider searchTimeProvider = new SearchTimeProvider(0, 0, () -> 0);
         SearchResponseMerger merger = new SearchResponseMerger(
