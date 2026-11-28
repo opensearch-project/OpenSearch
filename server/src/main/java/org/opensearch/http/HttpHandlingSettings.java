@@ -65,6 +65,9 @@ public class HttpHandlingSettings {
     private final long readTimeoutMillis;
     private boolean corsEnabled;
 
+    // Close the connection after response is sent to the client (even if keep-alive is set)
+    private boolean forceCloseConnection;
+
     public HttpHandlingSettings(
         int maxContentLength,
         int maxChunkSize,
@@ -89,6 +92,7 @@ public class HttpHandlingSettings {
         this.pipeliningMaxEvents = pipeliningMaxEvents;
         this.readTimeoutMillis = readTimeoutMillis;
         this.corsEnabled = corsEnabled;
+        this.forceCloseConnection = false;
     }
 
     public static HttpHandlingSettings fromSettings(Settings settings) {
@@ -149,5 +153,13 @@ public class HttpHandlingSettings {
 
     public boolean isCorsEnabled() {
         return corsEnabled;
+    }
+
+    public void setForceCloseConnection() {
+        forceCloseConnection = true;
+    }
+
+    public boolean forceCloseConnection() {
+        return forceCloseConnection;
     }
 }
