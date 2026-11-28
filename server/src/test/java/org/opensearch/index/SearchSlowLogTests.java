@@ -32,15 +32,21 @@
 
 package org.opensearch.index;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.status.StatusConsoleListener;
+import org.apache.logging.log4j.status.StatusData;
+import org.apache.logging.log4j.status.StatusListener;
+import org.apache.logging.log4j.status.StatusLogger;
 import org.opensearch.Version;
 import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.UUIDs;
 import org.opensearch.common.logging.Loggers;
 import org.opensearch.common.logging.MockAppender;
+import org.opensearch.common.logging.OpenSearchLogMessage;
 import org.opensearch.common.logging.SlowLogLevel;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
@@ -61,8 +67,11 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
@@ -258,6 +267,16 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
                 .put(SearchSlowLog.INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN_SETTING.getKey(), "40nanos")
                 .build()
         );
+    }
+
+    public void testSourceWithPlaceholdersIsNotParsedAsLogPattern() throws IOException {
+        IndexService index = createIndex("foo");
+        SearchContext searchContext = createSearchContext(index);
+        searchContext.request().source(SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("field", "a{}b{}c")));
+        searchContext.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
+        SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
+
+        assertThat(formatWithoutStatusWarnings(p), containsString("a{}b{}c"));
     }
 
     public void testSlowLogHasJsonFields() throws IOException {
@@ -619,5 +638,23 @@ public class SearchSlowLogTests extends OpenSearchSingleNodeTestCase {
         ctx.request().source(source);
         ctx.setTask(new SearchShardTask(0, "n/a", "n/a", "test", null, Collections.singletonMap(Task.X_OPAQUE_ID, "my_id")));
         return ctx;
+    }
+
+    private static String formatWithoutStatusWarnings(OpenSearchLogMessage message) {
+        List<StatusData> statusData = new CopyOnWriteArrayList<>();
+        StatusListener listener = new StatusConsoleListener(Level.WARN) {
+            @Override
+            public void log(StatusData data) {
+                statusData.add(data);
+            }
+        };
+        StatusLogger.getLogger().registerListener(listener);
+        try {
+            String formatted = message.getFormattedMessage();
+            assertThat(statusData.stream().map(StatusData::getFormattedStatus).collect(Collectors.toList()), empty());
+            return formatted;
+        } finally {
+            StatusLogger.getLogger().removeListener(listener);
+        }
     }
 }

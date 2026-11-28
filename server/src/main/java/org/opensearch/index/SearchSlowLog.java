@@ -218,7 +218,7 @@ public final class SearchSlowLog implements SearchOperationListener {
     static final class SearchSlowLogMessage extends OpenSearchLogMessage {
 
         SearchSlowLogMessage(SearchContext context, long tookInNanos) {
-            super(prepareMap(context, tookInNanos), message(context, tookInNanos));
+            super(prepareMap(context, tookInNanos), "{}", message(context, tookInNanos));
         }
 
         private static Map<String, Object> prepareMap(SearchContext context, long tookInNanos) {
