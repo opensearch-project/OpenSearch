@@ -100,6 +100,11 @@ public class WeightFactorFunction extends ScoreFunction {
         return scoreFunction.needsScores();
     }
 
+    @Override
+    public boolean usesScript() {
+        return scoreFunction.usesScript();
+    }
+
     public Explanation explainWeight() {
         return Explanation.match(getWeight(), "weight");
     }

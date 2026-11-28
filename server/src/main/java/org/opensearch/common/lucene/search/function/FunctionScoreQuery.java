@@ -37,6 +37,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FilterScorer;
+import org.apache.lucene.search.FilterWeight;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -108,6 +109,11 @@ public class FunctionScoreQuery extends Query {
         @Override
         public boolean needsScores() {
             return function.needsScores();
+        }
+
+        @Override
+        public boolean usesScript() {
+            return function.usesScript();
         }
 
         @Override
@@ -340,20 +346,74 @@ public class FunctionScoreQuery extends Query {
         return this;
     }
 
+    /**
+     * Whether any score function of this query holds a score-script factory, which keeps the request's searcher
+     * reachable through this query even when scoring is skipped. This looks only at the score functions; a script
+     * reached through the sub-query or a function filter is handled by weight-cacheability propagation instead.
+     */
+    private boolean hasScriptScoreFunction() {
+        for (ScoreFunction function : functions) {
+            if (function.usesScript()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public Weight createWeight(IndexSearcher searcher, org.apache.lucene.search.ScoreMode scoreMode, float boost) throws IOException {
         if (scoreMode == org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES && minScore == null) {
-            return subQuery.createWeight(searcher, scoreMode, boost);
+            Weight subQueryWeight = subQuery.createWeight(searcher, scoreMode, boost);
+            if (hasScriptScoreFunction()) {
+                // Stop a parent query that holds this one from caching it; see NonCacheableWeight.
+                return new NonCacheableWeight(this, subQueryWeight);
+            }
+            // A function filter can itself be, or contain, a script query that this query keeps reachable as a
+            // cache key, even when no score function runs a script. Only when such a filter exists, build its
+            // weights and report this weight as cacheable only when the sub-query and every filter are, so a parent
+            // query that holds this one is not cached while a filter retains a searcher. With no function filter the
+            // sub-query weight is returned unchanged, as before this change.
+            if (hasFilterScoreFunction()) {
+                Weight[] filterWeights = createFilterWeights(searcher);
+                return new FilterWeight(this, subQueryWeight) {
+                    @Override
+                    public boolean isCacheable(LeafReaderContext ctx) {
+                        if (in.isCacheable(ctx) == false) {
+                            return false;
+                        }
+                        for (Weight filterWeight : filterWeights) {
+                            if (filterWeight != null && filterWeight.isCacheable(ctx) == false) {
+                                return false;
+                            }
+                        }
+                        return true;
+                    }
+                };
+            }
+            return subQueryWeight;
         }
 
         org.apache.lucene.search.ScoreMode subQueryScoreMode = combineFunction != CombineFunction.REPLACE
             ? org.apache.lucene.search.ScoreMode.COMPLETE
             : org.apache.lucene.search.ScoreMode.COMPLETE_NO_SCORES;
+        for (ScoreFunction function : functions) {
+            if (function.needsScores()) {
+                subQueryScoreMode = org.apache.lucene.search.ScoreMode.COMPLETE;
+                break;
+            }
+        }
+        Weight[] filterWeights = createFilterWeights(searcher);
+        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, boost);
+        return new CustomBoostFactorWeight(this, subQueryWeight, filterWeights, subQueryScoreMode.needsScores());
+    }
+
+    /**
+     * Builds the weight of each function filter, with {@code null} for functions that have no filter. A function
+     * filter can itself hold a score script, so a cached query's cacheability must account for these weights.
+     */
+    private Weight[] createFilterWeights(IndexSearcher searcher) throws IOException {
         Weight[] filterWeights = new Weight[functions.length];
         for (int i = 0; i < functions.length; ++i) {
-            if (functions[i].needsScores()) {
-                subQueryScoreMode = org.apache.lucene.search.ScoreMode.COMPLETE;
-            }
             if (functions[i] instanceof FilterScoreFunction) {
                 Query filter = ((FilterScoreFunction) functions[i]).filter;
                 filterWeights[i] = searcher.createWeight(
@@ -363,8 +423,16 @@ public class FunctionScoreQuery extends Query {
                 );
             }
         }
-        Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, boost);
-        return new CustomBoostFactorWeight(this, subQueryWeight, filterWeights, subQueryScoreMode.needsScores());
+        return filterWeights;
+    }
+
+    private boolean hasFilterScoreFunction() {
+        for (ScoreFunction function : functions) {
+            if (function instanceof FilterScoreFunction) {
+                return true;
+            }
+        }
+        return false;
     }
 
     class CustomBoostFactorWeight extends Weight {
@@ -494,7 +562,25 @@ public class FunctionScoreQuery extends Query {
         public boolean isCacheable(LeafReaderContext ctx) {
             // If minScore is not null, then matches depend on statistics of the
             // top-level reader.
-            return minScore == null;
+            if (minScore != null) {
+                return false;
+            }
+            // A score function holding a script keeps the request's searcher reachable through the cached key
+            // (even when scoring is skipped and the script never runs), so such a query must not be cached.
+            if (hasScriptScoreFunction()) {
+                return false;
+            }
+            // Propagate non-cacheability from the sub-query and the function filters, so an outer
+            // function_score without a script does not cache a script-bearing child.
+            if (subQueryWeight.isCacheable(ctx) == false) {
+                return false;
+            }
+            for (Weight filterWeight : filterWeights) {
+                if (filterWeight != null && filterWeight.isCacheable(ctx) == false) {
+                    return false;
+                }
+            }
+            return true;
         }
     }
 

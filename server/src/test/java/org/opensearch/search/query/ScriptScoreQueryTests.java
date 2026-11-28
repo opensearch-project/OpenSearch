@@ -39,25 +39,38 @@ import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
+import org.apache.lucene.search.SimpleCollector;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.opensearch.Version;
 import org.opensearch.common.lucene.search.Queries;
+import org.opensearch.common.lucene.search.function.CombineFunction;
+import org.opensearch.common.lucene.search.function.FunctionScoreQuery;
+import org.opensearch.common.lucene.search.function.ScoreFunction;
+import org.opensearch.common.lucene.search.function.ScriptScoreFunction;
 import org.opensearch.common.lucene.search.function.ScriptScoreQuery;
+import org.opensearch.common.lucene.search.function.WeightFactorFunction;
 import org.opensearch.script.ScoreScript;
 import org.opensearch.script.Script;
 import org.opensearch.script.ScriptType;
@@ -69,6 +82,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -561,6 +575,191 @@ public class ScriptScoreQueryTests extends OpenSearchTestCase {
                 };
             }
         };
+    }
+
+    // Query-cache retention regression tests for https://github.com/opensearch-project/OpenSearch/issues/23598:
+    // such a query retains a score-script factory and its request searcher even when scoring is skipped, so it
+    // must not be stored in the query cache, directly or inside a cached parent.
+
+    public void testScriptScoreQueryIsNotCacheable() throws IOException {
+        // TOP_DOCS is the direct-key path (a field sort that does not need scores); COMPLETE is the scored path.
+        assertFalse(scriptScoreQuery().createWeight(searcher, ScoreMode.TOP_DOCS, 1.0f).isCacheable(leafReaderContext));
+        assertFalse(scriptScoreQuery().createWeight(searcher, ScoreMode.COMPLETE, 1.0f).isCacheable(leafReaderContext));
+    }
+
+    public void testScriptScoreQueryWithoutScoresIsNotCacheable() throws IOException {
+        Weight weight = scriptScoreQuery().createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        assertFalse(weight.isCacheable(leafReaderContext));
+    }
+
+    public void testScriptScoreQueryInsideBooleanIsNotCacheable() throws IOException {
+        BooleanQuery bool = new BooleanQuery.Builder().add(scriptScoreQuery(), BooleanClause.Occur.MUST)
+            .add(new TermQuery(new Term("field", "text")), BooleanClause.Occur.FILTER)
+            .build();
+        Query rewritten = searcher.rewrite(bool);
+        Weight weight = rewritten.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        assertFalse(weight.isCacheable(leafReaderContext));
+    }
+
+    public void testFunctionScoreQueryWithScriptFunctionIsNotCacheable() throws IOException {
+        // A script function can appear raw, wrapped in a weight, or under a (non-match_all) filter.
+        List<ScoreFunction> scriptFunctionShapes = List.of(
+            scriptFunction(),
+            new WeightFactorFunction(2.0f, scriptFunction()),
+            new FunctionScoreQuery.FilterScoreFunction(new TermQuery(new Term("field", "text")), scriptFunction())
+        );
+        for (ScoreFunction shape : scriptFunctionShapes) {
+            FunctionScoreQuery fsq = functionScoreWith(shape);
+            // TOP_DOCS is the direct-key path; COMPLETE is the scored path; COMPLETE_NO_SCORES is the shortcut.
+            assertFalse(fsq.createWeight(searcher, ScoreMode.TOP_DOCS, 1.0f).isCacheable(leafReaderContext));
+            assertFalse(fsq.createWeight(searcher, ScoreMode.COMPLETE, 1.0f).isCacheable(leafReaderContext));
+            assertFalse(fsq.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f).isCacheable(leafReaderContext));
+        }
+    }
+
+    public void testFunctionScoreQueryWithScriptInFunctionFilterIsNotCacheable() throws IOException {
+        // The score function carries no script, but its filter is a script_score query. That filter keeps the
+        // searcher reachable through the FunctionScoreQuery, so the query (and any cached parent) must not cache.
+        FunctionScoreQuery.FilterScoreFunction function = new FunctionScoreQuery.FilterScoreFunction(
+            scriptScoreQuery(),
+            new WeightFactorFunction(2.0f)
+        );
+        FunctionScoreQuery fsq = new FunctionScoreQuery(
+            new MatchAllDocsQuery(),
+            function,
+            CombineFunction.MULTIPLY,
+            null,
+            Float.POSITIVE_INFINITY
+        );
+        assertFalse(fsq.createWeight(searcher, ScoreMode.TOP_DOCS, 1.0f).isCacheable(leafReaderContext));
+        assertFalse(fsq.createWeight(searcher, ScoreMode.COMPLETE, 1.0f).isCacheable(leafReaderContext));
+        // The no-scores shortcut must also account for the script hidden in the function filter.
+        assertFalse(fsq.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f).isCacheable(leafReaderContext));
+
+        BooleanQuery bool = new BooleanQuery.Builder().add(fsq, BooleanClause.Occur.MUST)
+            .add(new TermQuery(new Term("field", "text")), BooleanClause.Occur.FILTER)
+            .build();
+        Query rewritten = searcher.rewrite(bool);
+        assertFalse(rewritten.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f).isCacheable(leafReaderContext));
+    }
+
+    public void testFunctionScoreQueryWithScriptFunctionInsideBooleanIsNotCacheable() throws IOException {
+        BooleanQuery bool = new BooleanQuery.Builder().add(functionScoreWithScript(), BooleanClause.Occur.MUST)
+            .add(new TermQuery(new Term("field", "text")), BooleanClause.Occur.FILTER)
+            .build();
+        Query rewritten = searcher.rewrite(bool);
+        Weight weight = rewritten.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f);
+        assertFalse(weight.isCacheable(leafReaderContext));
+    }
+
+    public void testFunctionScoreQueryWrappingScriptScoreSubQueryIsNotCacheable() throws IOException {
+        FunctionScoreQuery fsq = new FunctionScoreQuery(scriptScoreQuery(), null, Float.POSITIVE_INFINITY);
+        assertFalse(fsq.createWeight(searcher, ScoreMode.COMPLETE, 1.0f).isCacheable(leafReaderContext));
+        assertFalse(fsq.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f).isCacheable(leafReaderContext));
+    }
+
+    public void testFunctionScoreQueryWithoutScriptRemainsCacheable() throws IOException {
+        FunctionScoreQuery fsq = new FunctionScoreQuery(
+            new TermQuery(new Term("field", "text")),
+            new WeightFactorFunction(2.0f),
+            CombineFunction.MULTIPLY,
+            null,
+            Float.POSITIVE_INFINITY
+        );
+        assertTrue(fsq.createWeight(searcher, ScoreMode.COMPLETE, 1.0f).isCacheable(leafReaderContext));
+        assertTrue(fsq.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f).isCacheable(leafReaderContext));
+    }
+
+    public void testScriptBearingParentIsNotStoredInTheQueryCache() throws IOException {
+        // Record every query the cache accepts as a key, through the onQueryCache hook.
+        List<Query> cachedKeys = new ArrayList<>();
+        LRUQueryCache cache = new LRUQueryCache(1000, Long.MAX_VALUE, context -> true, 1_000_000f) {
+            @Override
+            protected void onQueryCache(Query query, long ramBytesUsed) {
+                super.onQueryCache(query, ramBytesUsed);
+                cachedKeys.add(query);
+            }
+        };
+        IndexSearcher cachingSearcher = new IndexSearcher(reader);
+        cachingSearcher.setQueryCache(cache);
+        cachingSearcher.setQueryCachingPolicy(new QueryCachingPolicy() {
+            @Override
+            public void onUse(Query query) {}
+
+            @Override
+            public boolean shouldCache(Query query) {
+                return true;
+            }
+        });
+
+        TermQuery filterClause = new TermQuery(new Term("field", "text"));
+        BooleanQuery scriptParent = new BooleanQuery.Builder().add(functionScoreWithScript(), BooleanClause.Occur.MUST)
+            .add(filterClause, BooleanClause.Occur.FILTER)
+            .build();
+        Query rewritten = cachingSearcher.rewrite(scriptParent);
+        // Run a no-scores search so scorers are built and the query cache is populated (count() would skip it).
+        cachingSearcher.search(rewritten, new CollectorManager<SimpleCollector, Void>() {
+            @Override
+            public SimpleCollector newCollector() {
+                return new SimpleCollector() {
+                    @Override
+                    public void collect(int doc) {}
+
+                    @Override
+                    public ScoreMode scoreMode() {
+                        return ScoreMode.COMPLETE_NO_SCORES;
+                    }
+                };
+            }
+
+            @Override
+            public Void reduce(Collection<SimpleCollector> collectors) {
+                return null;
+            }
+        });
+
+        // The cache is active: the plain term clause was cached.
+        assertTrue("expected the query cache to be active in this test", cachedKeys.contains(filterClause));
+        // No cached key holds a script-bearing query, directly or inside a clause. Compare by structure, not by
+        // equality with the original parent: the no-scores rewrite can turn the parent's MUST clause into a FILTER,
+        // so the cached parent would not equal the query that was submitted.
+        for (Query cached : cachedKeys) {
+            assertFalse("a script-bearing query must not be cached: " + cached, holdsScriptQuery(cached));
+        }
+    }
+
+    private static boolean holdsScriptQuery(Query query) {
+        if (query instanceof FunctionScoreQuery || query instanceof ScriptScoreQuery) {
+            return true;
+        }
+        if (query instanceof BooleanQuery booleanQuery) {
+            for (BooleanClause clause : booleanQuery.clauses()) {
+                if (holdsScriptQuery(clause.query())) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private ScriptScoreQuery scriptScoreQuery() {
+        Script script = new Script("cacheability test script");
+        ScoreScript.LeafFactory factory = newFactory(script, false, explanation -> 1.0);
+        return new ScriptScoreQuery(new MatchAllDocsQuery(), script, factory, null, "index", 0, Version.CURRENT);
+    }
+
+    private ScriptScoreFunction scriptFunction() {
+        Script script = new Script("cacheability test script");
+        ScoreScript.LeafFactory factory = newFactory(script, false, explanation -> 1.0);
+        return new ScriptScoreFunction(script, factory, "index", 0, Version.CURRENT, null);
+    }
+
+    private FunctionScoreQuery functionScoreWith(ScoreFunction function) {
+        return new FunctionScoreQuery(new MatchAllDocsQuery(), function, CombineFunction.REPLACE, null, Float.POSITIVE_INFINITY);
+    }
+
+    private FunctionScoreQuery functionScoreWithScript() {
+        return functionScoreWith(scriptFunction());
     }
 
     private ScoreScript.LeafFactory newFactory(
