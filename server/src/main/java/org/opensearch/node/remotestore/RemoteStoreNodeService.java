@@ -11,12 +11,16 @@ package org.opensearch.node.remotestore;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.metadata.RepositoriesMetadata;
 import org.opensearch.cluster.metadata.RepositoryMetadata;
 import org.opensearch.cluster.node.DiscoveryNode;
+import org.opensearch.cluster.node.DiscoveryNodes;
 import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
+import org.opensearch.common.settings.SettingsException;
 import org.opensearch.common.util.FeatureFlags;
 import org.opensearch.repositories.RepositoriesService;
 import org.opensearch.repositories.Repository;
@@ -66,6 +70,31 @@ public class RemoteStoreNodeService {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Validates node versions and node types before changing remote store compatibility mode.
+     */
+    public static void validateCompatibilityModeSetting(Settings settings, ClusterState clusterState) {
+        DiscoveryNodes discoveryNodes = clusterState.nodes();
+        if (discoveryNodes.getMaxNodeVersion().equals(discoveryNodes.getMinNodeVersion()) == false) {
+            throw new SettingsException("can not change the compatibility mode when all the nodes in cluster are not of the same version");
+        }
+        if (REMOTE_STORE_COMPATIBILITY_MODE_SETTING.get(settings) == CompatibilityMode.STRICT) {
+            boolean allNodesDocrepEnabled = discoveryNodes.getNodes()
+                .values()
+                .stream()
+                .allMatch(discoveryNode -> discoveryNode.isRemoteStoreNode() == false);
+            boolean allNodesRemoteStoreEnabled = discoveryNodes.getNodes()
+                .values()
+                .stream()
+                .allMatch(discoveryNode -> discoveryNode.isRemoteStoreNode());
+            if (allNodesDocrepEnabled == false && allNodesRemoteStoreEnabled == false) {
+                throw new SettingsException(
+                    "can not switch to STRICT compatibility mode when the cluster contains both remote and non-remote nodes"
+                );
+            }
+        }
+    }
 
     /**
      * Node join compatibility mode introduced with remote backed storage.

@@ -32,6 +32,7 @@
 
 package org.opensearch.cluster.routing.allocation.decider;
 
+import org.opensearch.cluster.ClusterState;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.routing.RoutingNode;
 import org.opensearch.cluster.routing.RoutingPool;
@@ -173,6 +174,28 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
             CLUSTER_TOTAL_REMOTE_CAPABLE_SHARDS_PER_NODE_SETTING,
             this::setClusterRemoteCapableShardLimit
         );
+    }
+
+    /**
+     * Validates that a primary shard limit is only enabled on clusters whose nodes store segments remotely.
+     */
+    public static void validateClusterTotalPrimaryShardsPerNodeSetting(Settings settings, ClusterState clusterState) {
+        if (CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.get(settings) == -1) {
+            return;
+        }
+        // Balancing primaries is a placement concern, so it only requires remotely stored segments.
+        boolean allNodesRemoteSegmentStoreEnabled = clusterState.nodes()
+            .getNodes()
+            .values()
+            .stream()
+            .allMatch(discoveryNode -> discoveryNode.isRemoteSegmentStoreNode());
+        if (allNodesRemoteSegmentStoreEnabled == false) {
+            throw new IllegalArgumentException(
+                "Setting ["
+                    + CLUSTER_TOTAL_PRIMARY_SHARDS_PER_NODE_SETTING.getKey()
+                    + "] can only be used with remote store enabled clusters"
+            );
+        }
     }
 
     private void setClusterShardLimit(int clusterShardLimit) {

@@ -31,6 +31,8 @@
 
 package org.opensearch.script;
 
+import org.opensearch.cluster.ClusterState;
+import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.core.common.bytes.BytesArray;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
@@ -39,7 +41,6 @@ import org.opensearch.test.OpenSearchIntegTestCase;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -107,11 +108,146 @@ public class StoredScriptsIT extends OpenSearchIntegTestCase {
         assertEquals("exceeded max allowed stored script size in bytes [64] with size [65] for script [foobar]", e.getMessage());
     }
 
+    public void testRejectPersistentMaxScriptSizeBelowStoredScript() throws Exception {
+        putTwoByteStoredScript();
+        String clusterManager = internalCluster().getClusterManagerName();
+        try {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 1))
+                    .get()
+            );
+            assertScriptSizeRejected(e);
+            assertMaxScriptSize(null, null, SCRIPT_MAX_SIZE_IN_BYTES);
+
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 2))
+            );
+            assertMaxScriptSize(2, null, 2);
+            assertEquals(clusterManager, internalCluster().getClusterManagerName());
+        } finally {
+            deleteScriptAndResetMaxScriptSize();
+        }
+    }
+
+    public void testRejectTransientMaxScriptSizeBelowStoredScript() throws Exception {
+        putTwoByteStoredScript();
+        String clusterManager = internalCluster().getClusterManagerName();
+        try {
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 1))
+                    .get()
+            );
+            assertScriptSizeRejected(e);
+            assertMaxScriptSize(null, null, SCRIPT_MAX_SIZE_IN_BYTES);
+
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 2))
+            );
+            assertMaxScriptSize(null, 2, 2);
+            assertEquals(clusterManager, internalCluster().getClusterManagerName());
+        } finally {
+            deleteScriptAndResetMaxScriptSize();
+        }
+    }
+
+    public void testRejectResetRevealingMaxScriptSizeBelowStoredScript() throws Exception {
+        putTwoByteStoredScript();
+        String clusterManager = internalCluster().getClusterManagerName();
+        try {
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 2))
+                    .setPersistentSettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 1))
+            );
+            assertMaxScriptSize(1, 2, 2);
+
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setTransientSettings(Settings.builder().putNull(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey()))
+                    .get()
+            );
+            assertScriptSizeRejected(e);
+            assertMaxScriptSize(1, 2, 2);
+
+            assertAcked(
+                client().admin()
+                    .cluster()
+                    .prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().put(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey(), 2))
+                    .setTransientSettings(Settings.builder().putNull(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey()))
+            );
+            assertMaxScriptSize(2, null, 2);
+            assertEquals(clusterManager, internalCluster().getClusterManagerName());
+        } finally {
+            deleteScriptAndResetMaxScriptSize();
+        }
+    }
+
+    private void putTwoByteStoredScript() {
+        assertAcked(
+            client().admin()
+                .cluster()
+                .preparePutStoredScript()
+                .setId("two-bytes")
+                .setContent(new BytesArray("{\"script\": {\"lang\": \"" + LANG + "\", \"source\": \"22\"}}"), MediaTypeRegistry.JSON)
+        );
+    }
+
+    private void assertScriptSizeRejected(IllegalArgumentException e) {
+        assertEquals(
+            "script.max_size_in_bytes cannot be set to [1], stored script [two-bytes] exceeds the new value with a size of [2]",
+            e.getMessage()
+        );
+    }
+
+    private void assertMaxScriptSize(Integer persistentValue, Integer transientValue, int effectiveValue) throws Exception {
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        String key = ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey();
+        assertEquals(persistentValue == null ? null : persistentValue.toString(), state.metadata().persistentSettings().get(key));
+        assertEquals(transientValue == null ? null : transientValue.toString(), state.metadata().transientSettings().get(key));
+        assertBusy(() -> {
+            for (ClusterService service : internalCluster().getInstances(ClusterService.class)) {
+                assertEquals(effectiveValue, (int) service.getClusterSettings().get(ScriptService.SCRIPT_MAX_SIZE_IN_BYTES));
+            }
+        });
+    }
+
+    private void deleteScriptAndResetMaxScriptSize() {
+        assertAcked(client().admin().cluster().prepareDeleteStoredScript().setId("two-bytes"));
+        String key = ScriptService.SCRIPT_MAX_SIZE_IN_BYTES.getKey();
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().putNull(key))
+                .setTransientSettings(Settings.builder().putNull(key))
+        );
+    }
+
     public static class CustomScriptPlugin extends MockScriptPlugin {
 
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
-            return Collections.singletonMap("1", script -> "1");
+            return Map.of("1", script -> "1", "22", script -> "22");
         }
     }
 }

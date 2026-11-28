@@ -56,6 +56,7 @@ import org.mockito.Mockito;
 import static org.opensearch.cluster.metadata.IndexMetadata.REMOTE_STORE_CUSTOM_KEY;
 import static org.opensearch.index.remote.RemoteMigrationIndexMetadataUpdaterTests.createIndexMetadataWithDocrepSettings;
 import static org.opensearch.index.remote.RemoteStoreUtils.URL_BASE64_CHARSET;
+import static org.opensearch.index.remote.RemoteStoreUtils.checkAndFinalizeRemoteStoreMigration;
 import static org.opensearch.index.remote.RemoteStoreUtils.determineTranslogMetadataEnabled;
 import static org.opensearch.index.remote.RemoteStoreUtils.finalizeMigration;
 import static org.opensearch.index.remote.RemoteStoreUtils.isSwitchToStrictCompatibilityMode;
@@ -498,6 +499,81 @@ public class RemoteStoreUtilsTests extends OpenSearchTestCase {
         mockSettings = Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), "mixed").build();
         request.persistentSettings(mockSettings);
         assertFalse(isSwitchToStrictCompatibilityMode(request));
+    }
+
+    public void testMigrationFinalizationUsesTransientCompatibilityOverride() {
+        ClusterState state = migrationState(compatibilityMode("strict"), compatibilityMode("mixed"));
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(compatibilityMode("strict"));
+        assertSame(state, checkAndFinalizeRemoteStoreMigration(Settings.EMPTY, request, state, logger));
+        assertDocrepSettingsApplied(state.metadata().index("migrating-index"));
+    }
+
+    public void testMigrationFinalizationResetResolvesNodeSettings() {
+        ClusterState state = migrationState(Settings.EMPTY, Settings.EMPTY);
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
+            Settings.builder().putNull(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey()).build()
+        );
+        assertSame(state, checkAndFinalizeRemoteStoreMigration(compatibilityMode("mixed"), request, state, logger));
+        assertDocrepSettingsApplied(state.metadata().index("migrating-index"));
+    }
+
+    public void testMigrationFinalizationResetUsesRemainingPersistentSettings() {
+        ClusterState state = migrationState(compatibilityMode("mixed"), Settings.EMPTY);
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().transientSettings(
+            Settings.builder().putNull(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey()).build()
+        );
+        assertSame(state, checkAndFinalizeRemoteStoreMigration(Settings.EMPTY, request, state, logger));
+        assertDocrepSettingsApplied(state.metadata().index("migrating-index"));
+    }
+
+    public void testMigrationFinalizationResetUsesStrictDefault() {
+        ClusterState state = migrationState(Settings.EMPTY, Settings.EMPTY);
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
+            Settings.builder().putNull(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey()).build()
+        );
+        ClusterState updatedState = checkAndFinalizeRemoteStoreMigration(Settings.EMPTY, request, state, logger);
+        assertRemoteSettingsApplied(updatedState.metadata().index("migrating-index"));
+    }
+
+    public void testMigrationFinalizationWildcardResetUsesStrictDefault() {
+        ClusterState state = migrationState(Settings.EMPTY, Settings.EMPTY);
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
+            Settings.builder().putNull("cluster.remote_store.*").build()
+        );
+        ClusterState updatedState = checkAndFinalizeRemoteStoreMigration(Settings.EMPTY, request, state, logger);
+        assertRemoteSettingsApplied(updatedState.metadata().index("migrating-index"));
+    }
+
+    public void testUnrelatedUpdateDoesNotFinalizeMigration() {
+        ClusterState state = migrationState(compatibilityMode("strict"), Settings.EMPTY);
+        ClusterUpdateSettingsRequest request = new ClusterUpdateSettingsRequest().persistentSettings(
+            Settings.builder().put("cluster.routing.allocation.enable", "all").build()
+        );
+        assertSame(state, checkAndFinalizeRemoteStoreMigration(Settings.EMPTY, request, state, logger));
+        assertDocrepSettingsApplied(state.metadata().index("migrating-index"));
+    }
+
+    private static Settings compatibilityMode(String mode) {
+        return Settings.builder().put(REMOTE_STORE_COMPATIBILITY_MODE_SETTING.getKey(), mode).build();
+    }
+
+    private ClusterState migrationState(Settings persistentSettings, Settings transientSettings) {
+        DiscoveryNode remoteNode = new DiscoveryNode(
+            "remote",
+            buildNewFakeTransportAddress(),
+            getRemoteStoreNodeAttributes(),
+            DiscoveryNodeRole.BUILT_IN_ROLES,
+            Version.CURRENT
+        );
+        Metadata metadata = Metadata.builder(createIndexMetadataWithDocrepSettings("migrating-index"))
+            .persistentSettings(persistentSettings)
+            .transientSettings(transientSettings)
+            .build();
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(metadata)
+            .nodes(DiscoveryNodes.builder().add(remoteNode).localNodeId(remoteNode.getId()))
+            .routingTable(createRoutingTableAllShardsStarted("migrating-index", 1, 0, remoteNode, remoteNode))
+            .build();
     }
 
     private void assertRemoteSettingsApplied(IndexMetadata indexMetadata) {
