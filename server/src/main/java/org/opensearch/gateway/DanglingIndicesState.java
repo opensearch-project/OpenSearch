@@ -42,6 +42,7 @@ import org.opensearch.cluster.metadata.Metadata;
 import org.opensearch.cluster.service.ClusterService;
 import org.opensearch.common.inject.Inject;
 import org.opensearch.common.settings.Setting;
+import org.opensearch.common.settings.Settings;
 import org.opensearch.common.util.concurrent.ConcurrentCollections;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.index.Index;
@@ -103,11 +104,15 @@ public class DanglingIndicesState implements ClusterStateListener {
         this.danglingIndicesAllocator = danglingIndicesAllocator;
         this.clusterService = clusterService;
 
-        this.isAutoImportDanglingIndicesEnabled = AUTO_IMPORT_DANGLING_INDICES_SETTING.get(clusterService.getSettings());
+        final Settings settings = clusterService.getSettings();
+        this.isAutoImportDanglingIndicesEnabled = AUTO_IMPORT_DANGLING_INDICES_SETTING.get(settings);
 
         if (this.isAutoImportDanglingIndicesEnabled) {
             clusterService.addListener(this);
-        } else {
+        } else if (AUTO_IMPORT_DANGLING_INDICES_SETTING.exists(settings)) {
+            // Only warn when the user has explicitly disabled the (deprecated) setting. The default
+            // value is already disabled, so emitting this warning on every startup with the default
+            // configuration is just noise.
             logger.warn(
                 AUTO_IMPORT_DANGLING_INDICES_SETTING.getKey()
                     + " is disabled, dangling indices will not be automatically detected or imported and must be managed manually"
