@@ -16,6 +16,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NoLockFactory;
 import org.opensearch.common.lucene.store.ByteArrayIndexInput;
+import org.opensearch.common.util.LazyInitializable;
 import org.opensearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.opensearch.index.store.remote.file.OnDemandBlockSnapshotIndexInput;
 import org.opensearch.index.store.remote.utils.TransferManager;
@@ -26,6 +27,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -38,21 +40,52 @@ public final class RemoteSnapshotDirectory extends Directory {
 
     private static final String VIRTUAL_FILE_PREFIX = BlobStoreRepository.VIRTUAL_DATA_BLOB_PREFIX;
 
-    private final Map<String, BlobStoreIndexShardSnapshot.FileInfo> fileInfoMap;
+    /**
+     * The part of the directory that needs a read from the repository: the files of the shard snapshot and the
+     * {@link TransferManager} that reads them.
+     */
+    static final class RemoteState {
+        private final Map<String, BlobStoreIndexShardSnapshot.FileInfo> fileInfoMap;
+        private final TransferManager transferManager;
+
+        RemoteState(BlobStoreIndexShardSnapshot snapshot, TransferManager transferManager) {
+            this.fileInfoMap = snapshot.indexFiles()
+                .stream()
+                .collect(Collectors.toMap(BlobStoreIndexShardSnapshot.FileInfo::physicalName, f -> f));
+            this.transferManager = transferManager;
+        }
+    }
+
+    private final LazyInitializable<RemoteState, RuntimeException> remoteState;
     private final FSDirectory localStoreDir;
-    private final TransferManager transferManager;
+    private volatile long estimatedSizeInBytes;
 
     public RemoteSnapshotDirectory(BlobStoreIndexShardSnapshot snapshot, FSDirectory localStoreDir, TransferManager transferManager) {
-        this.fileInfoMap = snapshot.indexFiles()
-            .stream()
-            .collect(Collectors.toMap(BlobStoreIndexShardSnapshot.FileInfo::physicalName, f -> f));
+        this(() -> new RemoteState(snapshot, transferManager), localStoreDir);
+    }
+
+    /**
+     * Creates a directory that reads the repository on first use, not here. The cluster applier thread creates the directory and
+     * starts the shards of a node one after the other, so it must not wait for the repository. Recovery loads the metadata
+     * when it first accesses the files; store statistics do not initiate or wait for that read.
+     */
+    RemoteSnapshotDirectory(Supplier<RemoteState> remoteState, FSDirectory localStoreDir) {
+        this.remoteState = new LazyInitializable<>(() -> {
+            RemoteState state = remoteState.get();
+            estimatedSizeInBytes = state.fileInfoMap.values().stream().mapToLong(BlobStoreIndexShardSnapshot.FileInfo::length).sum();
+            return state;
+        });
         this.localStoreDir = localStoreDir;
-        this.transferManager = transferManager;
+    }
+
+    /** Returns zero until the snapshot metadata is loaded, then its total file size, without waiting for a repository read. */
+    public long estimateSizeInBytes() {
+        return estimatedSizeInBytes;
     }
 
     @Override
     public String[] listAll() throws IOException {
-        return fileInfoMap.keySet().toArray(new String[0]);
+        return remoteState.getOrCompute().fileInfoMap.keySet().toArray(new String[0]);
     }
 
     @Override
@@ -65,12 +98,13 @@ public final class RemoteSnapshotDirectory extends Directory {
 
     @Override
     public IndexInput openInput(String name, IOContext context) throws IOException {
-        final BlobStoreIndexShardSnapshot.FileInfo fileInfo = fileInfoMap.get(name);
+        final RemoteState state = remoteState.getOrCompute();
+        final BlobStoreIndexShardSnapshot.FileInfo fileInfo = state.fileInfoMap.get(name);
 
         if (fileInfo.name().startsWith(VIRTUAL_FILE_PREFIX)) {
             return new ByteArrayIndexInput(fileInfo.physicalName(), fileInfo.metadata().hash().bytes);
         }
-        return new OnDemandBlockSnapshotIndexInput(fileInfo, localStoreDir, transferManager);
+        return new OnDemandBlockSnapshotIndexInput(fileInfo, localStoreDir, state.transferManager);
     }
 
     @Override
@@ -80,7 +114,7 @@ public final class RemoteSnapshotDirectory extends Directory {
 
     @Override
     public long fileLength(String name) throws IOException {
-        return fileInfoMap.get(name).length();
+        return remoteState.getOrCompute().fileInfoMap.get(name).length();
     }
 
     @Override
