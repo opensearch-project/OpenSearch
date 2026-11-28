@@ -23,12 +23,14 @@
   ],
   "mockResultFieldNames": [
     "name",
-    "counter"
+    "counter",
+    "_id"
   ],
   "mockResultRows": [
     [
       "item1",
-      500
+      500,
+      "id-1"
     ]
   ],
   "expectedOutputDsl": {
@@ -45,7 +47,8 @@
           "_source": {
             "name": "item1",
             "counter": 500
-          }
+          },
+          "_id": "id-1"
         }
       ]
     }

@@ -23,12 +23,14 @@
   ],
   "mockResultFieldNames": [
     "name",
-    "rating"
+    "rating",
+    "_id"
   ],
   "mockResultRows": [
     [
       "item1",
-      4.5
+      4.5,
+      "id-1"
     ]
   ],
   "expectedOutputDsl": {
@@ -45,7 +47,8 @@
           "_source": {
             "name": "item1",
             "rating": 4.5
-          }
+          },
+          "_id": "id-1"
         }
       ]
     }
