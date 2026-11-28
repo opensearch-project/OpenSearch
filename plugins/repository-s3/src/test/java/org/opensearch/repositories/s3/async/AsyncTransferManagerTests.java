@@ -10,6 +10,7 @@ package org.opensearch.repositories.s3.async;
 
 import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.http.HttpStatusCode;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
@@ -285,6 +286,72 @@ public class AsyncTransferManagerTests extends OpenSearchTestCase {
             Throwable throwable = ExceptionsHelper.unwrap(e, CorruptFileException.class);
             assertNotNull(throwable);
             assertTrue(throwable instanceof CorruptFileException);
+        }
+
+        verify(s3AsyncClient, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
+        verify(s3AsyncClient, times(5)).uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class));
+        verify(s3AsyncClient, times(0)).completeMultipartUpload(any(CompleteMultipartUploadRequest.class));
+        verify(s3AsyncClient, times(1)).abortMultipartUpload(any(AbortMultipartUploadRequest.class));
+    }
+
+    /**
+     * Regression for https://github.com/opensearch-project/OpenSearch/issues/23128: an S3-compatible
+     * endpoint that accepts UploadPart requests but omits the x-amz-checksum-crc32 response header
+     * must fail the upload with a clear SdkClientException, not a NullPointerException from
+     * Base64.getDecoder().decode(null) in fromBase64String().
+     */
+    public void testMultipartUploadMissingChecksumInPartResponse() {
+        CompletableFuture<CreateMultipartUploadResponse> createMultipartUploadRequestCompletableFuture = new CompletableFuture<>();
+        createMultipartUploadRequestCompletableFuture.complete(CreateMultipartUploadResponse.builder().uploadId("uploadId").build());
+        when(s3AsyncClient.createMultipartUpload(any(CreateMultipartUploadRequest.class))).thenReturn(
+            createMultipartUploadRequestCompletableFuture
+        );
+
+        // Simulates an S3-compatible endpoint that does not return a CRC32 checksum on UploadPart.
+        CompletableFuture<UploadPartResponse> uploadPartResponseCompletableFuture = new CompletableFuture<>();
+        uploadPartResponseCompletableFuture.complete(UploadPartResponse.builder().build());
+        when(s3AsyncClient.uploadPart(any(UploadPartRequest.class), any(AsyncRequestBody.class))).thenReturn(
+            uploadPartResponseCompletableFuture
+        );
+
+        CompletableFuture<CompleteMultipartUploadResponse> completeMultipartUploadResponseCompletableFuture = new CompletableFuture<>();
+        completeMultipartUploadResponseCompletableFuture.complete(CompleteMultipartUploadResponse.builder().build());
+        when(s3AsyncClient.completeMultipartUpload(any(CompleteMultipartUploadRequest.class))).thenReturn(
+            completeMultipartUploadResponseCompletableFuture
+        );
+
+        CompletableFuture<AbortMultipartUploadResponse> abortMultipartUploadResponseCompletableFuture = new CompletableFuture<>();
+        abortMultipartUploadResponseCompletableFuture.complete(AbortMultipartUploadResponse.builder().build());
+        when(s3AsyncClient.abortMultipartUpload(any(AbortMultipartUploadRequest.class))).thenReturn(
+            abortMultipartUploadResponseCompletableFuture
+        );
+
+        Map<String, String> metadata = new HashMap<>();
+        metadata.put("key1", "value1");
+        metadata.put("key2", "value2");
+
+        CompletableFuture<Void> resultFuture = asyncTransferManager.uploadObject(
+            s3AsyncClient,
+            new UploadRequest("bucket", "key", ByteSizeUnit.MB.toBytes(5), WritePriority.HIGH, uploadSuccess -> {
+                // do nothing
+            }, true, 0L, true, metadata, ServerSideEncryption.AWS_KMS.toString(), randomAlphaOfLength(10), true, null, null),
+            new StreamContext(
+                (partIdx, partSize, position) -> new InputStreamContainer(new ZeroInputStream(partSize), partSize, position),
+                ByteSizeUnit.MB.toBytes(1),
+                ByteSizeUnit.MB.toBytes(1),
+                5
+            ),
+            new StatsMetricPublisher()
+        );
+
+        try {
+            resultFuture.get();
+            fail("did not expect resultFuture to pass");
+        } catch (ExecutionException | InterruptedException e) {
+            Throwable throwable = ExceptionsHelper.unwrap(e, SdkClientException.class);
+            assertNotNull("expected a well-formed SdkClientException, not a bare NullPointerException", throwable);
+            assertTrue(throwable instanceof SdkClientException);
+            assertNull("checksum verification must not surface a raw NPE", ExceptionsHelper.unwrap(e, NullPointerException.class));
         }
 
         verify(s3AsyncClient, times(1)).createMultipartUpload(any(CreateMultipartUploadRequest.class));
