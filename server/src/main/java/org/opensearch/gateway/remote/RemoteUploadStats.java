@@ -21,16 +21,22 @@ public class RemoteUploadStats extends PersistedStateStats {
     static final String CLEANUP_ATTEMPT_FAILED_COUNT = "cleanup_attempt_failed_count";
     static final String INDEX_ROUTING_FILES_CLEANUP_ATTEMPT_FAILED_COUNT = "index_routing_files_cleanup_attempt_failed_count";
     static final String INDICES_ROUTING_DIFF_FILES_CLEANUP_ATTEMPT_FAILED_COUNT = "indices_routing_diff_files_cleanup_attempt_failed_count";
+    static final String INDEX_METADATA_UPLOAD_TIMEOUT_COUNT = "index_metadata_upload_timeout_count";
+    static final String METADATA_UPLOAD_TIMEOUT_COUNT = "metadata_upload_timeout_count";
     static final String REMOTE_UPLOAD = "remote_upload";
     private AtomicLong cleanupAttemptFailedCount = new AtomicLong(0);
     private AtomicLong indexRoutingFilesCleanupAttemptFailedCount = new AtomicLong(0);
     private AtomicLong indicesRoutingDiffFilesCleanupAttemptFailedCount = new AtomicLong(0);
+    private AtomicLong indexMetadataUploadTimeoutCount = new AtomicLong(0);
+    private AtomicLong metadataUploadTimeoutCount = new AtomicLong(0);
 
     public RemoteUploadStats() {
         super(REMOTE_UPLOAD);
         addToExtendedFields(CLEANUP_ATTEMPT_FAILED_COUNT, cleanupAttemptFailedCount);
         addToExtendedFields(INDEX_ROUTING_FILES_CLEANUP_ATTEMPT_FAILED_COUNT, indexRoutingFilesCleanupAttemptFailedCount);
         addToExtendedFields(INDICES_ROUTING_DIFF_FILES_CLEANUP_ATTEMPT_FAILED_COUNT, indicesRoutingDiffFilesCleanupAttemptFailedCount);
+        addToExtendedFields(INDEX_METADATA_UPLOAD_TIMEOUT_COUNT, indexMetadataUploadTimeoutCount);
+        addToExtendedFields(METADATA_UPLOAD_TIMEOUT_COUNT, metadataUploadTimeoutCount);
     }
 
     public void cleanUpAttemptFailed() {
@@ -55,5 +61,21 @@ public class RemoteUploadStats extends PersistedStateStats {
 
     public long getIndicesRoutingDiffFileCleanupAttemptFailedCount() {
         return indicesRoutingDiffFilesCleanupAttemptFailedCount.get();
+    }
+
+    public void indexMetadataUploadTimedOut() {
+        indexMetadataUploadTimeoutCount.incrementAndGet();
+    }
+
+    public long getIndexMetadataUploadTimeoutCount() {
+        return indexMetadataUploadTimeoutCount.get();
+    }
+
+    public void metadataUploadTimedOut() {
+        metadataUploadTimeoutCount.incrementAndGet();
+    }
+
+    public long getMetadataUploadTimeoutCount() {
+        return metadataUploadTimeoutCount.get();
     }
 }
