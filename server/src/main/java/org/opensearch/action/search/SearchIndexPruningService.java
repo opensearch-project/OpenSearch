@@ -23,6 +23,7 @@ import org.opensearch.common.settings.ClusterSettings;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.index.fielddomain.FieldDomain;
 import org.opensearch.index.fielddomain.FieldDomainProvider;
+import org.opensearch.search.SearchService;
 
 import java.util.BitSet;
 import java.util.Collection;
@@ -202,6 +203,13 @@ public final class SearchIndexPruningService {
         }
 
         if (request == null || request.source() == null) {
+            return true;
+        }
+
+        if (SearchService.canRewriteToMatchNone(request.source()) == false) {
+            // Query-disjoint shards may still contribute to the response, for example through global aggregations,
+            // terms aggregations with min_doc_count=0, or suggesters. This is the same eligibility check can_match
+            // applies before it is allowed to skip shards.
             return true;
         }
 
