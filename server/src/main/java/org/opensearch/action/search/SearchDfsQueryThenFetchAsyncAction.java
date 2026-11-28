@@ -49,6 +49,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 /**
  * Async action for DFS Query Then Fetch
@@ -75,7 +76,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
         final ActionListener<SearchResponse> listener,
         final GroupShardsIterator<SearchShardIterator> shardsIts,
         final TransportSearchAction.SearchTimeProvider timeProvider,
-        final ClusterState clusterState,
+        final Supplier<ClusterState> clusterStateSupplier,
         final SearchTask task,
         SearchResponse.Clusters clusters,
         SearchRequestContext searchRequestContext,
@@ -94,7 +95,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
             listener,
             shardsIts,
             timeProvider,
-            clusterState,
+            clusterStateSupplier,
             task,
             new ArraySearchPhaseResults<>(shardsIts.size()),
             request.getMaxConcurrentShardRequests(),
