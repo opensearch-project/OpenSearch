@@ -32,6 +32,8 @@
 
 package org.opensearch.ingest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.opensearch.OpenSearchException;
 import org.opensearch.common.collect.Tuple;
 import org.opensearch.common.metrics.OperationMetrics;
@@ -55,6 +57,8 @@ import java.util.stream.Collectors;
  * @opensearch.internal
  */
 public class CompoundProcessor implements Processor {
+    private static final Logger logger = LogManager.getLogger(CompoundProcessor.class);
+
     public static final String ON_FAILURE_MESSAGE_FIELD = "on_failure_message";
     public static final String ON_FAILURE_PROCESSOR_TYPE_FIELD = "on_failure_processor_type";
     public static final String ON_FAILURE_PROCESSOR_TAG_FIELD = "on_failure_processor_tag";
@@ -200,6 +204,18 @@ public class CompoundProcessor implements Processor {
                     IngestDocumentWrapper originalDocumentWrapper = slotToWrapperMap.get(resultDocumentWrapper.getSlot());
                     if (resultDocumentWrapper.getException() != null) {
                         ++totalFailed;
+                        // Log granular failure details for batch document processing
+                        logger.debug(
+                            "Processor [type={}, tag={}] failed for document [id={}]: {}",
+                            processor.getType(),
+                            processor.getTag(),
+                            originalDocumentWrapper.getIngestDocument() != null
+                                && originalDocumentWrapper.getIngestDocument().getSourceAndMetadata() != null
+                                ? originalDocumentWrapper.getIngestDocument().getSourceAndMetadata().get("_id")
+                                : "unknown",
+                            resultDocumentWrapper.getException().getMessage(),
+                            resultDocumentWrapper.getException()
+                        );
                         if (ignoreFailure) {
                             documentsToContinue.add(originalDocumentWrapper);
                         } else {
@@ -274,6 +290,17 @@ public class CompoundProcessor implements Processor {
 
             if (e != null) {
                 metric.failed();
+                // Log granular failure details for single document processing
+                logger.debug(
+                    "Processor [type={}, tag={}] failed for document [id={}]: {}",
+                    processor.getType(),
+                    processor.getTag(),
+                    ingestDocument.getSourceAndMetadata() != null
+                        ? ingestDocument.getSourceAndMetadata().get("_id")
+                        : "unknown",
+                    e.getMessage(),
+                    e
+                );
                 if (ignoreFailure) {
                     innerExecute(currentProcessor + 1, ingestDocument, handler);
                 } else {
