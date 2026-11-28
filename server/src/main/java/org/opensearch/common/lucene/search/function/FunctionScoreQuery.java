@@ -473,14 +473,26 @@ public class FunctionScoreQuery extends Query {
                     factorExplanation = functionsExplanations.get(0);
                 } else {
                     FunctionFactorScorer scorer = functionScorer(context);
-                    int actualDoc = scorer.iterator().advance(doc);
-                    assert (actualDoc == doc);
-                    double score = scorer.computeScore(doc, expl.getValue().floatValue());
-                    factorExplanation = Explanation.match(
-                        (float) score,
-                        "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]",
-                        functionsExplanations
-                    );
+                    if (scorer != null) {
+                        int actualDoc = scorer.iterator().advance(doc);
+                        assert (actualDoc == doc);
+                        double score = scorer.computeScore(doc, expl.getValue().floatValue());
+                        factorExplanation = Explanation.match(
+                            (float) score,
+                            "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT) + "]",
+                            functionsExplanations
+                        );
+                    } else {
+                        // Scorer can be null when explain is invoked from a compound query
+                        // (e.g. HybridQuery) for a doc whose sub-query reports a match via
+                        // explain but yields no scorer for this leaf segment.
+                        factorExplanation = Explanation.match(
+                            1.0f,
+                            "function score, score mode [" + scoreMode.toString().toLowerCase(Locale.ROOT)
+                                + "] (no scorer for this segment)",
+                            functionsExplanations
+                        );
+                    }
                 }
                 expl = combineFunction.explain(expl, factorExplanation, maxBoost);
             }
