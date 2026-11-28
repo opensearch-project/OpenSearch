@@ -36,6 +36,7 @@
               "options":[
                 "_all",
                 "breaker",
+                "filtered_stats_cache",
                 "fs",
                 "http",
                 "indices",
@@ -62,6 +63,7 @@
               "options":[
                 "_all",
                 "breaker",
+                "filtered_stats_cache",
                 "fs",
                 "http",
                 "indices",
@@ -92,6 +94,7 @@
               "options":[
                 "_all",
                 "breaker",
+                "filtered_stats_cache",
                 "fs",
                 "http",
                 "indices",
@@ -140,6 +143,7 @@
               "options":[
                 "_all",
                 "breaker",
+                "filtered_stats_cache",
                 "fs",
                 "http",
                 "indices",

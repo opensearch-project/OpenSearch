@@ -37,6 +37,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
@@ -50,6 +51,7 @@ import org.opensearch.common.CheckedFunction;
 import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.annotation.PublicApi;
+import org.opensearch.common.lucene.search.Queries;
 import org.opensearch.common.settings.Setting;
 import org.opensearch.common.settings.Setting.Property;
 import org.opensearch.common.settings.Settings;
@@ -72,6 +74,9 @@ import org.opensearch.gateway.WriteStateException;
 import org.opensearch.index.analysis.IndexAnalyzers;
 import org.opensearch.index.cache.IndexCache;
 import org.opensearch.index.cache.bitset.BitsetFilterCache;
+import org.opensearch.index.cache.filteredstats.FilteredStatsCache;
+import org.opensearch.index.cache.filteredstats.FilteredStatsWarmer;
+import org.opensearch.index.cache.filteredstats.IndicesFilteredStatsCache;
 import org.opensearch.index.cache.query.QueryCache;
 import org.opensearch.index.compositeindex.CompositeIndexSettings;
 import org.opensearch.index.engine.Engine;
@@ -274,7 +279,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         ClusterMergeSchedulerConfig clusterMergeSchedulerConfig,
         DataFormatRegistry dataFormatRegistry,
         DataFormatAwareStoreDirectoryFactory dataFormatAwareStoreDirectoryFactory,
-        NodeCacheService nodeCacheService
+        NodeCacheService nodeCacheService,
+        IndicesFilteredStatsCache indicesFilteredStatsCache
     ) {
         super(indexSettings);
         this.storeFactory = storeFactory;
@@ -326,12 +332,16 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 return shard == null ? IndicesFieldDataCache.Key.NO_SHARD_IDENTITY : System.identityHashCode(shard);
             });
             this.bitsetFilterCache = new BitsetFilterCache(indexSettings, indicesBitsetFilterCache, new BitsetCacheListener(this));
+            FilteredStatsCache filteredStatsCache = indicesFilteredStatsCache == null
+                ? null
+                : new FilteredStatsCache(indexSettings, indicesFilteredStatsCache, nestedParents(mapperService, bitsetFilterCache));
             this.warmer = new IndexWarmer(
                 threadPool,
                 indexFieldData,
-                indicesBitsetFilterCache != null ? indicesBitsetFilterCache.createListener(threadPool) : null
+                indicesBitsetFilterCache != null ? indicesBitsetFilterCache.createListener(threadPool) : null,
+                new FilteredStatsWarmer(threadPool, filteredStatsCache)
             );
-            this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
+            this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache, filteredStatsCache);
         } else {
             assert indexAnalyzers == null;
             this.mapperService = null;
@@ -489,6 +499,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             clusterMergeSchedulerConfig,
             null,
             null,
+            null,
             null
         );
     }
@@ -534,6 +545,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     public boolean hasShard(int shardId) {
         return shards.containsKey(shardId);
+    }
+
+    /** The root documents of the index's nested mapping, or {@code null} from the supplier when it has none. */
+    private static Supplier<BitSetProducer> nestedParents(MapperService mapperService, BitsetFilterCache bitsetFilterCache) {
+        return () -> mapperService.hasNested() ? bitsetFilterCache.getBitSetProducer(Queries.newNonNestedFilter()) : null;
     }
 
     /**
