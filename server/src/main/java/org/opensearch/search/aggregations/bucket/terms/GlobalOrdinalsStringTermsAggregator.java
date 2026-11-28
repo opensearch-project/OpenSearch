@@ -58,6 +58,7 @@ import org.opensearch.index.compositeindex.datacube.startree.index.StarTreeValue
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedNumericStarTreeValuesIterator;
 import org.opensearch.index.compositeindex.datacube.startree.utils.iterator.SortedSetStarTreeValuesIterator;
 import org.opensearch.index.mapper.DocCountFieldMapper;
+import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.AggregationExecutionException;
 import org.opensearch.search.aggregations.Aggregator;
@@ -193,6 +194,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         Terms segmentTerms = ctx.reader().terms(this.fieldName);
         if (segmentTerms == null) {
             // Field is not indexed.
+            return false;
+        }
+
+        MappedFieldType fieldType = context.fieldType(this.fieldName);
+        if (fieldType == null || fieldType.indexedTermsMatchDocValues() == false) {
+            // The postings term dictionary does not correspond to the doc values ordinals.
             return false;
         }
 

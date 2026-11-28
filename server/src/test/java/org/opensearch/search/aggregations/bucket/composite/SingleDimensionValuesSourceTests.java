@@ -47,6 +47,7 @@ import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.NumberFieldMapper;
+import org.opensearch.index.mapper.WildcardFieldMapper;
 import org.opensearch.search.DocValueFormat;
 import org.opensearch.search.aggregations.bucket.missing.MissingOrder;
 import org.opensearch.test.OpenSearchTestCase;
@@ -176,6 +177,37 @@ public class SingleDimensionValuesSourceTests extends OpenSearchTestCase {
         );
         assertNull(source.createSortedDocsProducerOrNull(reader, null));
         assertNull(source.createSortedDocsProducerOrNull(reader, new TermQuery(new Term("foo", "bar"))));
+    }
+
+    public void testWildcardSorted() {
+        final MappedFieldType wildcard = new WildcardFieldMapper.WildcardFieldType("wildcard");
+        GlobalOrdinalValuesSource globalOrdinalsSource = new GlobalOrdinalValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            wildcard,
+            context -> null,
+            DocValueFormat.RAW,
+            false,
+            MissingOrder.DEFAULT,
+            1,
+            1
+        );
+        IndexReader reader = mockIndexReader(1, 1);
+        assertNull(globalOrdinalsSource.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
+        assertNull(globalOrdinalsSource.createSortedDocsProducerOrNull(reader, null));
+
+        BinaryValuesSource binarySource = new BinaryValuesSource(
+            BigArrays.NON_RECYCLING_INSTANCE,
+            (b) -> {},
+            wildcard,
+            context -> null,
+            DocValueFormat.RAW,
+            false,
+            MissingOrder.DEFAULT,
+            1,
+            1
+        );
+        assertNull(binarySource.createSortedDocsProducerOrNull(reader, new MatchAllDocsQuery()));
+        assertNull(binarySource.createSortedDocsProducerOrNull(reader, null));
     }
 
     public void testNumericSorted() {

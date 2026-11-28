@@ -67,6 +67,7 @@ import org.opensearch.common.util.MockPageCacheRecycler;
 import org.opensearch.core.common.breaker.CircuitBreaker;
 import org.opensearch.core.common.text.Text;
 import org.opensearch.core.indices.breaker.NoneCircuitBreakerService;
+import org.opensearch.index.mapper.ContentPath;
 import org.opensearch.index.mapper.DocumentMapper;
 import org.opensearch.index.mapper.GeoPointFieldMapper;
 import org.opensearch.index.mapper.HllFieldMapper;
@@ -74,6 +75,7 @@ import org.opensearch.index.mapper.IdFieldMapper;
 import org.opensearch.index.mapper.IpFieldMapper;
 import org.opensearch.index.mapper.KeywordFieldMapper;
 import org.opensearch.index.mapper.MappedFieldType;
+import org.opensearch.index.mapper.Mapper;
 import org.opensearch.index.mapper.MapperService;
 import org.opensearch.index.mapper.NestedPathFieldMapper;
 import org.opensearch.index.mapper.NumberFieldMapper;
@@ -83,6 +85,7 @@ import org.opensearch.index.mapper.SeqNoFieldMapper;
 import org.opensearch.index.mapper.TextFieldMapper;
 import org.opensearch.index.mapper.TextParams;
 import org.opensearch.index.mapper.Uid;
+import org.opensearch.index.mapper.WildcardFieldMapper;
 import org.opensearch.index.query.MatchAllQueryBuilder;
 import org.opensearch.index.query.QueryBuilders;
 import org.opensearch.script.MockScriptEngine;
@@ -414,6 +417,71 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                     // With threshold=0, tryCollectFromTermFrequencies should bail out,
                     // so all 4 documents must be visited via normal collection
                     assertEquals(4, aggregator.getCollectCount().get());
+                }
+            }
+        }
+    }
+
+    /**
+     * Fields whose indexed terms differ from their doc values (e.g. wildcard, which indexes trigram
+     * tokens) must not use tryCollectFromTermFrequencies: the postings term dictionary does not
+     * correspond to the doc values ordinals, so buckets would be derived from the wrong term set.
+     * All documents must be visited via normal collection instead.
+     */
+    public void testTermFrequencyDocValuesMismatchGuard() throws Exception {
+        try (Directory directory = newDirectory()) {
+            try (
+                RandomIndexWriter indexWriter = new RandomIndexWriter(
+                    random(),
+                    directory,
+                    newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+                )
+            ) {
+                // Every 5-character string over {a, b}: all 32 values are distinct
+                List<String> values = new ArrayList<>();
+                for (int i = 0; i < 32; i++) {
+                    StringBuilder value = new StringBuilder();
+                    for (int bit = 4; bit >= 0; bit--) {
+                        value.append(((i >> bit) & 1) == 0 ? 'a' : 'b');
+                    }
+                    values.add(value.toString());
+                }
+                List<Document> documents = new ArrayList<>();
+                for (String value : values) {
+                    Document document = new Document();
+                    ADD_WILDCARD_FIELD_INDEXED.apply(document, "string", value);
+                    documents.add(document);
+                }
+                indexWriter.addDocuments(documents);
+
+                try (IndexReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
+                    IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+
+                    TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").userValueTypeHint(ValueType.STRING)
+                        .executionHint(TermsAggregatorFactory.ExecutionMode.GLOBAL_ORDINALS.toString())
+                        .field("string")
+                        .size(values.size())
+                        .order(BucketOrder.key(true));
+                    MappedFieldType fieldType = new WildcardFieldMapper.Builder("string").docValues(true)
+                        .build(new Mapper.BuilderContext(createIndexSettings().getSettings(), new ContentPath(1)))
+                        .fieldType();
+
+                    TermsAggregatorFactory.COLLECT_SEGMENT_ORDS = false;
+                    TermsAggregatorFactory.REMAP_GLOBAL_ORDS = false;
+                    CountingAggregator aggregator = createCountingAggregator(aggregationBuilder, indexSearcher, false, fieldType);
+
+                    aggregator.preCollection();
+                    indexSearcher.search(new MatchAllDocsQuery(), aggregator);
+                    aggregator.postCollection();
+                    Terms result = reduce(aggregator);
+                    assertEquals(values.size(), result.getBuckets().size());
+                    for (int i = 0; i < values.size(); i++) {
+                        assertEquals(values.get(i), result.getBuckets().get(i).getKeyAsString());
+                        assertEquals(1L, result.getBuckets().get(i).getDocCount());
+                    }
+
+                    // The precompute path must be skipped, so all documents are visited via normal collection
+                    assertEquals(values.size(), aggregator.getCollectCount().get());
                 }
             }
         }
