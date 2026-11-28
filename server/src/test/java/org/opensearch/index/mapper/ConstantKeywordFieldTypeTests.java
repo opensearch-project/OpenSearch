@@ -12,6 +12,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.automaton.RegExp;
 import org.opensearch.Version;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.regex.Regex;
@@ -90,6 +91,25 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
 
         actual = ft.rangeQuery("defaul", "default1", true, true, null, null, null, MOCK_QSC);
         assertEquals(new MatchAllDocsQuery(), actual);
+    }
+
+    public void testRegexpQueryForEachAutomatonType() {
+        final ConstantKeywordFieldMapper.ConstantKeywordFieldType ft = new ConstantKeywordFieldMapper.ConstantKeywordFieldType(
+            "field",
+            "d3efault"
+        );
+        MultiTermQuery.RewriteMethod method = MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE;
+        // ALL
+        assertEquals(new MatchAllDocsQuery(), ft.regexpQuery(".*", RegExp.ALL, 0, 10, method, MOCK_QSC));
+        // NONE
+        assertEquals(new MatchNoDocsQuery(), ft.regexpQuery("#", RegExp.ALL, 0, 10, method, MOCK_QSC));
+        // SINGLE
+        assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("d3efault", RegExp.ALL, 0, 10, method, MOCK_QSC));
+        assertEquals(new MatchNoDocsQuery(), ft.regexpQuery("d3efaul", RegExp.ALL, 0, 10, method, MOCK_QSC));
+        assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("D3EFAULT", RegExp.ALL, RegExp.ASCII_CASE_INSENSITIVE, 10, method, MOCK_QSC));
+        // NORMAL
+        assertEquals(new MatchAllDocsQuery(), ft.regexpQuery("d[0-9]e.*", RegExp.ALL, 0, 10, method, MOCK_QSC));
+        assertEquals(new MatchNoDocsQuery(), ft.regexpQuery("x[0-9]e.*", RegExp.ALL, 0, 10, method, MOCK_QSC));
     }
 
     public void testRegexpQuery() {
