@@ -11,8 +11,6 @@ package org.opensearch.tools.cli.jmx;
 import com.sun.tools.attach.VirtualMachine;
 import com.sun.tools.attach.VirtualMachineDescriptor;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
 import org.opensearch.cli.Command;
 import org.opensearch.cli.Terminal;
 import org.opensearch.cli.UserException;
@@ -24,6 +22,8 @@ import javax.management.remote.JMXServiceURL;
 
 import java.util.List;
 
+import picocli.CommandLine.Option;
+
 /**
  * Base class for CLI commands that connect to a running OpenSearch process via JMX Attach API.
  * <p>
@@ -33,7 +33,7 @@ import java.util.List;
  * 3. JMX agent loading
  * 4. MBeanServer connection
  * <p>
- * Subclasses implement {@link #execute(MBeanServerConnection, Terminal, OptionSet)} to
+ * Subclasses implement {@link #execute(MBeanServerConnection, Terminal)} to
  * perform their specific MBean operations.
  * <p>
  * This class can be reused by any CLI tool that needs to interact with a running
@@ -41,7 +41,8 @@ import java.util.List;
  */
 public abstract class JmxCommand extends Command {
 
-    private final OptionSpec<String> pidOpt;
+    @Option(names = "--pid", arity = "0..1", fallbackValue = "", description = "OpenSearch process ID (auto-detected if not specified)")
+    private String pid;
 
     /**
      * Creates a new JMX command with the given description.
@@ -50,12 +51,10 @@ public abstract class JmxCommand extends Command {
      */
     protected JmxCommand(String description) {
         super(description, () -> {});
-        pidOpt = parser.accepts("pid", "OpenSearch process ID (auto-detected if not specified)").withOptionalArg().ofType(String.class);
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
-        String pid = pidOpt.value(options);
+    protected void execute(Terminal terminal) throws Exception {
         if (pid == null || pid.isEmpty()) {
             pid = findOpenSearchPid();
         }
@@ -77,7 +76,7 @@ public abstract class JmxCommand extends Command {
             JMXServiceURL url = new JMXServiceURL(connectorAddr);
             try (JMXConnector connector = JMXConnectorFactory.connect(url)) {
                 MBeanServerConnection mbs = connector.getMBeanServerConnection();
-                execute(mbs, terminal, options);
+                execute(mbs, terminal);
             }
         } finally {
             vm.detach();
@@ -89,10 +88,9 @@ public abstract class JmxCommand extends Command {
      *
      * @param mbs the MBean server connection to the target JVM
      * @param terminal the terminal for user output
-     * @param options the parsed command-line options
      * @throws Exception if the MBean operation fails
      */
-    protected abstract void execute(MBeanServerConnection mbs, Terminal terminal, OptionSet options) throws Exception;
+    protected abstract void execute(MBeanServerConnection mbs, Terminal terminal) throws Exception;
 
     private String findOpenSearchPid() {
         List<VirtualMachineDescriptor> vms = VirtualMachine.list();
