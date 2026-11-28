@@ -58,6 +58,7 @@ import org.opensearch.common.xcontent.XContentFactory;
 import org.opensearch.core.action.ActionListener;
 import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.index.IndexModule;
 import org.opensearch.index.IndexNotFoundException;
 import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
@@ -212,6 +213,16 @@ public class CreateIndexIT extends OpenSearchIntegTestCase {
                 e.getMessage()
             );
         }
+    }
+
+    public void testExplicitEmptyStoreTypeIsRejected() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> prepareCreate("test").setSettings(Settings.builder().put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), ""))
+                .setWaitForActiveShards(ActiveShardCount.NONE)
+                .get()
+        );
+        assertThat(exception.getMessage(), equalTo("Unknown store type []"));
     }
 
     public void testPrivateSettingFails() {
