@@ -53,6 +53,7 @@ pub async fn execute_query(
     phantom_corrector: Option<Arc<crate::phantom_corrector::PhantomCorrector>>,
     sort_fields: &[String],
     sort_orders: &[String],
+    sort_missing: &[String],
     internal_search: crate::datafusion_query_config::InternalSearch,
 ) -> Result<i64, DataFusionError> {
     // Build per-query RuntimeEnv (optional pool overlay) + register the shard store.
@@ -76,7 +77,7 @@ pub async fn execute_query(
     // Register the standard DataFusion ListingTable. This function only runs the vanilla
     // (non-row-id) path — QTF row-id plans always route to the indexed executor.
     // Declares the per-file sort order when the index has `index.sort.field`.
-    register_listing_table(&ctx, &table_name, table_path, sort_fields, sort_orders).await?;
+    register_listing_table(&ctx, &table_name, table_path, sort_fields, sort_orders, sort_missing).await?;
 
     // Planning: build the query DataFrame (Substrait decode for normal search, native filter for an
     // engine-internal point lookup). Physical planning + execution below is shared by both.
