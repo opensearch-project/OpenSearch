@@ -353,6 +353,12 @@ public final class MergeSchedulerConfig {
         // If MAX_MERGE_COUNT_SETTING is set - return the absolute default for MAX_THREAD_COUNT_SETTING
         // If MAX_MERGE_COUNT_SETTING is NOT set - return the cluster default
         // On first invocation, MAX_MERGE_COUNT_SETTING would not have been initialized, hence the null check
+        logger.info(
+            "MAX_MERGE_COUNT_SETTING null: {}, exists: {}, clusterMaxThreadCountDefault null: {}",
+            (MAX_MERGE_COUNT_SETTING == null),
+            (MAX_MERGE_COUNT_SETTING != null && MAX_MERGE_COUNT_SETTING.exists(settings)),
+            (clusterMaxThreadCountDefault == null)
+        );
         if (MAX_MERGE_COUNT_SETTING == null || MAX_MERGE_COUNT_SETTING.exists(settings) == true || clusterMaxThreadCountDefault == null) {
             return ClusterMergeSchedulerConfig.getClusterMaxThreadCountDefault(settings);
         }
