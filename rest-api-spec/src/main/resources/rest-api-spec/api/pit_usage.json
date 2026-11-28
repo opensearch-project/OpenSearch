@@ -1,0 +1,29 @@
+{
+  "pit_usage":{
+    "documentation":{
+      "url":"https://docs.opensearch.org/latest/api-reference/search-apis/point-in-time-api/",
+      "description":"Returns, for one or more point in time searches, the number of search requests that ran the query phase (exact when a single query is paginated with search_after, otherwise a lower bound) and the number of top-level hits returned."
+    },
+    "stability":"stable",
+    "url":{
+      "paths":[
+        {
+          "path":"/_search/point_in_time/_usage",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_search/point_in_time/_all/_usage",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "body":{
+      "description":"The pit IDs to report usage for, as {\"pit_id\": [...]}. Ignored by the _all path.",
+      "required":false
+    }
+  }
+}

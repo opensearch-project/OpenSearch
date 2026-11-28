@@ -170,4 +170,14 @@ public class PitTestsUtil {
     public static void assertSegments(boolean isEmpty, Client client, String pitId) {
         assertSegments(isEmpty, "index", 2, client, pitId);
     }
+
+    public static void assertPitUsage(Client client, String pitId, long expectedSearchRequests, long expectedHitsReturned) {
+        PitUsageResponse response = client.execute(PitUsageAction.INSTANCE, new PitUsageRequest(pitId)).actionGet();
+        assertEquals(0, response.getFailedShards());
+        assertEquals(1, response.getPitUsages().size());
+        PitUsageInfo usage = response.getPitUsages().get(0);
+        assertEquals(pitId, usage.getPitId());
+        assertEquals(expectedSearchRequests, usage.getSearchRequests());
+        assertEquals(expectedHitsReturned, usage.getHitsReturned());
+    }
 }

@@ -67,6 +67,8 @@ import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.action.search.MultiSearchRequest;
 import org.opensearch.action.search.MultiSearchRequestBuilder;
 import org.opensearch.action.search.MultiSearchResponse;
+import org.opensearch.action.search.PitUsageRequest;
+import org.opensearch.action.search.PitUsageResponse;
 import org.opensearch.action.search.SearchRequest;
 import org.opensearch.action.search.SearchRequestBuilder;
 import org.opensearch.action.search.SearchResponse;
@@ -361,6 +363,11 @@ public interface Client extends OpenSearchClient, Releasable {
      * Get information of segments of one or more PITs
      */
     void pitSegments(PitSegmentsRequest pitSegmentsRequest, ActionListener<IndicesSegmentResponse> listener);
+
+    /**
+     * Get usage information of one or more PITs
+     */
+    void pitUsage(PitUsageRequest pitUsageRequest, ActionListener<PitUsageResponse> listener);
 
     /**
      * Performs multiple search requests.

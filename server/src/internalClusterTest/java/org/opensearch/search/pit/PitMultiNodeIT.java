@@ -25,12 +25,20 @@ import org.opensearch.action.search.GetAllPitNodesRequest;
 import org.opensearch.action.search.GetAllPitNodesResponse;
 import org.opensearch.action.search.GetAllPitsAction;
 import org.opensearch.action.search.PitTestsUtil;
+import org.opensearch.action.search.PitUsageAction;
+import org.opensearch.action.search.PitUsageInfo;
+import org.opensearch.action.search.PitUsageRequest;
+import org.opensearch.action.search.PitUsageResponse;
+import org.opensearch.action.search.SearchContextId;
+import org.opensearch.action.search.SearchContextIdForNode;
 import org.opensearch.action.search.SearchResponse;
 import org.opensearch.cluster.node.DiscoveryNode;
 import org.opensearch.common.action.ActionFuture;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.unit.TimeValue;
 import org.opensearch.core.action.ActionListener;
+import org.opensearch.core.common.io.stream.NamedWriteableRegistry;
+import org.opensearch.search.SearchService;
 import org.opensearch.search.builder.PointInTimeBuilder;
 import org.opensearch.test.InternalTestCluster;
 import org.opensearch.test.OpenSearchIntegTestCase;
@@ -47,11 +55,13 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.opensearch.action.search.PitTestsUtil.assertSegments;
@@ -59,6 +69,7 @@ import static org.opensearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE
 import static org.opensearch.search.SearchService.CLUSTER_CONCURRENT_SEGMENT_SEARCH_SETTING;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 /**
  * Multi node integration tests for PIT creation and search operation with PIT ID.
@@ -410,6 +421,55 @@ public class PitMultiNodeIT extends ParameterizedStaticSettingsOpenSearchIntegTe
         Assert.assertTrue(resultPitIds.contains(pitResponse1.getId()));
         Assert.assertTrue(resultPitIds.contains(pitResponse2.getId()));
         client().admin().indices().prepareDelete("index1").get();
+    }
+
+    public void testPitUsageForAllPits() throws Exception {
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index" });
+        CreatePitResponse pitResponse = client().execute(CreatePitAction.INSTANCE, request).get();
+        CreatePitResponse pitResponse1 = client().execute(CreatePitAction.INSTANCE, request).get();
+        client().prepareSearch("index")
+            .setSize(2)
+            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
+            .get();
+
+        PitUsageResponse usageResponse = client().execute(PitUsageAction.INSTANCE, new PitUsageRequest("_all")).get();
+        assertEquals(4, usageResponse.getTotalShards());
+        assertEquals(0, usageResponse.getFailedShards());
+        Map<String, PitUsageInfo> usages = usageResponse.getPitUsages()
+            .stream()
+            .collect(Collectors.toMap(PitUsageInfo::getPitId, Function.identity()));
+        assertEquals(2, usages.size());
+        assertEquals(1, usages.get(pitResponse.getId()).getSearchRequests());
+        assertEquals(1, usages.get(pitResponse.getId()).getHitsReturned());
+        assertEquals(0, usages.get(pitResponse1.getId()).getSearchRequests());
+        assertEquals(0, usages.get(pitResponse1.getId()).getHitsReturned());
+    }
+
+    public void testPitUsageWithMissingShardContext() throws Exception {
+        CreatePitRequest request = new CreatePitRequest(TimeValue.timeValueDays(1), true);
+        request.setIndices(new String[] { "index" });
+        CreatePitResponse pitResponse = client().execute(CreatePitAction.INSTANCE, request).get();
+        client().prepareSearch("index")
+            .setSize(2)
+            .setPointInTime(new PointInTimeBuilder(pitResponse.getId()).setKeepAlive(TimeValue.timeValueDays(1)))
+            .get();
+
+        SearchContextIdForNode contextIdForNode = SearchContextId.decode(
+            internalCluster().getInstance(NamedWriteableRegistry.class),
+            pitResponse.getId()
+        ).shards().values().iterator().next();
+        String nodeName = clusterService().state().nodes().get(contextIdForNode.getNode()).getName();
+        assertTrue(internalCluster().getInstance(SearchService.class, nodeName).freeReaderContext(contextIdForNode.getSearchContextId()));
+
+        PitUsageResponse usageResponse = client().execute(PitUsageAction.INSTANCE, new PitUsageRequest(pitResponse.getId())).get();
+        assertEquals(2, usageResponse.getTotalShards());
+        assertEquals(1, usageResponse.getFailedShards());
+        assertEquals(1, usageResponse.getPitUsages().size());
+        PitUsageInfo usage = usageResponse.getPitUsages().get(0);
+        assertEquals(pitResponse.getId(), usage.getPitId());
+        assertEquals(1, usage.getSearchRequests());
+        assertThat(usage.getHitsReturned(), lessThanOrEqualTo(1L));
     }
 
     public void testGetAllPitsDuringNodeDrop() throws Exception {
