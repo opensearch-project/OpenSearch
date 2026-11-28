@@ -206,17 +206,8 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
-        final Path file = path.resolve(blobName);
-        try {
-            writeToPath(inputStream, file, blobSize);
-        } catch (FileAlreadyExistsException faee) {
-            if (failIfAlreadyExists) {
-                throw faee;
-            }
-            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
-            writeToPath(inputStream, file, blobSize);
-        }
-        IOUtils.fsync(path, true);
+        // Always write atomically to match the behavior of real object stores
+        doWriteBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
     }
 
     @Override
@@ -234,6 +225,11 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     @Override
     public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize, boolean failIfAlreadyExists)
+        throws IOException {
+        doWriteBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+    }
+
+    private void doWriteBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize, boolean failIfAlreadyExists)
         throws IOException {
         final String tempBlob = tempBlobName(blobName);
         final Path tempBlobPath = path.resolve(tempBlob);
