@@ -175,6 +175,24 @@ public class ServerConfig {
         Setting.Property.NodeScope
     );
 
+    /**
+     * HTTP/2 receive window of the Flight client, per connection and per stream. {@code 0} (the default)
+     * keeps gRPC's BDP auto-tuning, which starts at 1 MiB and is capped at 8 MiB. A connection carries at
+     * most about one window of data per round trip, so that cap limits one connection to roughly
+     * {@code window / RTT} on high-latency links, no matter how many streams share it. A non-zero value
+     * sets a fixed window and turns auto-tuning off. The kernel's TCP buffers ({@code net.ipv4.tcp_rmem}
+     * on the receiver, {@code net.ipv4.tcp_wmem} on the sender) must also allow this much data in flight,
+     * or they become the limit instead. A connection can buffer up to one window of unread data while
+     * its consumer is slow, so size it as roughly {@code 2 x throughput x RTT}.
+     */
+    public static final Setting<ByteSizeValue> FLIGHT_CLIENT_FLOW_CONTROL_WINDOW = Setting.byteSizeSetting(
+        "arrow.flight.client.flow_control_window",
+        new ByteSizeValue(0),
+        new ByteSizeValue(0),
+        new ByteSizeValue(1, ByteSizeUnit.GB),
+        Setting.Property.NodeScope
+    );
+
     static final Setting<Integer> FLIGHT_EVENT_LOOP_THREADS = Setting.intSetting(
         "flight.event_loop.threads",
         Math.max(1, NettyRuntime.availableProcessors() * 2),
@@ -357,7 +375,8 @@ public class ServerConfig {
                 FLIGHT_EVENT_LOOP_THREADS,
                 FLIGHT_THREAD_POOL_MIN_SIZE,
                 FLIGHT_READY_TIMEOUT,
-                FLIGHT_OUTBOUND_BUFFER_THRESHOLD
+                FLIGHT_OUTBOUND_BUFFER_THRESHOLD,
+                FLIGHT_CLIENT_FLOW_CONTROL_WINDOW
             )
         );
     }
