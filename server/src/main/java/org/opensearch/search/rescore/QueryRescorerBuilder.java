@@ -271,6 +271,9 @@ public class QueryRescorerBuilder extends RescorerBuilder<QueryRescorerBuilder> 
         if (windowSize() != null) {
             queryRescoreBuilder.windowSize(windowSize());
         }
+        if (reorderMode() != null) {
+            queryRescoreBuilder.reorderMode(reorderMode());
+        }
         return queryRescoreBuilder;
     }
 }
