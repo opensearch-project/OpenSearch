@@ -23,12 +23,15 @@ import software.amazon.awssdk.services.kinesis.model.ShardIteratorType;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.opensearch.common.SuppressForbidden;
 import org.opensearch.index.IngestionShardConsumer;
 import org.opensearch.index.IngestionShardPointer;
 
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -78,9 +81,12 @@ public class KinesisShardConsumer implements IngestionShardConsumer<SequenceNumb
         this.shardId = shardId;
         this.config = config;
 
-        // Get shard iterator
-        DescribeStreamResponse describeStreamResponse = kinesisClient.describeStream(
-            DescribeStreamRequest.builder().streamName(config.getStream()).build()
+        // Get shard iterator. Wrapped in a privileged block so the AWS SDK request runs under the
+        // plugin's security policy rather than the (more restricted) caller's.
+        DescribeStreamResponse describeStreamResponse = AccessController.doPrivileged(
+            (PrivilegedAction<DescribeStreamResponse>) () -> kinesisClient.describeStream(
+                DescribeStreamRequest.builder().streamName(config.getStream()).build()
+            )
         );
 
         if (shardId >= describeStreamResponse.streamDescription().shards().size()) {
@@ -99,6 +105,7 @@ public class KinesisShardConsumer implements IngestionShardConsumer<SequenceNumb
      * @return the Kinesis consumer
      */
     protected static KinesisClient createClient(String clientId, KinesisSourceConfig config) {
+        setDefaultAwsProfilePath();
 
         KinesisClientBuilder kinesisClientBuilder = KinesisClient.builder()
             .region(Region.of(config.getRegion()))
@@ -113,7 +120,33 @@ public class KinesisShardConsumer implements IngestionShardConsumer<SequenceNumb
             }
         }
 
-        return kinesisClientBuilder.build();
+        final KinesisClientBuilder builder = kinesisClientBuilder;
+        // building the client resolves credentials/region and may touch restricted resources; run privileged
+        return AccessController.doPrivileged((PrivilegedAction<KinesisClient>) builder::build);
+    }
+
+    /**
+     * Point the AWS SDK v2 credentials/config profile files at the OpenSearch config directory.
+     * <p>
+     * At client creation the SDK tries to load a default profile from the user home directory
+     * ({@code ~/.aws}), which the OpenSearch security manager forbids, so the client build fails with an
+     * access-denied error. Redirecting the profile locations to the config directory (a readable path
+     * that normally holds no AWS profile) makes profile resolution find nothing there instead of touching
+     * the restricted home path. Credentials and region are always supplied explicitly, so no profile is
+     * actually consulted. Mirrors repository-s3's {@code S3Service#setDefaultAwsProfilePath}.
+     */
+    @SuppressForbidden(reason = "redirect the AWS SDK profile path away from the restricted home directory")
+    static void setDefaultAwsProfilePath() {
+        String configPath = System.getProperty("opensearch.path.conf");
+        if (configPath == null || configPath.isEmpty()) {
+            return;
+        }
+        if (System.getProperty("aws.sharedCredentialsFile") == null) {
+            AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty("aws.sharedCredentialsFile", configPath));
+        }
+        if (System.getProperty("aws.configFile") == null) {
+            AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty("aws.configFile", configPath));
+        }
     }
 
     @Override
