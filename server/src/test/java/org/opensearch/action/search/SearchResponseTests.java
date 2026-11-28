@@ -485,6 +485,37 @@ public class SearchResponseTests extends OpenSearchTestCase {
         assertEquals(searchResponse.getClusters(), deserialized.getClusters());
     }
 
+    public void testLatencyBreakdownSerializationRoundTrip() throws IOException {
+        SearchResponse searchResponse = createTestItem(false);
+        Map<String, Long> durations = new HashMap<>();
+        Map<String, Long> offsets = new HashMap<>();
+        offsets.put(SearchPhaseName.QUERY.getName(), 1500L);
+        durations.put(SearchPhaseName.QUERY.getName(), 42000L); // micros
+        offsets.put(SearchPhaseName.FETCH.getName(), 44000L);
+        durations.put(SearchPhaseName.FETCH.getName(), 13000L);
+        Map<String, long[]> events = new HashMap<>();
+        events.put(CoordinatorLatencyEventName.QUERY_REWRITE.getName(), new long[] { 150L, 1000L });
+        events.put(CoordinatorLatencyEventName.INDEX_RESOLUTION.getName(), new long[] { 1200L, 30L });
+        searchResponse.setLatencyBreakdown(new SearchResponse.SearchLatencyBreakdown(offsets, durations, events));
+
+        // Current version: the breakdown survives the round trip intact.
+        SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
+        assertNotNull(deserialized.getLatencyBreakdown());
+        assertEquals(offsets, deserialized.getLatencyBreakdown().getPhaseStartOffsetMicrosMap());
+        assertEquals(durations, deserialized.getLatencyBreakdown().getPhaseDurationMicrosMap());
+        assertEquals(events.keySet(), deserialized.getLatencyBreakdown().getCoordinatorEventMap().keySet());
+
+        // Older peer that predates the field: it is simply dropped, no failure.
+        SearchResponse legacy = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.V_2_12_0);
+        assertNull(legacy.getLatencyBreakdown());
+    }
+
+    public void testLatencyBreakdownAbsentByDefault() throws IOException {
+        SearchResponse searchResponse = createTestItem(false);
+        SearchResponse deserialized = copyWriteable(searchResponse, namedWriteableRegistry, SearchResponse::new, Version.CURRENT);
+        assertNull(deserialized.getLatencyBreakdown());
+    }
+
     public void testSerializationWithSearchExtBuilders() throws IOException {
         String id = UUID.randomUUID().toString();
         SearchResponse searchResponse = createTestItem(false, List.of(new DummySearchExtBuilder(id)));

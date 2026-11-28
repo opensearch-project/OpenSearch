@@ -22,7 +22,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
@@ -36,6 +38,15 @@ public class SearchRequestContext {
     private final SearchRequestOperationsListener searchRequestOperationsListener;
     private long absoluteStartNanos;
     private final Map<String, Long> phaseTookMap;
+    private final Map<String, Long> phaseStartOffsetMicrosMap;
+    private final Map<String, Long> phaseDurationMicrosMap;
+    // Coordinator event name -> [startOffsetMicros, durationMicros]. Written on the coordinator flow including
+    // the async rewrite callback, hence ConcurrentHashMap; each key is written once.
+    private final Map<String, long[]> coordinatorEventMap;
+    // nanoTime when query rewrite began, published across the async rewrite callback. rewriteStarted guards it
+    // (System.nanoTime() has no fixed origin and may be 0 or negative, so a timestamp sentinel is unsafe).
+    private volatile boolean rewriteStarted;
+    private volatile long rewriteStartNanos;
     private TotalHits totalHits;
     private final EnumMap<ShardStatsFieldNames, Integer> shardStats;
     private Set<Index> successfulSearchShardIndices;
@@ -53,6 +64,9 @@ public class SearchRequestContext {
         this.searchRequestOperationsListener = searchRequestOperationsListener;
         this.absoluteStartNanos = System.nanoTime();
         this.phaseTookMap = new HashMap<>();
+        this.phaseStartOffsetMicrosMap = new HashMap<>();
+        this.phaseDurationMicrosMap = new HashMap<>();
+        this.coordinatorEventMap = new ConcurrentHashMap<>();
         this.shardStats = new EnumMap<>(ShardStatsFieldNames.class);
         this.searchRequest = searchRequest;
         this.phaseResourceUsage = new LinkedBlockingQueue<>();
@@ -71,9 +85,71 @@ public class SearchRequestContext {
         return phaseTookMap;
     }
 
+    /** Records a phase start offset in microseconds, relative to {@link #getAbsoluteStartNanos()}. */
+    void updatePhaseStartOffsetMap(String phaseName, Long startOffsetMicros) {
+        this.phaseStartOffsetMicrosMap.put(phaseName, startOffsetMicros);
+    }
+
+    public Map<String, Long> phaseStartOffsetMicrosMap() {
+        return phaseStartOffsetMicrosMap;
+    }
+
+    /** Records a phase duration in microseconds (separate from the millisecond {@link #phaseTookMap()}). */
+    void updatePhaseDurationMicrosMap(String phaseName, Long durationMicros) {
+        this.phaseDurationMicrosMap.put(phaseName, durationMicros);
+    }
+
+    public Map<String, Long> phaseDurationMicrosMap() {
+        return phaseDurationMicrosMap;
+    }
+
+    /**
+     * Records a coordinator event with absolute {@code System.nanoTime()} bounds, stored as a start offset
+     * (relative to {@link #getAbsoluteStartNanos()}) and duration in micros. Duration is clamped as its bounds
+     * can be stamped on different threads (e.g. the async rewrite callback), where cross-core nanoTime skew is possible.
+     */
+    void recordCoordinatorEvent(String eventName, long startNanos, long endNanos) {
+        long startOffsetNanos = Math.max(0, startNanos - absoluteStartNanos);
+        long durationNanos = Math.max(0, endNanos - startNanos);
+        coordinatorEventMap.put(
+            eventName,
+            new long[] { TimeUnit.NANOSECONDS.toMicros(startOffsetNanos), TimeUnit.NANOSECONDS.toMicros(durationNanos) }
+        );
+    }
+
+    public Map<String, long[]> coordinatorEventMap() {
+        return coordinatorEventMap;
+    }
+
+    void setRewriteStartNanos(long rewriteStartNanos) {
+        this.rewriteStartNanos = rewriteStartNanos;
+        this.rewriteStarted = true;
+    }
+
+    boolean isRewriteStarted() {
+        return rewriteStarted;
+    }
+
+    long getRewriteStartNanos() {
+        return rewriteStartNanos;
+    }
+
     SearchResponse.PhaseTook getPhaseTook() {
         if (searchRequest != null && searchRequest.isPhaseTook() != null && searchRequest.isPhaseTook()) {
             return new SearchResponse.PhaseTook(phaseTookMap);
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Builds the per-phase latency breakdown for the search response, or {@code null} when phase timing
+     * output is disabled. Gated by the same {@code phase_took} flag as {@link #getPhaseTook()} so the
+     * breakdown is only surfaced when the caller opted in; the underlying maps are always populated.
+     */
+    SearchResponse.SearchLatencyBreakdown getLatencyBreakdown() {
+        if (searchRequest != null && searchRequest.isPhaseTook() != null && searchRequest.isPhaseTook()) {
+            return new SearchResponse.SearchLatencyBreakdown(phaseStartOffsetMicrosMap, phaseDurationMicrosMap, coordinatorEventMap);
         } else {
             return null;
         }

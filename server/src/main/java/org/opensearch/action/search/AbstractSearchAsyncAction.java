@@ -484,8 +484,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private void onPhaseEnd(SearchRequestContext searchRequestContext) {
         if (getCurrentPhase() != null) {
-            long tookInNanos = System.nanoTime() - getCurrentPhase().getStartTimeInNanos();
+            long phaseStartInNanos = getCurrentPhase().getStartTimeInNanos();
+            long tookInNanos = System.nanoTime() - phaseStartInNanos;
             searchRequestContext.updatePhaseTookMap(getCurrentPhase().getName(), TimeUnit.NANOSECONDS.toMillis(tookInNanos));
+            // Latency-timeline offset + duration (micros), derived from timestamps already captured (no new timers).
+            long startOffsetNanos = phaseStartInNanos - searchRequestContext.getAbsoluteStartNanos();
+            searchRequestContext.updatePhaseStartOffsetMap(getCurrentPhase().getName(), TimeUnit.NANOSECONDS.toMicros(startOffsetNanos));
+            searchRequestContext.updatePhaseDurationMicrosMap(getCurrentPhase().getName(), TimeUnit.NANOSECONDS.toMicros(tookInNanos));
         }
         if (currentPhaseHasLifecycle) {
             this.searchRequestContext.getSearchRequestOperationsListener().onPhaseEnd(this, searchRequestContext);
@@ -749,7 +754,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         String scrollId,
         String searchContextId
     ) {
-        return new SearchResponse(
+        SearchResponse searchResponse = new SearchResponse(
             internalSearchResponse,
             scrollId,
             getNumShards(),
@@ -761,6 +766,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             clusters,
             searchContextId
         );
+        searchResponse.setLatencyBreakdown(searchRequestContext.getLatencyBreakdown());
+        return searchResponse;
     }
 
     boolean buildPointInTimeFromSearchResults() {
