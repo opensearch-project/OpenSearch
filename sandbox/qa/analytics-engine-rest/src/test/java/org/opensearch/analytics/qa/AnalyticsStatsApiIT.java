@@ -149,6 +149,42 @@ public class AnalyticsStatsApiIT extends AnalyticsRestTestCase {
         assertNotNull(nodeId + ".analytics present", ((Map<String, Object>) scopedNodes.get(nodeId)).get("analytics"));
     }
 
+    /**
+     * Verifies that the {@code planning_failures} field appears in the stats response
+     * and starts at zero on a fresh cluster. The counter itself is validated by
+     * {@code AnalyticsStatsCollectorTests.testRecordPlanningFailure()} at the unit level.
+     *
+     * <p>An end-to-end IT that triggers a real planning failure is impractical because:
+     * <ul>
+     *   <li>Invalid PPL syntax/functions are rejected by {@code UnifiedQueryPlanner.plan()}
+     *       before reaching the analytics engine.</li>
+     *   <li>Nonexistent indices are silently ignored by lenient index resolution.</li>
+     *   <li>Unsupported field types are rejected at index creation time.</li>
+     *   <li>Deeply nested expressions fail at execution time (Rust deserialization),
+     *       not at coordinator planning time.</li>
+     * </ul>
+     * Planning failures that DO hit the counter (Calcite CBO failures, backend capability
+     * mismatches) require very specific schema/query combinations that are fragile to test.
+     */
+    @SuppressWarnings("unchecked")
+    public void testPlanningFailuresFieldPresentInStats() throws IOException {
+        ensureDataProvisioned();
+
+        // Run a successful query first to ensure the stats endpoint is populated
+        executePpl("source=" + DATASET.indexName + " | fields str0");
+
+        Map<String, Object> body = fetchStats();
+        Map<String, Object> nodes = (Map<String, Object>) body.get("nodes");
+        for (Map.Entry<String, Object> nodeEntry : nodes.entrySet()) {
+            Map<String, Object> nodeBody = (Map<String, Object>) nodeEntry.getValue();
+            Map<String, Object> analytics = (Map<String, Object>) nodeBody.get("analytics");
+            Map<String, Object> queries = (Map<String, Object>) analytics.get("queries");
+            assertNotNull(nodeEntry.getKey() + ".queries.planning_failures must be present", queries.get("planning_failures"));
+            long failures = ((Number) queries.get("planning_failures")).longValue();
+            assertTrue(nodeEntry.getKey() + ".queries.planning_failures must be >= 0", failures >= 0);
+        }
+    }
+
     private static void assertLatencyStatsShape(String label, Map<String, Object> latency) {
         assertNotNull(label + " object present", latency);
         for (String field : new String[] { "count", "sum_ms" }) {
