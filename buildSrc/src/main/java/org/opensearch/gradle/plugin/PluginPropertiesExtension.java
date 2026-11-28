@@ -47,6 +47,12 @@ public class PluginPropertiesExtension {
 
     private String version;
 
+    /**
+     * Optional semantic version range for compatible OpenSearch versions. Supported expressions include exact, tilde, and caret ranges.
+     * When configured, the generated plugin descriptor uses {@code dependencies} instead of {@code opensearch.version}.
+     */
+    private String opensearchVersionRange;
+
     private String description;
 
     private String classname;
@@ -100,6 +106,21 @@ public class PluginPropertiesExtension {
 
     public void setVersion(String version) {
         this.version = version;
+    }
+
+    public String getOpensearchVersionRange() {
+        return opensearchVersionRange;
+    }
+
+    public void setOpensearchVersionRange(String opensearchVersionRange) {
+        this.opensearchVersionRange = opensearchVersionRange;
+    }
+
+    public String getOpenSearchCompatibility(String opensearchVersion) {
+        if (opensearchVersionRange == null || opensearchVersionRange.isBlank()) {
+            return "opensearch.version=" + opensearchVersion;
+        }
+        return "dependencies={ opensearch: \"" + opensearchVersionRange.trim() + "\" }";
     }
 
     public String getDescription() {
