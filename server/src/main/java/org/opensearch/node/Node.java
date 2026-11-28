@@ -2199,6 +2199,7 @@ public class Node implements Closeable {
                 try {
                     latch.await();
                 } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
                     throw new OpenSearchTimeoutException("Interrupted while waiting for initial discovery state");
                 }
             }

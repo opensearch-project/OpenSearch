@@ -152,6 +152,7 @@ public class RemoteDirectory extends Directory {
             );
             latch.await();
         } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             throw new IOException("Exception in listFilesByPrefixInLexicographicOrder with prefix: " + filenamePrefix, e);
         }
         if (exception.get() != null) {
