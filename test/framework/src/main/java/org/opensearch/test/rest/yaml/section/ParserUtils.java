@@ -69,6 +69,20 @@ class ParserUtils {
         return Tuple.tuple(entry.getKey(), entry.getValue());
     }
 
+    public static Map<String, Object> parseFields(XContentParser parser) throws IOException {
+        parser.nextToken();
+        advanceToFieldName(parser);
+        Map<String, Object> map = parser.map();
+        assert parser.currentToken() == XContentParser.Token.END_OBJECT;
+        parser.nextToken();
+
+        if (map.size() == 0) {
+            throw new IllegalArgumentException("expected at least one field but found an empty object");
+        }
+
+        return map;
+    }
+
     public static void advanceToFieldName(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
         // we are in the beginning, haven't called nextToken yet
