@@ -32,14 +32,22 @@
 
 package org.opensearch.index.mapper;
 
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.store.Directory;
 import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.common.compress.CompressedXContent;
 import org.opensearch.common.settings.Settings;
 import org.opensearch.common.xcontent.XContentFactory;
+import org.opensearch.common.xcontent.XContentHelper;
 import org.opensearch.core.common.bytes.BytesArray;
+import org.opensearch.core.common.bytes.BytesReference;
 import org.opensearch.core.common.unit.ByteSizeUnit;
 import org.opensearch.core.common.unit.ByteSizeValue;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
+import org.opensearch.core.xcontent.XContentBuilder;
+import org.opensearch.index.IndexService;
 import org.opensearch.index.IndexSettings;
 import org.opensearch.index.compositeindex.datacube.startree.StarTreeIndexSettings;
 import org.opensearch.index.mapper.MapperService.MergeReason;
@@ -52,6 +60,8 @@ import org.opensearch.test.OpenSearchSingleNodeTestCase;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import org.mockito.Mockito;
 
@@ -601,6 +611,172 @@ public class ObjectMapperTests extends OpenSearchSingleNodeTestCase {
         assertFalse(isParent(documentMapper.objectMappers().get("a.b2.c"), documentMapper.objectMappers().get("a"), mapperService));
         assertFalse(isParent(documentMapper.objectMappers().get("a.b2"), documentMapper.objectMappers().get("a"), mapperService));
         assertFalse(isParent(documentMapper.objectMappers().get("a.b2.c"), documentMapper.objectMappers().get("a.b2"), mapperService));
+    }
+
+    public void testDeriveSource() throws IOException {
+        XContentBuilder mappings = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("properties")
+            .startObject("l1_integer")
+            .field("type", "integer")
+            .endObject()
+            .startObject("l1_keyword")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("l1_object")
+            .startObject("properties")
+            .startObject("l2_object")
+            .startObject("properties")
+            .startObject("l3_keyword")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("l3_long")
+            .field("type", "long")
+            .endObject()
+            .startObject("l3_boolean")
+            .field("type", "boolean")
+            .endObject()
+            .startObject("l3_text")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject("l2_object2")
+            .startObject("properties")
+            .startObject("l3_keyword")
+            .field("type", "keyword")
+            .endObject()
+            .startObject("l3_long")
+            .field("type", "long")
+            .endObject()
+            .startObject("l3_boolean")
+            .field("type", "boolean")
+            .endObject()
+            .startObject("l3_text")
+            .field("type", "text")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        String indexName = "test_derive_1";
+        IndexService index = createIndex(indexName, Settings.builder().put("index.derived_source.enabled", true).build(), mappings);
+
+        MapperService mapperService = index.mapperService();
+
+        XContentBuilder doc0Builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("l1_integer", 42)
+            .startObject("l1_object")
+            .startObject("l2_object")
+            .field("l3_long", 100)
+            .field("l3_keyword", "doc0")
+            .endObject()
+            .endObject()
+            .endObject();
+        XContentBuilder doc1Builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("l1_keyword", "doc1")
+            .startObject("l1_object")
+            .nullField("l2_object")
+            .startObject("l2_object2")
+            .startArray("l3_text")
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject();
+        XContentBuilder doc2Builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("l1_object")
+            .startObject("l2_object")
+            .field("l3_keyword", "doc2")
+            .nullField("l3_text")
+            .endObject()
+            .startObject("l2_object2")
+            .field("l3_keyword", "doc2")
+            .nullField("l3_boolean")
+            .endObject()
+            .endObject()
+            .endObject();
+        XContentBuilder doc3Builder = XContentFactory.jsonBuilder()
+            .startObject()
+            .startObject("l1_object")
+            .startObject("l2_object")
+            .startArray("l3_keyword")
+            .value("3")
+            .value("1")
+            .value("2")
+            .value("1")
+            .endArray()
+            .endObject()
+            .endObject()
+            .endObject();
+
+        List<XContentBuilder> docBuilders = List.of(doc0Builder, doc1Builder, doc2Builder, doc3Builder);
+
+        try (Directory directory = newDirectory()) {
+            try (IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig())) {
+                for (int i = 0; i < docBuilders.size(); i++) {
+                    XContentBuilder docBuilder = docBuilders.get(i);
+                    ParsedDocument parsedDocument = mapperService.documentMapper()
+                        .parse(new SourceToParse(indexName, Integer.toString(i), BytesReference.bytes(docBuilder), MediaTypeRegistry.JSON));
+                    iw.addDocument(parsedDocument.rootDoc());
+                }
+            }
+
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                RootObjectMapper rootMapper = mapperService.documentMapper().root();
+
+                // doc0: skipped "l2_object2":{}
+                Map<String, Object> doc0 = XContentHelper.convertToMap(
+                    rootMapper.deriveSource(reader.leaves().get(0).reader(), 0),
+                    false,
+                    MediaTypeRegistry.JSON
+                ).v2();
+
+                Map<String, Object> expectedDoc0 = Map.of(
+                    "l1_integer",
+                    42,
+                    "l1_object",
+                    Map.of("l2_object", Map.of("l3_long", 100, "l3_keyword", "doc0"))
+                );
+                assertEquals(expectedDoc0, doc0);
+
+                // doc1: skipped "l1_object":{"l2_object":{}, "l2_object2":{}}
+                Map<String, Object> doc1 = XContentHelper.convertToMap(
+                    rootMapper.deriveSource(reader.leaves().get(0).reader(), 1),
+                    false,
+                    MediaTypeRegistry.JSON
+                ).v2();
+                Map<String, Object> expectedDoc1 = Map.of("l1_keyword", "doc1");
+                assertEquals(expectedDoc1, doc1);
+
+                // doc2 - no changes
+                Map<String, Object> doc2 = XContentHelper.convertToMap(
+                    rootMapper.deriveSource(reader.leaves().get(0).reader(), 2),
+                    false,
+                    MediaTypeRegistry.JSON
+                ).v2();
+                Map<String, Object> expectedDoc2 = Map.of(
+                    "l1_object",
+                    Map.of("l2_object", Map.of("l3_keyword", "doc2"), "l2_object2", Map.of("l3_keyword", "doc2"))
+                );
+                assertEquals(expectedDoc2, doc2);
+
+                // doc3 - skipped "l2_object2":{}
+                Map<String, Object> doc3 = XContentHelper.convertToMap(
+                    rootMapper.deriveSource(reader.leaves().get(0).reader(), 3),
+                    false,
+                    MediaTypeRegistry.JSON
+                ).v2();
+
+                Map<String, Object> expectedDoc3 = Map.of("l1_object", Map.of("l2_object", Map.of("l3_keyword", List.of("1", "2", "3"))));
+                assertEquals(expectedDoc3, doc3);
+            }
+        }
     }
 
     public void testDeriveSourceMapperValidation() throws IOException {
