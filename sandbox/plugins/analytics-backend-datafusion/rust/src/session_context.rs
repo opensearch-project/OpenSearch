@@ -17,8 +17,8 @@ use datafusion::{
     common::DataFusionError,
     datasource::file_format::parquet::ParquetFormat,
     datasource::listing::{ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl},
-    execution::cache::cache_manager::CachedFileList,
-    execution::cache::{CacheAccessor, DefaultListFilesCache},
+    execution::cache::cache_manager::{CachedFileList, FileStatisticsCache},
+    execution::cache::{CacheAccessor, DefaultListFilesCache, TableScopedPath},
     execution::context::SessionContext,
     execution::memory_pool::MemoryPool,
     execution::runtime_env::RuntimeEnvBuilder,
@@ -172,6 +172,37 @@ pub(crate) fn widen_schema_from_plan(
 /// `register_name_uses_logical_table_not_plan_placeholder`.
 fn resolve_register_name(table_name: &str, _plan_bytes: &[u8]) -> String {
     table_name.to_string()
+}
+
+/// Remove cached file statistics that were computed against a different table schema.
+///
+/// DataFusion validates cached entries by file size and modification time, but those properties
+/// do not change when another Parquet file widens the table schema. Reusing the narrow entry in a
+/// wider scan makes statistics aggregation fail because its column vector is too short.
+fn evict_incompatible_file_statistics(
+    cache: &Option<Arc<dyn FileStatisticsCache>>,
+    table_path: &ListingTableUrl,
+    object_metas: &[ObjectMeta],
+    expected_column_count: usize,
+) -> usize {
+    let Some(cache) = cache else {
+        return 0;
+    };
+
+    let table_ref = table_path.get_table_ref().clone();
+    object_metas
+        .iter()
+        .filter(|meta| {
+            let key = TableScopedPath {
+                table: table_ref.clone(),
+                path: meta.location.clone(),
+            };
+            let is_incompatible = cache.get(&key).is_some_and(|cached| {
+                cached.statistics.column_statistics.len() != expected_column_count
+            });
+            is_incompatible && cache.remove(&key).is_some()
+        })
+        .count()
 }
 
 /// Creates a SessionContext with per-query RuntimeEnv and registers the default
@@ -380,12 +411,28 @@ pub async unsafe fn create_session_context(
         listing_options
     };
 
+    let stats_cache = runtime.runtime_env.cache_manager.get_file_statistic_cache();
+    if listing_options.collect_stat {
+        let removed = evict_incompatible_file_statistics(
+            &stats_cache,
+            &shard_view.table_path,
+            shard_view.object_metas.as_ref(),
+            resolved_schema.fields().len(),
+        );
+        if removed > 0 {
+            log_debug!(
+                "create_session_context: evicted {} file-statistics entries incompatible with {}-column schema",
+                removed,
+                resolved_schema.fields().len()
+            );
+        }
+    }
+
     let table_config = ListingTableConfig::new(shard_view.table_path.clone())
         .with_listing_options(listing_options)
         .with_schema(resolved_schema);
 
     // Wire the global statistics cache into the ListingTable.
-    let stats_cache = runtime.runtime_env.cache_manager.get_file_statistic_cache();
     let provider = Arc::new(
         ListingTable::try_new(table_config)
             .map_err(|e| {
@@ -1084,6 +1131,149 @@ mod tests {
             .expect("widened query executes without stats-merge failure");
         let total: usize = rows.iter().map(|b| b.num_rows()).sum();
         assert_eq!(total, 2, "widened scan must read both files");
+    }
+
+    /// A query can cache file statistics before an index mapping grows. A later query over the
+    /// same index must tolerate the cached narrow statistics after a wider Parquet file appears.
+    #[tokio::test]
+    async fn same_index_schema_growth_does_not_reuse_incompatible_cached_statistics() {
+        use arrow_array::StringArray;
+        use datafusion::arrow::datatypes::SchemaRef;
+        use datafusion::datasource::file_format::parquet::ParquetFormat;
+        use datafusion::datasource::listing::{
+            ListingOptions, ListingTable, ListingTableConfig, ListingTableUrl,
+        };
+        use datafusion::parquet::arrow::ArrowWriter;
+
+        use crate::cache::CustomStatisticsCache;
+
+        fn write_parquet(
+            dir: &std::path::Path,
+            name: &str,
+            schema: SchemaRef,
+            cols: Vec<Arc<dyn arrow::array::Array>>,
+        ) {
+            let file = std::fs::File::create(dir.join(name)).unwrap();
+            let batch = RecordBatch::try_new(Arc::clone(&schema), cols).unwrap();
+            let mut writer = ArrowWriter::try_new(file, schema, None).unwrap();
+            writer.write(&batch).unwrap();
+            writer.close().unwrap();
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let narrow: SchemaRef = Arc::new(Schema::new(vec![Field::new("a", DataType::Int64, true)]));
+        let wide: SchemaRef = Arc::new(Schema::new(vec![
+            Field::new("a", DataType::Int64, true),
+            Field::new("b", DataType::Utf8, true),
+        ]));
+        write_parquet(
+            dir.path(),
+            "narrow.parquet",
+            Arc::clone(&narrow),
+            vec![Arc::new(Int64Array::from(vec![1i64]))],
+        );
+
+        let table_url =
+            ListingTableUrl::parse(format!("file://{}", dir.path().to_str().unwrap())).unwrap();
+        let stats_cache = Arc::new(CustomStatisticsCache::with_default_config());
+        let ctx_before = SessionContext::new();
+
+        let narrow_config = ListingTableConfig::new(table_url.clone())
+            .with_listing_options(
+                ListingOptions::new(Arc::new(ParquetFormat::default()))
+                    .with_file_extension(".parquet")
+                    .with_collect_stat(true),
+            )
+            .with_schema(Arc::clone(&narrow));
+        ctx_before
+            .register_table(
+                "before_mapping_update",
+                Arc::new(
+                    ListingTable::try_new(narrow_config)
+                        .unwrap()
+                        .with_cache(Some(stats_cache.clone())),
+                ),
+            )
+            .unwrap();
+        ctx_before
+            .sql("SELECT a FROM before_mapping_update")
+            .await
+            .unwrap()
+            .collect()
+            .await
+            .unwrap();
+        let narrow_meta = stats_cache
+            .inner()
+            .iter()
+            .next()
+            .expect("narrow query populated statistics cache")
+            .value()
+            .meta
+            .clone();
+        let cache: Arc<dyn FileStatisticsCache> = stats_cache.clone();
+        let cache = Some(cache);
+        assert_eq!(
+            evict_incompatible_file_statistics(
+                &cache,
+                &table_url,
+                std::slice::from_ref(&narrow_meta),
+                narrow.fields().len(),
+            ),
+            0,
+            "statistics computed for the current schema must remain cached"
+        );
+        assert!(stats_cache.contains_key(&narrow_meta.location));
+
+        write_parquet(
+            dir.path(),
+            "wide.parquet",
+            Arc::clone(&wide),
+            vec![
+                Arc::new(Int64Array::from(vec![2i64])),
+                Arc::new(StringArray::from(vec!["x"])),
+            ],
+        );
+        assert_eq!(
+            evict_incompatible_file_statistics(
+                &cache,
+                &table_url,
+                std::slice::from_ref(&narrow_meta),
+                wide.fields().len(),
+            ),
+            1,
+            "statistics computed for the old schema must be evicted"
+        );
+        assert!(!stats_cache.contains_key(&narrow_meta.location));
+        let wide_config = ListingTableConfig::new(table_url)
+            .with_listing_options(
+                ListingOptions::new(Arc::new(ParquetFormat::default()))
+                    .with_file_extension(".parquet")
+                    .with_collect_stat(true),
+            )
+            .with_schema(wide);
+        // A new query gets a new SessionContext and file-list cache in production. Recreate that
+        // boundary here so the new file is discovered while the runtime-global statistics cache
+        // remains shared.
+        let ctx_after = SessionContext::new();
+        ctx_after
+            .register_table(
+                "after_mapping_update",
+                Arc::new(
+                    ListingTable::try_new(wide_config)
+                        .unwrap()
+                        .with_cache(Some(stats_cache)),
+                ),
+            )
+            .unwrap();
+
+        let rows = ctx_after
+            .sql("SELECT a, b FROM after_mapping_update ORDER BY a")
+            .await
+            .expect("evolved-schema query plans")
+            .collect()
+            .await
+            .expect("evolved-schema query tolerates cached narrow statistics");
+        assert_eq!(rows.iter().map(|batch| batch.num_rows()).sum::<usize>(), 2);
     }
 
     /// Each per-query RuntimeEnv built the way create_session_context builds it must get its own
