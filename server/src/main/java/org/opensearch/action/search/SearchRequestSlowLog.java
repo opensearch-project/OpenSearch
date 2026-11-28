@@ -168,7 +168,7 @@ public final class SearchRequestSlowLog extends SearchRequestOperationsListener 
     static final class SearchRequestSlowLogMessage extends OpenSearchLogMessage {
 
         SearchRequestSlowLogMessage(SearchPhaseContext context, long tookInNanos, SearchRequestContext searchRequestContext) {
-            super(prepareMap(context, tookInNanos, searchRequestContext), message(context, tookInNanos, searchRequestContext));
+            super(prepareMap(context, tookInNanos, searchRequestContext), "{}", message(context, tookInNanos, searchRequestContext));
         }
 
         private static Map<String, Object> prepareMap(
