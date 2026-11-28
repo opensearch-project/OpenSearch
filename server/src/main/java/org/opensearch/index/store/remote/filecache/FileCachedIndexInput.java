@@ -102,6 +102,21 @@ public class FileCachedIndexInput extends IndexInput implements RandomAccessInpu
     }
 
     @Override
+    public void readFloats(float[] floats, int offset, int len) throws IOException {
+        luceneIndexInput.readFloats(floats, offset, len);
+    }
+
+    @Override
+    public void readInts(int[] dst, int offset, int len) throws IOException {
+        luceneIndexInput.readInts(dst, offset, len);
+    }
+
+    @Override
+    public void readLongs(long[] dst, int offset, int len) throws IOException {
+        luceneIndexInput.readLongs(dst, offset, len);
+    }
+
+    @Override
     public void readBytes(byte[] b, int offset, int len) throws IOException {
         luceneIndexInput.readBytes(b, offset, len);
     }
