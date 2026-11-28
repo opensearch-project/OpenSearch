@@ -14,14 +14,15 @@ import org.opensearch.cluster.metadata.IndexMetadata;
 import org.opensearch.cluster.metadata.IndexNameExpressionResolver;
 import org.opensearch.core.index.Index;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
- * {@link IndexResolutionStrategy} that requires the request to resolve to exactly one concrete
- * index — the single-index constraint of the DSL Calcite path today. Resolving to zero or more
- * than one concrete index is rejected.
+ * {@link IndexResolutionStrategy} that accepts one or more concrete indices. The analytics
+ * engine resolves aliases and index expressions as one logical table and executes the query
+ * across all backing shards.
  */
-final class SingleIndexResolutionStrategy implements IndexResolutionStrategy {
+final class MultiIndexResolutionStrategy implements IndexResolutionStrategy {
 
     @Override
     public List<IndexMetadata> resolve(
@@ -30,11 +31,9 @@ final class SingleIndexResolutionStrategy implements IndexResolutionStrategy {
         IndicesRequest request
     ) {
         Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
-        if (concreteIndices.length != 1) {
-            throw new IllegalArgumentException(
-                "DSL currently supports exactly one concrete index, but resolved to " + concreteIndices.length + " indices"
-            );
+        if (concreteIndices.length == 0) {
+            throw new IllegalArgumentException("DSL search requires at least one concrete index");
         }
-        return List.of(state.metadata().getIndexSafe(concreteIndices[0]));
+        return Arrays.stream(concreteIndices).map(state.metadata()::getIndexSafe).toList();
     }
 }

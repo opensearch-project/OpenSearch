@@ -104,15 +104,15 @@ public class TransportValidateActionTests extends OpenSearchTestCase {
         assertTrue(listener.response.get().isValid());
     }
 
-    public void testMultipleConcreteIndicesFails() {
+    public void testMultipleConcreteIndicesValidate() {
         TransportValidateAction action = createAction(new Index("index-a", "uuid-a"), new Index("index-b", "uuid-b"));
 
         TestListener listener = new TestListener();
         action.doExecute(mock(Task.class), new ValidateQueryRequest("multi-alias"), listener);
 
-        assertNull(listener.response.get());
-        assertTrue(listener.failure.get() instanceof IllegalArgumentException);
-        assertTrue(listener.failure.get().getMessage().contains("exactly one concrete index"));
+        assertNull("Expected no failure but got: " + listener.failure.get(), listener.failure.get());
+        assertNotNull(listener.response.get());
+        assertTrue(listener.response.get().isValid());
     }
 
     public void testIndexNotInSchemaFails() {
@@ -193,12 +193,14 @@ public class TransportValidateActionTests extends OpenSearchTestCase {
 
     private SchemaPlus buildSchema() {
         SchemaPlus schema = CalciteSchema.createRootSchema(true).plus();
-        schema.add("test-index", new AbstractTable() {
+        AbstractTable table = new AbstractTable() {
             @Override
             public RelDataType getRowType(RelDataTypeFactory tf) {
                 return tf.builder().add("name", SqlTypeName.VARCHAR).add("price", SqlTypeName.INTEGER).build();
             }
-        });
+        };
+        schema.add("test-index", table);
+        schema.add("multi-alias", table);
         return schema;
     }
 

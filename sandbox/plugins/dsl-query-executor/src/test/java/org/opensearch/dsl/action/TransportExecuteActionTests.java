@@ -69,15 +69,14 @@ public class TransportExecuteActionTests extends OpenSearchTestCase {
         assertTrue(listener.failure.get().getMessage().contains("nonexistent-index"));
     }
 
-    public void testDoExecuteRejectsMultipleConcreteIndices() {
+    public void testDoExecuteAcceptsMultipleConcreteIndices() {
         TransportExecuteAction action = createAction(new Index("index-a", "uuid-a"), new Index("index-b", "uuid-b"));
 
         TestListener listener = executeWith(action, "multi-alias");
 
-        assertNull(listener.response.get());
-        assertNotNull(listener.failure.get());
-        assertTrue(listener.failure.get() instanceof IllegalArgumentException);
-        assertTrue(listener.failure.get().getMessage().contains("exactly one concrete index"));
+        assertNull("Expected no failure but got: " + listener.failure.get(), listener.failure.get());
+        assertNotNull(listener.response.get());
+        assertEquals(200, listener.response.get().status().getStatus());
     }
 
     public void testDoExecuteFailsWhenIndexNotInClusterState() {
@@ -166,12 +165,14 @@ public class TransportExecuteActionTests extends OpenSearchTestCase {
 
     private SchemaPlus buildSchema() {
         SchemaPlus schema = CalciteSchema.createRootSchema(true).plus();
-        schema.add("test-index", new AbstractTable() {
+        AbstractTable table = new AbstractTable() {
             @Override
             public RelDataType getRowType(RelDataTypeFactory tf) {
                 return tf.builder().add("name", SqlTypeName.VARCHAR).add("price", SqlTypeName.INTEGER).build();
             }
-        });
+        };
+        schema.add("test-index", table);
+        schema.add("multi-alias", table);
         return schema;
     }
 
