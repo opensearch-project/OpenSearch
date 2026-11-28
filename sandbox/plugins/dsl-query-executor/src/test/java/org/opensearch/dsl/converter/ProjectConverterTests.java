@@ -11,11 +11,13 @@ package org.opensearch.dsl.converter;
 import org.apache.calcite.rel.RelNode;
 import org.apache.calcite.rel.logical.LogicalProject;
 import org.apache.calcite.rel.logical.LogicalTableScan;
+import org.apache.calcite.rex.RexNode;
 import org.opensearch.dsl.TestUtils;
 import org.opensearch.search.builder.SearchSourceBuilder;
 import org.opensearch.search.fetch.subphase.FetchSourceContext;
 import org.opensearch.test.OpenSearchTestCase;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class ProjectConverterTests extends OpenSearchTestCase {
@@ -43,13 +45,13 @@ public class ProjectConverterTests extends OpenSearchTestCase {
         assertEquals("price", result.getRowType().getFieldNames().get(1));
     }
 
-    public void testEmptyProjectionWhenFetchSourceFalse() throws ConversionException {
+    public void testPlaceholderProjectionWhenFetchSourceFalse() throws ConversionException {
         SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(new FetchSourceContext(false, null, null));
         ConversionContext ctx = TestUtils.createContext(source);
         RelNode result = converter.convert(scan, ctx);
 
         assertTrue(result instanceof LogicalProject);
-        assertEquals(0, result.getRowType().getFieldCount());
+        assertEquals(List.of(ProjectConverter.EMPTY_SOURCE_PLACEHOLDER), result.getRowType().getFieldNames());
     }
 
     public void testReturnsUnchangedWhenIncludesEmpty() throws ConversionException {
@@ -60,13 +62,26 @@ public class ProjectConverterTests extends OpenSearchTestCase {
         assertSame(scan, result);
     }
 
-    public void testThrowsForUnknownField() {
+    public void testUnknownFieldUsesEmptySourcePlaceholder() throws ConversionException {
         SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(
             new FetchSourceContext(true, new String[] { "nonexistent" }, null)
         );
         ConversionContext ctx = TestUtils.createContext(source);
 
-        expectThrows(ConversionException.class, () -> converter.convert(scan, ctx));
+        RelNode result = converter.convert(scan, ctx);
+
+        assertEquals(List.of(ProjectConverter.EMPTY_SOURCE_PLACEHOLDER), result.getRowType().getFieldNames());
+    }
+
+    public void testUnknownFieldAlongsideKnownFieldIsIgnored() throws ConversionException {
+        SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(
+            new FetchSourceContext(true, new String[] { "links", "name" }, null)
+        );
+        ConversionContext ctx = TestUtils.createContext(source);
+
+        RelNode result = converter.convert(scan, ctx);
+
+        assertEquals(List.of("name"), result.getRowType().getFieldNames());
     }
 
     public void testWildcardProjection() throws ConversionException {
@@ -105,14 +120,13 @@ public class ProjectConverterTests extends OpenSearchTestCase {
         assertFalse(result.getRowType().getFieldNames().contains("rating"));
     }
 
-    public void testWildcardNoMatchReturnsEmptyProjection() throws ConversionException {
+    public void testWildcardNoMatchUsesEmptySourcePlaceholder() throws ConversionException {
         SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(new FetchSourceContext(true, new String[] { "xyz*" }, null));
         ConversionContext ctx = TestUtils.createContext(source);
         RelNode result = converter.convert(scan, ctx);
 
-        // Consistent with OpenSearch core — no error, just empty _source
         assertTrue(result instanceof LogicalProject);
-        assertEquals(0, result.getRowType().getFieldCount());
+        assertEquals(List.of(ProjectConverter.EMPTY_SOURCE_PLACEHOLDER), result.getRowType().getFieldNames());
     }
 
     public void testWildcardIncludesWithExcludes() throws ConversionException {
@@ -151,5 +165,35 @@ public class ProjectConverterTests extends OpenSearchTestCase {
         assertTrue(result instanceof LogicalProject);
         assertEquals(1, result.getRowType().getFieldCount());
         assertEquals("name", result.getRowType().getFieldNames().get(0));
+    }
+
+    public void testObjectIncludeProjectsDescendantFields() throws ConversionException {
+        SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(
+            new FetchSourceContext(true, new String[] { "attributes" }, null)
+        );
+        RelNode nestedScan = scanWithFields("attributes.service.name", "attributes.host.name", "body");
+
+        RelNode result = converter.convert(nestedScan, TestUtils.createContext(source));
+
+        assertEquals(List.of("attributes.service.name", "attributes.host.name"), result.getRowType().getFieldNames());
+    }
+
+    public void testObjectExcludeRemovesDescendantFields() throws ConversionException {
+        SearchSourceBuilder source = new SearchSourceBuilder().fetchSource(
+            new FetchSourceContext(true, null, new String[] { "attributes" })
+        );
+        RelNode nestedScan = scanWithFields("attributes.service.name", "attributes.host.name", "body");
+
+        RelNode result = converter.convert(nestedScan, TestUtils.createContext(source));
+
+        assertEquals(List.of("body"), result.getRowType().getFieldNames());
+    }
+
+    private LogicalProject scanWithFields(String... names) {
+        List<RexNode> projects = new ArrayList<>();
+        for (String ignored : names) {
+            projects.add(scan.getCluster().getRexBuilder().makeInputRef(scan, 0));
+        }
+        return LogicalProject.create(scan, List.of(), projects, List.of(names));
     }
 }
