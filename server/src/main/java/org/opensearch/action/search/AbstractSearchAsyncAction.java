@@ -128,6 +128,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private final List<Releasable> releasables = new ArrayList<>();
 
+    /**
+     * The coordinator provides a separate identity from this phase for downstream phases to use as their
+     * {@link SearchPhaseContext}. This breaks the circular dependency where the phase previously passed
+     * itself as the context to phases it created.
+     */
+    private final SearchRequestCoordinator coordinator = new SearchRequestCoordinator(this);
+
     AbstractSearchAsyncAction(
         String name,
         Logger logger,
@@ -207,32 +214,34 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * This is the main entry point for a search. This method starts the search execution of the initial phase.
      */
     public final void start() {
-        if (getNumShards() == 0) {
-            // no search shards to search on, bail with empty response
-            // (it happens with search across _all with no indices around and consistent with broadcast operations)
-            int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : request.source().trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
-                : request.source().trackTotalHitsUpTo();
-            // total hits is null in the response if the tracking of total hits is disabled
-            boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
-            listener.onResponse(
-                new SearchResponse(
-                    InternalSearchResponse.empty(withTotalHits),
-                    null,
-                    0,
-                    0,
-                    0,
-                    buildTookInMillis(),
-                    searchRequestContext.getPhaseTook(),
-                    ShardSearchFailure.EMPTY_ARRAY,
-                    clusters,
-                    null
-                )
-            );
-            onRequestEnd(searchRequestContext);
-            return;
-        }
-        executePhase(this);
+        coordinator.start(this);
+    }
+
+    /**
+     * Sends an empty response when there are no shards to search on.
+     * Called by the coordinator during start() when getNumShards() == 0.
+     */
+    void sendZeroShardResponse() {
+        int trackTotalHitsUpTo = request.source() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
+            : request.source().trackTotalHitsUpTo() == null ? SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO
+            : request.source().trackTotalHitsUpTo();
+        // total hits is null in the response if the tracking of total hits is disabled
+        boolean withTotalHits = trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_DISABLED;
+        listener.onResponse(
+            new SearchResponse(
+                InternalSearchResponse.empty(withTotalHits),
+                null,
+                0,
+                0,
+                0,
+                buildTookInMillis(),
+                searchRequestContext.getPhaseTook(),
+                ShardSearchFailure.EMPTY_ARRAY,
+                clusters,
+                null
+            )
+        );
+        onRequestEnd(searchRequestContext);
     }
 
     @Override
@@ -478,7 +487,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 );
             }
             onPhaseEnd(searchRequestContext);
-            executePhase(nextPhase);
+            coordinator.executePhase(nextPhase);
         }
     }
 
@@ -488,26 +497,26 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             searchRequestContext.updatePhaseTookMap(getCurrentPhase().getName(), TimeUnit.NANOSECONDS.toMillis(tookInNanos));
         }
         if (currentPhaseHasLifecycle) {
-            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseEnd(this, searchRequestContext);
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseEnd(coordinator, searchRequestContext);
         }
     }
 
     private void onPhaseStart(SearchPhase phase) {
         setCurrentPhase(phase);
         if (currentPhaseHasLifecycle) {
-            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseStart(this);
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseStart(coordinator);
         }
     }
 
     private void onRequestEnd(SearchRequestContext searchRequestContext) {
-        this.searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(this, searchRequestContext);
+        this.searchRequestContext.getSearchRequestOperationsListener().onRequestEnd(coordinator, searchRequestContext);
     }
 
     private void onRequestFailure(SearchRequestContext searchRequestContext) {
-        this.searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(this, searchRequestContext);
+        this.searchRequestContext.getSearchRequestOperationsListener().onRequestFailure(coordinator, searchRequestContext);
     }
 
-    private void executePhase(SearchPhase phase) {
+    void executePhase(SearchPhase phase) {
         Span phaseSpan = tracer.startSpan(SpanCreationContext.server().name("[phase/" + phase.getName() + "]"));
         try (final SpanScope scope = tracer.withSpanInScope(phaseSpan)) {
             onPhaseStart(phase);
@@ -809,7 +818,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     public final void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
         setPhaseResourceUsages();
         if (currentPhaseHasLifecycle) {
-            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(this, cause);
+            this.searchRequestContext.getSearchRequestOperationsListener().onPhaseFailure(coordinator, cause);
         }
         raisePhaseFailure(new SearchPhaseExecutionException(phase.getName(), msg, cause, buildShardFailures()));
     }
@@ -847,9 +856,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
      */
     final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
-        final SearchPhase nextPhase = getNextPhase(results, this);
+        final SearchPhase nextPhase = getNextPhase(results, coordinator);
         if (request instanceof PipelinedRequest && nextPhase != null) {
-            ((PipelinedRequest) request).transformSearchPhaseResults(results, this, this.getName(), nextPhase.getName());
+            ((PipelinedRequest) request).transformSearchPhaseResults(results, coordinator, this.getName(), nextPhase.getName());
         }
         executeNextPhase(this, nextPhase);
     }

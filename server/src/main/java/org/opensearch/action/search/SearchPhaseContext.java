@@ -33,13 +33,8 @@ package org.opensearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.opensearch.action.OriginalIndices;
-import org.opensearch.common.Nullable;
 import org.opensearch.common.annotation.InternalApi;
 import org.opensearch.common.lease.Releasable;
-import org.opensearch.common.util.concurrent.AtomicArray;
-import org.opensearch.search.SearchPhaseResult;
-import org.opensearch.search.SearchShardTarget;
-import org.opensearch.search.internal.InternalSearchResponse;
 import org.opensearch.search.internal.ShardSearchContextId;
 import org.opensearch.search.internal.ShardSearchRequest;
 import org.opensearch.transport.Transport;
@@ -47,12 +42,14 @@ import org.opensearch.transport.Transport;
 import java.util.concurrent.Executor;
 
 /**
- * This class provide contextual state and access to resources across multiple search phases.
+ * This interface provides contextual state and access to resources across multiple search phases.
+ * It combines the {@link SearchCoordinator} role (phase transitions, error routing, response delivery)
+ * with shared resource access (connections, transport, executor).
  *
  * @opensearch.internal
  */
 @InternalApi
-public interface SearchPhaseContext extends Executor {
+public interface SearchPhaseContext extends SearchCoordinator, Executor {
     // TODO maybe we can make this concrete later - for now we just implement this in the base class for all initial phases
 
     /**
@@ -74,38 +71,6 @@ public interface SearchPhaseContext extends Executor {
      * Returns the currently executing search request
      */
     SearchRequest getRequest();
-
-    SearchPhase getCurrentPhase();
-
-    /**
-     * Builds and sends the final search response back to the user.
-     *
-     * @param internalSearchResponse the internal search response
-     * @param queryResults           the results of the query phase
-     */
-    void sendSearchResponse(InternalSearchResponse internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults);
-
-    /**
-     * Notifies the top-level listener of the provided exception
-     */
-    void onFailure(Exception e);
-
-    /**
-     * This method will communicate a fatal phase failure back to the user. In contrast to a shard failure
-     * will this method immediately fail the search request and return the failure to the issuer of the request
-     * @param phase the phase that failed
-     * @param msg an optional message
-     * @param cause the cause of the phase failure
-     */
-    void onPhaseFailure(SearchPhase phase, String msg, Throwable cause);
-
-    /**
-     * This method will record a shard failure for the given shard index. In contrast to a phase failure
-     * ({@link #onPhaseFailure(SearchPhase, String, Throwable)}) this method will immediately return to the user but will record
-     * a shard failure for the given shard index. This should be called if a shard failure happens after we successfully retrieved
-     * a result from that shard in a previous phase.
-     */
-    void onShardFailure(int shardIndex, @Nullable SearchShardTarget shardTarget, Exception e);
 
     /**
      * Returns a connection to the node if connected otherwise and {@link org.opensearch.transport.ConnectTransportException} will be
@@ -140,19 +105,7 @@ public interface SearchPhaseContext extends Executor {
     ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt);
 
     /**
-     * Processes the phase transition from on phase to another. This method handles all errors that happen during the initial run execution
-     * of the next phase. If there are no successful operations in the context when this method is executed the search is aborted and
-     * a response is returned to the user indicating that all shards have failed.
-     */
-    void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase);
-
-    /**
      * Registers a {@link Releasable} that will be closed when the search request finishes or fails.
      */
     void addReleasable(Releasable releasable);
-
-    /**
-     * Set the resource usage info for this phase
-     */
-    void setPhaseResourceUsages();
 }
