@@ -66,6 +66,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.opensearch.action.search.SearchShardTask;
 import org.opensearch.common.annotation.PublicApi;
 import org.opensearch.common.lease.Releasable;
 import org.opensearch.common.lucene.Lucene;
@@ -151,12 +152,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         Executor executor,
         SearchContext searchContext
     ) throws IOException {
-        super(wrapWithExitableDirectoryReader ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable) : reader, executor);
+        super(
+            wrapWithExitableDirectoryReader
+                ? new ExitableDirectoryReader((DirectoryReader) reader, cancellable, cancellable::checkTaskCancelled)
+                : reader,
+            executor
+        );
         setSimilarity(similarity);
         setQueryCache(queryCache);
         setQueryCachingPolicy(queryCachingPolicy);
         this.cancellable = cancellable;
         this.searchContext = searchContext;
+        cancellable.setTaskCancellation(taskCancellationCheck(searchContext));
         // Set the timeout on the IndexSearcher so that Lucene-native timeout-aware components
         // (e.g. TimeLimitingKnnCollectorManager used by AbstractKnnVectorQuery) can enforce
         // the query timeout. Without this, searcher.getTimeout() returns null and KNN vector
@@ -164,6 +171,18 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         if (cancellable != null) {
             setTimeout(cancellable);
         }
+    }
+
+    private static Runnable taskCancellationCheck(SearchContext searchContext) {
+        if (searchContext == null) {
+            return () -> {};
+        }
+        return () -> {
+            SearchShardTask task = searchContext.getTask();
+            if (task != null && task.isCancelled()) {
+                throw new TaskCancelledException("cancelled task with reason: " + task.getReasonCancelled());
+            }
+        };
     }
 
     public void setProfiler(QueryProfiler profiler) {
@@ -630,6 +649,16 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation, QueryTimeout {
 
         private final ArrayList<Runnable> runnables = new ArrayList<>();
+        // The reader may outlive the search in the fielddata cache, so clear() drops this check and the context it holds.
+        private volatile Runnable taskCancellation = () -> {};
+
+        private void setTaskCancellation(Runnable taskCancellation) {
+            this.taskCancellation = Objects.requireNonNull(taskCancellation);
+        }
+
+        private void checkTaskCancelled() {
+            taskCancellation.run();
+        }
 
         private Runnable add(Runnable action) {
             Objects.requireNonNull(action, "cancellation runnable should not be null");
@@ -679,6 +708,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
         public void clear() {
             runnables.clear();
+            taskCancellation = () -> {};
         }
     }
 

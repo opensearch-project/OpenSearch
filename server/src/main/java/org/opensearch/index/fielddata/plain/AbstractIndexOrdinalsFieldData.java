@@ -33,6 +33,7 @@ package org.opensearch.index.fielddata.plain;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.OrdinalMap;
@@ -40,8 +41,11 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
+import org.opensearch.ExceptionsHelper;
 import org.opensearch.OpenSearchException;
+import org.opensearch.common.CheckedSupplier;
 import org.opensearch.core.indices.breaker.CircuitBreakerService;
+import org.opensearch.core.tasks.TaskCancelledException;
 import org.opensearch.index.fielddata.IndexFieldDataCache;
 import org.opensearch.index.fielddata.IndexOrdinalsFieldData;
 import org.opensearch.index.fielddata.LeafOrdinalsFieldData;
@@ -50,6 +54,8 @@ import org.opensearch.index.fielddata.ScriptDocValues;
 import org.opensearch.index.fielddata.ordinals.GlobalOrdinalsBuilder;
 import org.opensearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.opensearch.search.aggregations.support.ValuesSourceType;
+import org.opensearch.search.internal.ExitableDirectoryReader;
+import org.opensearch.search.query.QueryPhase;
 
 import java.io.IOException;
 import java.util.function.Function;
@@ -61,6 +67,9 @@ import java.util.function.Function;
  */
 public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFieldData {
     private static final Logger logger = LogManager.getLogger(AbstractBinaryDVLeafFieldData.class);
+
+    // One reload covers a load stopped for another search; a second such failure is reported, not retried.
+    private static final int MAX_RELOADS = 1;
 
     private final String fieldName;
     private final ValuesSourceType valuesSourceType;
@@ -107,15 +116,11 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
             return AbstractLeafOrdinalsFieldData.empty();
         }
 
-        try {
-            return cache.load(context, this);
-        } catch (Exception e) {
-            if (e instanceof OpenSearchException) {
-                throw (OpenSearchException) e;
-            } else {
-                throw new OpenSearchException(e);
-            }
-        }
+        // A segment load reads terms through the search's own checks, which include the request timeout.
+        return loadShared(
+            () -> cache.<LeafOrdinalsFieldData, IndexOrdinalsFieldData>load(context, this),
+            ExitableDirectoryReader.searchStopCheck(context.reader())
+        );
     }
 
     @Override
@@ -153,20 +158,86 @@ public abstract class AbstractIndexOrdinalsFieldData implements IndexOrdinalsFie
                 throw new RuntimeException(e);
             }
         }
-        try {
-            return cache.load(indexReader, this);
-        } catch (Exception e) {
-            if (e instanceof OpenSearchException) {
-                throw (OpenSearchException) e;
-            } else {
-                throw new OpenSearchException(e);
-            }
-        }
+        // A global build stops only on task cancellation, so a waiting search past its timeout builds again and its
+        // timeout is reported where the query phase handles it.
+        return loadShared(
+            () -> cache.<LeafOrdinalsFieldData, IndexOrdinalsFieldData>load(indexReader, this),
+            ExitableDirectoryReader.taskCancellationCheck(indexReader)
+        );
     }
 
     @Override
     public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return GlobalOrdinalsBuilder.build(indexReader, this, breakerService, logger, scriptFunction);
+        return GlobalOrdinalsBuilder.build(
+            ExitableDirectoryReader.taskCancellationReader(indexReader),
+            this,
+            breakerService,
+            logger,
+            scriptFunction,
+            ExitableDirectoryReader.taskCancellationCheck(indexReader)
+        );
+    }
+
+    /**
+     * Runs a load through the shared cache, and loads once more when it failed only because another search stopped it.
+     *
+     * @param load the cached load
+     * @param stopCheck the checks of this search that the failed load could have run
+     * @return the loaded field data
+     */
+    private <T> T loadShared(CheckedSupplier<T, Exception> load, Runnable stopCheck) {
+        Exception previous = null;
+        for (int attempt = 1;; attempt++) {
+            try {
+                return load.get();
+            } catch (Exception e) {
+                if (stoppedForAnotherSearch(e, stopCheck) == false) {
+                    throw asOpenSearchException(e);
+                }
+                if (attempt > MAX_RELOADS) {
+                    final OpenSearchException failure = new OpenSearchException(
+                        "[{}] fielddata load was stopped by other searches {} times",
+                        e,
+                        fieldName,
+                        attempt
+                    );
+                    if (previous != null) {
+                        failure.addSuppressed(previous);
+                    }
+                    throw failure;
+                }
+                logger.debug(new ParameterizedMessage("[{}] loading again after another search stopped the shared load", fieldName), e);
+                previous = e;
+            }
+        }
+    }
+
+    /**
+     * Returns whether a cached load failed only because another search stopped it, so this search can load again.
+     * Concurrent searches share one cached load, and a search that waits on it gets the failure of the search that
+     * ran it.
+     *
+     * @throws RuntimeException this search's own stop exception, with the load's failure suppressed, when this search
+     *         is stopped too
+     */
+    private static boolean stoppedForAnotherSearch(Exception e, Runnable searchStopCheck) {
+        final Throwable stop = ExceptionsHelper.unwrap(e, TaskCancelledException.class, QueryPhase.TimeExceededException.class);
+        if (stop == null) {
+            return false;
+        }
+        try {
+            searchStopCheck.run();
+        } catch (RuntimeException own) {
+            if (own != stop) {
+                own.addSuppressed(stop);
+            }
+            throw own;
+        }
+        return true;
+    }
+
+    private static OpenSearchException asOpenSearchException(Exception e) {
+        return e instanceof OpenSearchException ose ? ose : new OpenSearchException(e);
     }
 
     @Override

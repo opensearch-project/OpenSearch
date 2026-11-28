@@ -60,7 +60,7 @@ import java.io.IOException;
  *
  * @opensearch.internal
  */
-class ExitableDirectoryReader extends FilterDirectoryReader {
+public class ExitableDirectoryReader extends FilterDirectoryReader {
 
     /**
      * Used to check if query cancellation is actually enabled
@@ -81,13 +81,91 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
         void checkCancelled();
     }
 
+    private final Runnable taskCancellation;
+    private final Runnable searchStop;
+
     ExitableDirectoryReader(DirectoryReader in, QueryCancellation queryCancellation) throws IOException {
+        this(in, queryCancellation, () -> {});
+    }
+
+    ExitableDirectoryReader(DirectoryReader in, QueryCancellation queryCancellation, Runnable taskCancellation) throws IOException {
+        this(in, queryCancellation, taskCancellation, searchStop(queryCancellation, taskCancellation));
+    }
+
+    private ExitableDirectoryReader(DirectoryReader in, QueryCancellation queryCancellation, Runnable taskCancellation, Runnable searchStop)
+        throws IOException {
         super(in, new SubReaderWrapper() {
             @Override
             public LeafReader wrap(LeafReader reader) {
-                return new ExitableLeafReader(reader, queryCancellation);
+                return new ExitableLeafReader(reader, queryCancellation, searchStop);
             }
         });
+        this.taskCancellation = taskCancellation;
+        this.searchStop = searchStop;
+    }
+
+    private static Runnable searchStop(QueryCancellation queryCancellation, Runnable taskCancellation) {
+        return () -> {
+            taskCancellation.run();
+            if (queryCancellation.isEnabled()) {
+                queryCancellation.checkCancelled();
+            }
+        };
+    }
+
+    /**
+     * Returns a check that throws only when the search task that owns the reader is cancelled.
+     * It ignores the request timeout, so one request's time limit does not stop work that other searches reuse,
+     * such as a cached build.
+     *
+     * @param reader the top-level reader of a search; any other reader gets a check that does nothing
+     * @return the task cancellation check
+     */
+    public static Runnable taskCancellationCheck(IndexReader reader) {
+        return reader instanceof ExitableDirectoryReader exitable ? exitable.taskCancellation : () -> {};
+    }
+
+    /**
+     * Returns a reader over the same segments whose wrapped terms and postings check only task cancellation.
+     * A cached build loads segments through it, so the request timeout does not stop work that other searches reuse.
+     *
+     * @param reader the top-level reader of a search; any other reader is returned as it is
+     * @return the reader to build cached data with
+     * @throws IOException if the segments cannot be wrapped
+     */
+    public static DirectoryReader taskCancellationReader(DirectoryReader reader) throws IOException {
+        if (reader instanceof ExitableDirectoryReader exitable) {
+            final Runnable taskCancellation = exitable.taskCancellation;
+            return new ExitableDirectoryReader(exitable.in, new QueryCancellation() {
+                @Override
+                public boolean isEnabled() {
+                    return true;
+                }
+
+                @Override
+                public void checkCancelled() {
+                    taskCancellation.run();
+                }
+            }, taskCancellation);
+        }
+        return reader;
+    }
+
+    /**
+     * Returns a check that throws when the search that owns the reader is stopped by any of its checks: task
+     * cancellation, or the checks of its wrapped terms, postings and points, which include the request timeout.
+     *
+     * @param reader a top-level or leaf reader of a search; any other reader gets a check that does nothing
+     * @return the search stop check
+     */
+    public static Runnable searchStopCheck(IndexReader reader) {
+        if (reader instanceof ExitableDirectoryReader exitable) {
+            return exitable.searchStop;
+        }
+        if (reader instanceof ExitableLeafReader exitable) {
+            return exitable.searchStop;
+        }
+        return () -> {};
     }
 
     @Override
@@ -106,10 +184,12 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
     static class ExitableLeafReader extends SequentialStoredFieldsLeafReader {
 
         private final QueryCancellation queryCancellation;
+        private final Runnable searchStop;
 
-        private ExitableLeafReader(LeafReader leafReader, QueryCancellation queryCancellation) {
+        private ExitableLeafReader(LeafReader leafReader, QueryCancellation queryCancellation, Runnable searchStop) {
             super(leafReader);
             this.queryCancellation = queryCancellation;
+            this.searchStop = searchStop;
         }
 
         @Override
