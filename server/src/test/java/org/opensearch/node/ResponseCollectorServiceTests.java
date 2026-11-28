@@ -162,4 +162,42 @@ public class ResponseCollectorServiceTests extends OpenSearchTestCase {
         assertTrue(nodeStats.containsKey("node1"));
         assertFalse(nodeStats.containsKey("node2"));
     }
+
+    public void testNodeRankFormulaInvariants() {
+        // With no queue or outstanding requests, rank is response time.
+        ResponseCollectorService.ComputedNodeStats stats = createStats(0, 150, 100);
+        assertThat(stats.rank(0), equalTo(150.0));
+
+        stats = createStats(0, 20, 19);
+        assertThat(stats.rank(0), equalTo(20.0));
+
+        // Slower service time must increase rank when there is work waiting.
+        ResponseCollectorService.ComputedNodeStats first = createStats(0, 150, 100);
+        ResponseCollectorService.ComputedNodeStats second = createStats(0, 150, 120);
+        assertTrue(first.rank(1) < second.rank(1));
+
+        // Slower response time must increase rank.
+        first = createStats(2, 150, 100);
+        second = createStats(2, 200, 100);
+        assertTrue(first.rank(1) < second.rank(1));
+
+        // More queued or outstanding requests must increase rank.
+        first = createStats(2, 150, 100);
+        second = createStats(3, 150, 100);
+        assertTrue(first.rank(1) < second.rank(1));
+
+        first = createStats(2, 150, 100);
+        second = createStats(2, 150, 100);
+        assertTrue(first.rank(0) < second.rank(1));
+    }
+
+    private ResponseCollectorService.ComputedNodeStats createStats(int queueSize, int responseTimeMillis, int serviceTimeMillis) {
+        return new ResponseCollectorService.ComputedNodeStats(
+            "node0",
+            5,
+            queueSize,
+            1_000_000.0 * responseTimeMillis,
+            1_000_000.0 * serviceTimeMillis
+        );
+    }
 }
