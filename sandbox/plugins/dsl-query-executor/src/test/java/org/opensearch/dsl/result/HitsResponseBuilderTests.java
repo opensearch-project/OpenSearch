@@ -184,6 +184,27 @@ public class HitsResponseBuilderTests extends OpenSearchTestCase {
         assertEquals(city, source.get("city"));
     }
 
+    public void testTimestampColumnsUseRfc3339InReconstructedSource() throws Exception {
+        Map<String, String> mapping = new LinkedHashMap<>();
+        mapping.put("time", "TIMESTAMP");
+        mapping.put("observedTimestamp", "TIMESTAMP_NANOS");
+        mapping.put("calendarDay", "DATE");
+        mapping.put("message", "VARCHAR");
+
+        ExecutionResult result = new ExecutionResult(
+            hitsPlan(mapping),
+            List.<Object[]>of(
+                new Object[] { "2026-10-19 14:09:27.1", "2026-10-19 14:09:27.123456789", "2026-10-19", "2026-10-19 14:09:27" }
+            )
+        );
+
+        Map<String, Object> source = HitsResponseBuilder.build(List.of(result), request(10), null).getHits()[0].getSourceAsMap();
+        assertEquals("2026-10-19T14:09:27.1Z", source.get("time"));
+        assertEquals("2026-10-19T14:09:27.123456789Z", source.get("observedTimestamp"));
+        assertEquals("2026-10-19", source.get("calendarDay"));
+        assertEquals("2026-10-19 14:09:27", source.get("message"));
+    }
+
     /** Null cells are omitted: absent vs explicit null is indistinguishable after the columnar round trip. */
     public void testNullCellsAreOmitted() throws Exception {
         ExecutionResult result = new ExecutionResult(hitsPlan(PRODUCTS_MAPPING), List.<Object[]>of(new Object[] { "laptop", null, null }));
