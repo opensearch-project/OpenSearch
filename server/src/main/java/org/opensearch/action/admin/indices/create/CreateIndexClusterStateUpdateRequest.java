@@ -64,6 +64,10 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     private String mappings = "{}";
 
+    private String mappingsToCopy;
+
+    private String mappingsSourceIndex;
+
     private final Set<Alias> aliases = new HashSet<>();
 
     private Context context;
@@ -85,6 +89,12 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public CreateIndexClusterStateUpdateRequest mappings(String mappings) {
         this.mappings = mappings;
+        return this;
+    }
+
+    public CreateIndexClusterStateUpdateRequest mappingsToCopy(String sourceIndex, String mappings) {
+        this.mappingsSourceIndex = sourceIndex;
+        this.mappingsToCopy = mappings;
         return this;
     }
 
@@ -132,6 +142,14 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
 
     public String mappings() {
         return mappings;
+    }
+
+    public String mappingsToCopy() {
+        return mappingsToCopy;
+    }
+
+    public String mappingsSourceIndex() {
+        return mappingsSourceIndex;
     }
 
     public Set<Alias> aliases() {
@@ -207,6 +225,9 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
             + resizeType
             + ", copySettings="
             + copySettings
+            + ", mappingsSourceIndex='"
+            + mappingsSourceIndex
+            + '\''
             + ", settings="
             + settings
             + ", aliases="

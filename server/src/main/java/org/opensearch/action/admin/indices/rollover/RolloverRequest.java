@@ -31,6 +31,7 @@
 
 package org.opensearch.action.admin.indices.rollover;
 
+import org.opensearch.Version;
 import org.opensearch.action.ActionRequestValidationException;
 import org.opensearch.action.IndicesRequest;
 import org.opensearch.action.admin.indices.create.CreateIndexRequest;
@@ -68,6 +69,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     private static final ObjectParser<Map<String, Condition<?>>, Void> CONDITION_PARSER = new ObjectParser<>("conditions");
 
     private static final ParseField CONDITIONS = new ParseField("conditions");
+    private static final ParseField COPY_MAPPINGS = new ParseField("copy_mappings");
     private static final ParseField MAX_AGE_CONDITION = new ParseField(MaxAgeCondition.NAME);
     private static final ParseField MAX_DOCS_CONDITION = new ParseField(MaxDocsCondition.NAME);
     private static final ParseField MAX_SIZE_CONDITION = new ParseField(MaxSizeCondition.NAME);
@@ -112,11 +114,13 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             CreateIndexRequest.ALIASES,
             ObjectParser.ValueType.OBJECT
         );
+        PARSER.declareBoolean(RolloverRequest::copyMappings, COPY_MAPPINGS);
     }
 
     private String rolloverTarget;
     private String newIndexName;
     private boolean dryRun;
+    private Boolean copyMappings;
     private final Map<String, Condition<?>> conditions = new HashMap<>(2);
     // the index name "_na_" is never read back, what matters are settings, mappings and aliases
     private CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
@@ -132,6 +136,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             this.conditions.put(condition.name, condition);
         }
         createIndexRequest = new CreateIndexRequest(in);
+        if (in.getVersion().onOrAfter(Version.V_3_11_0)) {
+            copyMappings = in.readOptionalBoolean();
+        }
     }
 
     RolloverRequest() {}
@@ -152,6 +159,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (copyMappings != null && out.getVersion().before(Version.V_3_11_0)) {
+            throw new IllegalStateException("copy_mappings requires nodes on or after version [3.11.0]");
+        }
         super.writeTo(out);
         out.writeString(rolloverTarget);
         out.writeOptionalString(newIndexName);
@@ -163,6 +173,9 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             }
         }
         createIndexRequest.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_3_11_0)) {
+            out.writeOptionalBoolean(copyMappings);
+        }
     }
 
     @Override
@@ -243,6 +256,27 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
 
     public boolean isDryRun() {
         return dryRun;
+    }
+
+    /**
+     * Sets whether to copy the current write index's mappings, overriding the cluster setting and index-type default.
+     */
+    public void copyMappings(boolean copyMappings) {
+        this.copyMappings = copyMappings;
+    }
+
+    /**
+     * Returns whether mapping copy was explicitly enabled.
+     */
+    public boolean isCopyMappings() {
+        return Boolean.TRUE.equals(copyMappings);
+    }
+
+    /**
+     * Returns the explicitly requested mapping-copy behavior, or {@code null} when omitted.
+     */
+    public Boolean getCopyMappings() {
+        return copyMappings;
     }
 
     public Map<String, Condition<?>> getConditions() {

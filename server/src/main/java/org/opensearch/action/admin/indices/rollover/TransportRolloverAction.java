@@ -157,6 +157,7 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
             rolloverRequest.getRolloverTarget(),
             rolloverRequest.getNewIndexName(),
             rolloverRequest.getCreateIndexRequest(),
+            rolloverRequest.getCopyMappings(),
             Collections.emptyList(),
             true,
             true
@@ -200,6 +201,7 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
                                     rolloverRequest.getRolloverTarget(),
                                     rolloverRequest.getNewIndexName(),
                                     rolloverRequest.getCreateIndexRequest(),
+                                    rolloverRequest.getCopyMappings(),
                                     metConditions,
                                     false,
                                     false
@@ -270,6 +272,7 @@ public class TransportRolloverAction extends TransportClusterManagerNodeAction<R
                 rolloverRequest.getRolloverTarget(),
                 rolloverRequest.getNewIndexName(),
                 rolloverRequest.getCreateIndexRequest(),
+                rolloverRequest.getCopyMappings(),
                 Collections.emptyList(),
                 true,
                 true
