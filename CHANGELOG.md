@@ -30,7 +30,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - Reject out-of-range WLM node threshold updates at validation time ([#22678](https://github.com/opensearch-project/OpenSearch/pull/22678))
 - Add query_string nesting depth limit to prevent StackOverflow ([#22477](https://github.com/opensearch-project/OpenSearch/pull/22477))
 - Run the Eclipse formatter when spotlessJavaCheck runs via precommit/check/build ([#23242](https://github.com/opensearch-project/OpenSearch/pull/23242))
-- Stop slow-log text being parsed as log4j pattern ([#23766](https://github.com/opensearch-project/OpenSearch/pull/23766))
 
 ### Security
 - Block ptrace and process memory access syscalls in the system call filter ([#23491](https://github.com/opensearch-project/OpenSearch/pull/23491))
