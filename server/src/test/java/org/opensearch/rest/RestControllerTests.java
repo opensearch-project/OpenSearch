@@ -66,6 +66,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -246,6 +247,186 @@ public class RestControllerTests extends OpenSearchTestCase {
         assertTrue(channel.getSendResponseCalled());
     }
 
+    public void testDeclaredPathParameterWithGlobalAndIndexedRoutes() {
+        RestParameter<String> index = RestParameter.simpleString("index", RestParameter.Property.Path, RestParameter.Property.Required);
+        List<String> requestedIndices = new ArrayList<>();
+        restController.registerHandler(new BaseRestHandler() {
+            @Override
+            public List<Route> routes() {
+                return List.of(
+                    new Route(RestRequest.Method.GET, "/_search"),
+                    new Route(RestRequest.Method.GET, "/{index}/_search", List.of(index))
+                );
+            }
+
+            @Override
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                requestedIndices.add(index.get(request));
+                return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, ""));
+            }
+
+            @Override
+            public String getName() {
+                return "test_optional_index_route";
+            }
+        });
+
+        RestRequest globalRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/_search").build();
+        AssertingChannel globalChannel = new AssertingChannel(globalRequest, false, RestStatus.OK);
+        ThreadContext threadContext = client.threadPool().getThreadContext();
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            restController.dispatchRequest(globalRequest, globalChannel, threadContext);
+        }
+        assertTrue(globalChannel.getSendResponseCalled());
+        assertEquals(Collections.singletonList(null), requestedIndices);
+
+        RestRequest indexedRequest = new FakeRestRequest.Builder(xContentRegistry()).withPath("/logs/_search").build();
+        AssertingChannel indexedChannel = new AssertingChannel(indexedRequest, false, RestStatus.OK);
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            restController.dispatchRequest(indexedRequest, indexedChannel, threadContext);
+        }
+        assertTrue(indexedChannel.getSendResponseCalled());
+        assertEquals(Arrays.asList(null, "logs"), requestedIndices);
+    }
+
+    public void testRouteSpecificParameters() {
+        var id = RestParameter.simpleString("id", RestParameter.Property.Required, RestParameter.Property.Path);
+        var revision = RestParameter.intParam("revision", RestParameter.Property.Required);
+        var consumed = new ArrayList<String>();
+        BaseRestHandler handler = new BaseRestHandler() {
+            @Override
+            public List<Route> routes() {
+                return List.of(
+                    new Route(RestRequest.Method.POST, "/detectors"),
+                    new Route(RestRequest.Method.PUT, "/detectors/{id}", List.of(id, revision)),
+                    new Route(RestRequest.Method.POST, "/detectors/{id}/_update", List.of(id, revision)),
+                    new Route(RestRequest.Method.PUT, "/detectors", List.of(revision))
+                );
+            }
+
+            @Override
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                consumed.add(request.param(id));
+                request.param(revision);
+                return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, ""));
+            }
+
+            @Override
+            public String getName() {
+                return "route_specific_parameters";
+            }
+        };
+        // The metadata is also available without a live request, for API specification checks.
+        assertEquals(List.of(), handler.routes().get(0).parameters());
+        assertEquals(List.of(id, revision), handler.routes().get(1).parameters());
+        restController.registerHandler(new RestHandler.Wrapper(new BaseRestHandler.Wrapper(handler)));
+        ThreadContext context = client.threadPool().getThreadContext();
+        for (var route : handler.routes()) {
+            boolean required = route.getMethod() == RestRequest.Method.PUT || route.getPath().contains("{id}");
+            for (boolean supplyRevision : List.of(false, true)) {
+                RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(route.getMethod())
+                    .withPath(route.getPath().replace("{id}", "detector-1"))
+                    .withParams(new HashMap<>(supplyRevision ? Map.of("revision", "1") : Map.of()))
+                    .build();
+                RestStatus status = required && supplyRevision == false ? RestStatus.BAD_REQUEST : RestStatus.OK;
+                AssertingChannel channel = new AssertingChannel(request, true, status);
+                int before = consumed.size();
+                try (ThreadContext.StoredContext ignored = context.stashContext()) {
+                    restController.dispatchRequest(request, channel, context);
+                }
+                assertTrue(channel.getSendResponseCalled());
+                assertEquals(before + (status == RestStatus.OK ? 1 : 0), consumed.size());
+                if (status == RestStatus.BAD_REQUEST) {
+                    assertThat(
+                        channel.getRestResponse().content().utf8ToString(),
+                        containsString("missing required parameters: [revision]")
+                    );
+                }
+            }
+        }
+    }
+
+    public void testDeprecatedRouteUsesItsOwnParameterDeclarations() {
+        var revision = RestParameter.intParam("revision", RestParameter.Property.Required);
+        BaseRestHandler handler = new BaseRestHandler() {
+            @Override
+            public List<DeprecatedRoute> deprecatedRoutes() {
+                return List.of(new DeprecatedRoute(RestRequest.Method.PUT, "/legacy/{id}", "Use the new route", List.of(revision)));
+            }
+
+            @Override
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                fail("missing required parameter should be rejected before prepareRequest");
+                return channel -> {};
+            }
+
+            @Override
+            public String getName() {
+                return "deprecated_route_parameters";
+            }
+        };
+        restController.registerHandler(handler);
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.PUT)
+            .withPath("/legacy/1")
+            .build();
+        AssertingChannel channel = new AssertingChannel(request, true, RestStatus.BAD_REQUEST);
+        ThreadContext context = client.threadPool().getThreadContext();
+        try (ThreadContext.StoredContext ignored = context.stashContext()) {
+            restController.dispatchRequest(request, channel, context);
+        }
+        assertTrue(channel.getSendResponseCalled());
+        assertThat(channel.getRestResponse().content().utf8ToString(), containsString("missing required parameters: [revision]"));
+        assertWarnings("Use the new route");
+    }
+
+    public void testReplacedRoutesPreserveParameterDeclarations() {
+        var revision = RestParameter.intParam("revision", RestParameter.Property.Required);
+        BaseRestHandler handler = new BaseRestHandler() {
+            @Override
+            public List<ReplacedRoute> replacedRoutes() {
+                return RestHandler.replaceRoutes(
+                    List.of(new Route(RestRequest.Method.GET, "/item", List.of(revision), Route.Property.ADMINISTRATIVE)),
+                    "/new",
+                    "/old"
+                );
+            }
+
+            @Override
+            protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+                assertEquals(List.of(revision), request.matchedRoute().parameters());
+                assertEquals(Integer.valueOf(1), request.param(revision));
+                return channel -> channel.sendResponse(new BytesRestResponse(RestStatus.OK, ""));
+            }
+
+            @Override
+            public String getName() {
+                return "replaced_route_parameters";
+            }
+        };
+        assertTrue(handler.replacedRoutes().get(0).hasProperty(RestHandler.Route.Property.ADMINISTRATIVE));
+        restController.registerHandler(new RestHandler.Wrapper(new BaseRestHandler.Wrapper(handler)));
+        ThreadContext context = client.threadPool().getThreadContext();
+        for (String path : List.of("/new/item", "/old/item")) {
+            for (boolean supplied : List.of(false, true)) {
+                RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path)
+                    .withParams(new HashMap<>(supplied ? Map.of("revision", "1") : Map.of()))
+                    .build();
+                AssertingChannel channel = new AssertingChannel(request, true, supplied ? RestStatus.OK : RestStatus.BAD_REQUEST);
+                try (ThreadContext.StoredContext ignored = context.stashContext()) {
+                    restController.dispatchRequest(request, channel, context);
+                }
+                assertTrue(channel.getSendResponseCalled());
+                if (supplied == false) {
+                    assertThat(
+                        channel.getRestResponse().content().utf8ToString(),
+                        containsString("missing required parameters: [revision]")
+                    );
+                }
+            }
+        }
+        assertWarnings("[GET /old/item] is deprecated! Use [GET /new/item] instead.");
+    }
+
     public void testRegisterAsDeprecatedHandler() {
         RestController controller = mock(RestController.class);
 
@@ -259,7 +440,10 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         controller.registerAsDeprecatedHandler(method, path, handler, deprecationMessage);
 
-        verify(controller).registerHandler(eq(method), eq(path), any(DeprecationRestHandler.class));
+        verify(controller).registerHandler(
+            eq(new RestHandler.DeprecatedRoute(method, path, deprecationMessage)),
+            any(DeprecationRestHandler.class)
+        );
     }
 
     public void testRegisterWithDeprecatedHandler() {
@@ -286,8 +470,11 @@ public class RestControllerTests extends OpenSearchTestCase {
 
         controller.registerWithDeprecatedHandler(method, path, handler, deprecatedMethod, deprecatedPath);
 
-        verify(controller).registerHandler(method, path, handler);
-        verify(controller).registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage);
+        verify(controller).registerHandler(eq(new RestHandler.ReplacedRoute(method, path, deprecatedMethod, deprecatedPath)), eq(handler));
+        verify(controller).registerHandler(
+            eq(new RestHandler.DeprecatedRoute(deprecatedMethod, deprecatedPath, deprecationMessage)),
+            any(DeprecationRestHandler.class)
+        );
     }
 
     public void testRegisterSecondMethodWithDifferentNamedWildcard() {

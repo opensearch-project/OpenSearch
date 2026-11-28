@@ -44,13 +44,13 @@ import java.util.Set;
 final class RestMethodHandlers implements MethodHandlers {
 
     private final String path;
-    private final Map<RestRequest.Method, RestHandler> methodHandlers;
+    private final Map<RestRequest.Method, RegisteredRoute> methodHandlers;
 
     RestMethodHandlers(String path, RestHandler handler, RestRequest.Method... methods) {
         this.path = path;
         this.methodHandlers = new HashMap<>(methods.length);
         for (RestRequest.Method method : methods) {
-            methodHandlers.put(method, handler);
+            methodHandlers.put(method, new RegisteredRoute(new RestHandler.Route(method, path), handler));
         }
     }
 
@@ -60,12 +60,30 @@ final class RestMethodHandlers implements MethodHandlers {
      */
     public RestMethodHandlers addMethods(RestHandler handler, RestRequest.Method... methods) {
         for (RestRequest.Method method : methods) {
-            RestHandler existing = methodHandlers.putIfAbsent(method, handler);
-            if (existing != null) {
-                throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + method);
-            }
+            addRoute(new RestHandler.Route(method, path), handler);
         }
         return this;
+    }
+
+    RestMethodHandlers(RestHandler.Route route, RestHandler handler) {
+        this.path = route.getPath();
+        this.methodHandlers = new HashMap<>();
+        addRoute(route, handler);
+    }
+
+    RestMethodHandlers addRoute(RestHandler.Route route, RestHandler handler) {
+        if (methodHandlers.putIfAbsent(route.getMethod(), new RegisteredRoute(route, handler)) != null) {
+            throw new IllegalArgumentException("Cannot replace existing handler for [" + path + "] for method: " + route.getMethod());
+        }
+        return this;
+    }
+
+    RestHandler.Route getRoute(RestRequest.Method method) {
+        RegisteredRoute registered = methodHandlers.get(method);
+        return registered == null ? null : registered.route();
+    }
+
+    private record RegisteredRoute(RestHandler.Route route, RestHandler handler) {
     }
 
     /**
@@ -73,7 +91,8 @@ final class RestMethodHandlers implements MethodHandlers {
      */
     @Nullable
     public RestHandler getHandler(RestRequest.Method method) {
-        return methodHandlers.get(method);
+        RegisteredRoute registered = methodHandlers.get(method);
+        return registered == null ? null : registered.handler();
     }
 
     /**

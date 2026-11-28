@@ -172,9 +172,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param deprecationMessage The message to log and send as a header in the response
      */
     protected void registerAsDeprecatedHandler(RestRequest.Method method, String path, RestHandler handler, String deprecationMessage) {
-        assert (handler instanceof DeprecationRestHandler) == false;
+        registerAsDeprecatedHandler(new RestHandler.DeprecatedRoute(method, path, deprecationMessage), handler);
+    }
 
-        registerHandler(method, path, new DeprecationRestHandler(handler, deprecationMessage, deprecationLogger));
+    private void registerAsDeprecatedHandler(RestHandler.DeprecatedRoute route, RestHandler handler) {
+        assert (handler instanceof DeprecationRestHandler) == false;
+        registerHandler(route, new DeprecationRestHandler(handler, route.getDeprecationMessage(), deprecationLogger));
     }
 
     /**
@@ -208,19 +211,24 @@ public class RestController implements HttpServerTransport.Dispatcher {
         RestRequest.Method deprecatedMethod,
         String deprecatedPath
     ) {
-        // e.g., [POST /_optimize] is deprecated! Use [POST /_forcemerge] instead.
-        final String deprecationMessage = "["
-            + deprecatedMethod.name()
-            + " "
-            + deprecatedPath
-            + "] is deprecated! Use ["
-            + method.name()
-            + " "
-            + path
-            + "] instead.";
+        registerWithDeprecatedHandler(new RestHandler.ReplacedRoute(method, path, deprecatedMethod, deprecatedPath), handler);
+    }
 
-        registerHandler(method, path, handler);
-        registerAsDeprecatedHandler(deprecatedMethod, deprecatedPath, handler, deprecationMessage);
+    private void registerWithDeprecatedHandler(RestHandler.ReplacedRoute route, RestHandler handler) {
+        final String deprecationMessage = "["
+            + route.getDeprecatedMethod().name()
+            + " "
+            + route.getDeprecatedPath()
+            + "] is deprecated! Use ["
+            + route.getMethod().name()
+            + " "
+            + route.getPath()
+            + "] instead.";
+        registerHandler(route, handler);
+        registerAsDeprecatedHandler(
+            new RestHandler.DeprecatedRoute(route.getDeprecatedMethod(), route.getDeprecatedPath(), deprecationMessage, route.parameters()),
+            handler
+        );
     }
 
     /**
@@ -231,17 +239,25 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * @param method GET, POST, etc.
      */
     protected void registerHandler(RestRequest.Method method, String path, RestHandler handler) {
+        registerHandler(new RestHandler.Route(method, path), handler);
+    }
+
+    void registerHandler(RestHandler.Route route, RestHandler handler) {
         if (handler instanceof BaseRestHandler baseRestHandler) {
             usageService.addRestHandler(baseRestHandler);
         }
-        registerHandlerNoWrap(method, path, handlerWrapper.apply(handler));
+        registerHandlerNoWrap(route, handlerWrapper.apply(handler));
     }
 
     private void registerHandlerNoWrap(RestRequest.Method method, String path, RestHandler maybeWrappedHandler) {
+        registerHandlerNoWrap(new RestHandler.Route(method, path), maybeWrappedHandler);
+    }
+
+    private void registerHandlerNoWrap(RestHandler.Route route, RestHandler maybeWrappedHandler) {
         handlers.insertOrUpdate(
-            path,
-            new RestMethodHandlers(path, maybeWrappedHandler, method),
-            (mHandlers, newMHandler) -> mHandlers.addMethods(maybeWrappedHandler, method)
+            route.getPath(),
+            new RestMethodHandlers(route, maybeWrappedHandler),
+            (mHandlers, newMHandler) -> mHandlers.addRoute(route, maybeWrappedHandler)
         );
     }
 
@@ -250,19 +266,9 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * and {@code path} combinations.
      */
     public void registerHandler(final RestHandler restHandler) {
-        restHandler.routes().forEach(route -> registerHandler(route.getMethod(), route.getPath(), restHandler));
-        restHandler.deprecatedRoutes()
-            .forEach(route -> registerAsDeprecatedHandler(route.getMethod(), route.getPath(), restHandler, route.getDeprecationMessage()));
-        restHandler.replacedRoutes()
-            .forEach(
-                route -> registerWithDeprecatedHandler(
-                    route.getMethod(),
-                    route.getPath(),
-                    restHandler,
-                    route.getDeprecatedMethod(),
-                    route.getDeprecatedPath()
-                )
-            );
+        restHandler.routes().forEach(route -> registerHandler(route, restHandler));
+        restHandler.deprecatedRoutes().forEach(route -> registerAsDeprecatedHandler(route, restHandler));
+        restHandler.replacedRoutes().forEach(route -> registerWithDeprecatedHandler(route, restHandler));
     }
 
     @Override
@@ -478,6 +484,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                         return;
                     }
                 } else {
+                    request.setMatchedRoute(handlers.getRoute(requestMethod));
                     dispatchRequest(request, channel, handler);
                     return;
                 }
