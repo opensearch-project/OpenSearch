@@ -225,6 +225,40 @@ public final class AnalyticsSettings {
     );
 
     /**
+     * Compute a sub-plan that the query evaluates MORE THAN ONCE only once, feeding every consumer from that
+     * one result.
+     *
+     * <p>This is a CORRECTNESS fix before it is an optimization. A query that inlines the same aggregate
+     * subquery twice — TPC-H q15 joins {@code revenue0} and then filters
+     * {@code where total_revenue = [ … max(total_revenue) ]} over the same {@code revenue0}, because the
+     * spec's VIEW has no PPL equivalent — aggregates each copy independently. {@code SUM(double)} is not
+     * associative, so the copies' partial sums merge in different orders, disagree in the last bits, and the
+     * exact {@code =} matches nothing: q15 then returns 1 row or 0 rows at random (measured 11/20 correct
+     * without this, 20/20 with it). Sharing one evaluation makes both consumers read identical rows, so the
+     * comparison holds whatever order the sum ran in — and halves the work.
+     *
+     * <p><b>Not an MPP setting</b>, despite living alongside them historically: sharing is done by
+     * {@code DAGBuilder} for every analytics query and is deliberately NOT gated on {@link #MPP_ENABLED} — the
+     * wrong answer it prevents happens coordinator-centric too. In fact it applies MORE often with distribution
+     * off, because a distributed plan can put the two references in different fragments, where sharing does not
+     * currently reach.
+     *
+     * <p>Default {@code true}, and it is a KILL SWITCH rather than an opt-in feature flag: the same posture
+     * Spark takes for the equivalent transform ({@code spark.sql.exchange.reuse}, internal, default true since
+     * 2.0.0). {@code SharedSubplanReuse} keeps sharing narrow — only a COMPLETE aggregate subtree with no
+     * shuffle/broadcast/late-materialization boundary — and {@code DAGBuilder} rebuilds without sub-plan reuse when the
+     * consumer would not buffer the shared input. What no internal fallback can catch is a WRONG digest match
+     * (two subtrees that normalize equal without being equivalent), which would be a silent wrong answer; set
+     * this to {@code false} to revert that class of incident without a rollback.
+     */
+    public static final Setting<Boolean> SUBPLAN_REUSE_ENABLED = Setting.boolSetting(
+        "analytics.planner.subplan_reuse.enabled",
+        true,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * Master switch for hash-shuffle disk spill. When {@code true}, a query whose per-query shuffle
      * footprint would exceed the on-heap budget spills its oldest buffered Arrow-IPC chunks to disk
      * (see {@code ShuffleBufferManager.spillOldest}) instead of failing fast with
@@ -363,6 +397,7 @@ public final class AnalyticsSettings {
     /** All engine-level settings registered by {@code AnalyticsPlugin.getSettings()}. */
     public static final List<Setting<?>> ALL_SETTINGS = List.of(
         MPP_ENABLED,
+        SUBPLAN_REUSE_ENABLED,
         BROADCAST_MAX_BYTES,
         MPP_SHUFFLE_PARTITIONS,
         MPP_SHUFFLE_RECV_TIMEOUT,
