@@ -57,6 +57,7 @@ import org.opensearch.core.indices.breaker.CircuitBreakerStats;
 import org.opensearch.core.rest.RestStatus;
 import org.opensearch.core.xcontent.MediaTypeRegistry;
 import org.opensearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.opensearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.opensearch.search.SearchService;
 import org.opensearch.search.sort.SortOrder;
 import org.opensearch.test.OpenSearchIntegTestCase.ClusterScope;
@@ -83,9 +84,11 @@ import static org.opensearch.search.aggregations.AggregationBuilders.terms;
 import static org.opensearch.test.OpenSearchIntegTestCase.Scope.TEST;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertAcked;
 import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertFailures;
+import static org.opensearch.test.hamcrest.OpenSearchAssertions.assertNoFailures;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -128,7 +131,8 @@ public class CircuitBreakerServiceIT extends ParameterizedStaticSettingsOpenSear
             HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_OVERHEAD_SETTING,
             HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_LIMIT_SETTING,
             HierarchyCircuitBreakerService.IN_FLIGHT_REQUESTS_CIRCUIT_BREAKER_OVERHEAD_SETTING,
-            HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING
+            HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING,
+            IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_ENABLED_SETTING
         ).forEach(s -> resetSettings.putNull(s.getKey()));
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
     }
@@ -264,6 +268,92 @@ public class CircuitBreakerServiceIT extends ParameterizedStaticSettingsOpenSear
             breaks += breakerStats.getTrippedCount();
         }
         assertThat(breaks, greaterThanOrEqualTo(1));
+    }
+
+    public void testFieldDataCacheDisabledReleasesBreaker() throws Exception {
+        if (noopBreakerUsed()) {
+            logger.info("--> noop breakers used, skipping test");
+            return;
+        }
+        final Client client = client();
+        assertAcked(prepareCreate("fdtest").setMapping("test", "type=text,fielddata=true"));
+        ensureGreen("fdtest");
+        int docCount = scaledRandomIntBetween(50, 200);
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        for (long id = 0; id < docCount; id++) {
+            reqs.add(client.prepareIndex("fdtest").setId(Long.toString(id)).setSource("test", "value" + id));
+        }
+        indexRandom(true, false, true, reqs);
+        // sorting on a text field loads its per-segment field data
+        SearchRequestBuilder search = client.prepareSearch("fdtest").setQuery(matchAllQuery()).addSort("test", SortOrder.DESC);
+        assertFieldDataBreakerReleasedWhileCacheDisabled(client, search);
+    }
+
+    public void testGlobalOrdinalsCacheDisabledReleasesBreaker() throws Exception {
+        if (noopBreakerUsed()) {
+            logger.info("--> noop breakers used, skipping test");
+            return;
+        }
+        final Client client = client();
+        assertAcked(
+            prepareCreate("ordtest").setMapping("test", "type=keyword")
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put("index.refresh_interval", -1))
+        );
+        ensureGreen("ordtest");
+        // global ordinals are only built when a shard has more than one segment
+        for (int segment = 0; segment < 3; segment++) {
+            for (int doc = 0; doc < 10; doc++) {
+                client.prepareIndex("ordtest").setSource("test", "value" + segment + "_" + doc).get();
+            }
+            refresh("ordtest");
+        }
+        assertThat(
+            client.admin().indices().prepareStats("ordtest").setSegments(true).get().getTotal().getSegments().getCount(),
+            greaterThan(1L)
+        );
+        // a terms aggregation on a keyword field loads global ordinals; skip the request cache so every search hits field data
+        SearchRequestBuilder search = client.prepareSearch("ordtest")
+            .setSize(0)
+            .setRequestCache(false)
+            .addAggregation(terms("t").field("test"));
+        assertFieldDataBreakerReleasedWhileCacheDisabled(client, search);
+    }
+
+    private void assertFieldDataBreakerReleasedWhileCacheDisabled(Client client, SearchRequestBuilder search) throws Exception {
+        assertNoFailures(search.get());
+        assertThat(fieldDataBreakerUsed(client), greaterThan(0L));
+
+        // disabling the cache releases the breaker for the evicted entries
+        setFieldDataCacheEnabled(client, false);
+        assertBusy(() -> assertThat(fieldDataBreakerUsed(client), equalTo(0L)));
+        // field data is still loaded to serve the search, but released right away instead of being cached
+        for (int i = 0; i < 3; i++) {
+            assertNoFailures(search.get());
+            assertThat(fieldDataBreakerUsed(client), equalTo(0L));
+        }
+
+        setFieldDataCacheEnabled(client, true);
+        assertNoFailures(search.get());
+        assertThat(fieldDataBreakerUsed(client), greaterThan(0L));
+    }
+
+    private void setFieldDataCacheEnabled(Client client, boolean enabled) {
+        assertAcked(
+            client.admin()
+                .cluster()
+                .prepareUpdateSettings()
+                .setTransientSettings(
+                    Settings.builder().put(IndicesFieldDataCache.INDICES_FIELDDATA_CACHE_ENABLED_SETTING.getKey(), enabled)
+                )
+        );
+    }
+
+    private long fieldDataBreakerUsed(Client client) {
+        long used = 0;
+        for (NodeStats stat : client.admin().cluster().prepareNodesStats().addMetric(BREAKER.metricName()).get().getNodes()) {
+            used += stat.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated();
+        }
+        return used;
     }
 
     public void testRequestBreaker() throws Exception {
