@@ -85,6 +85,7 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.startsWith;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDirectoryTests {
@@ -495,6 +496,130 @@ public class RemoteSegmentStoreDirectoryTests extends BaseRemoteSegmentStoreDire
 
         String output = remoteSegmentStoreDirectory.getMetadataFileForCommit(testPrimaryTerm, testGeneration);
         assertEquals("metadata__" + testPrimaryTerm + "__" + testGeneration + "__pqr", output);
+    }
+
+    /**
+     * Stubs the commit-prefix lookup that {@code getMetadataFileForCommit} performs, so the given commit resolves to
+     * the given metadata file(s).
+     */
+    private void stubCommitLookup(long primaryTerm, long generation, List<String> resolvesTo) throws IOException {
+        when(
+            remoteMetadataDirectory.listFilesByPrefixInLexicographicOrder(
+                RemoteSegmentStoreDirectory.MetadataFilenameUtils.getMetadataFilePrefixForCommit(primaryTerm, generation),
+                1
+            )
+        ).thenReturn(resolvesTo);
+    }
+
+    private Map<String, String> uploadedFilenamesSnapshot() {
+        Map<String, String> snapshot = new HashMap<>();
+        remoteSegmentStoreDirectory.getSegmentsUploadedToRemoteStore()
+            .forEach((luceneName, metadata) -> snapshot.put(luceneName, metadata.getUploadedFilename()));
+        return snapshot;
+    }
+
+    public void testReadSegmentsForCommitReturnsThatCommitsMapping() throws IOException {
+        Map<String, Map<String, String>> contentByMetadataFile = populateMetadata();
+        // metadataFilename2 is primary term 12, generation 13; metadataFilename is 12/23 and is the latest.
+        stubCommitLookup(12, 13, List.of(metadataFilename2));
+
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> resolved = remoteSegmentStoreDirectory.readSegmentsForCommit(
+            12,
+            13
+        );
+
+        Map<String, String> expected = contentByMetadataFile.get(metadataFilename2);
+        assertEquals(expected.keySet(), resolved.keySet());
+        for (Map.Entry<String, String> entry : expected.entrySet()) {
+            RemoteSegmentStoreDirectory.UploadedSegmentMetadata expectedMetadata = RemoteSegmentStoreDirectory.UploadedSegmentMetadata
+                .fromString(entry.getValue());
+            RemoteSegmentStoreDirectory.UploadedSegmentMetadata actualMetadata = resolved.get(entry.getKey());
+            // The uploaded blob name is the whole point: it is not derivable from the Lucene name.
+            assertEquals(expectedMetadata.getUploadedFilename(), actualMetadata.getUploadedFilename());
+            assertEquals(expectedMetadata.getChecksum(), actualMetadata.getChecksum());
+            assertEquals(expectedMetadata.getLength(), actualMetadata.getLength());
+        }
+    }
+
+    public void testReadSegmentsForCommitDisagreesWithTheLatestCommit() throws IOException {
+        Map<String, Map<String, String>> contentByMetadataFile = populateMetadata();
+        remoteSegmentStoreDirectory.init(); // initialises to metadataFilename, i.e. generation 23
+        stubCommitLookup(12, 13, List.of(metadataFilename2));
+
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> latest = remoteSegmentStoreDirectory
+            .getSegmentsUploadedToRemoteStore();
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> atCommit = remoteSegmentStoreDirectory.readSegmentsForCommit(
+            12,
+            13
+        );
+
+        // Confirm the premise of the method: the two views really do differ, so resolving an older commit through the
+        // live map would address the wrong blobs.
+        //
+        // Note the fixture's two unrelated generation numbers. populateMetadata maps metadataFilename (whose *name*
+        // encodes generation 23) to getDummyMetadata("_0", 1), so its *content* names segments_1; metadataFilename2
+        // (name generation 13) carries segments_2. The assertions below are about the content.
+        assertTrue("latest commit should carry its own segments file", latest.containsKey("segments_1"));
+        assertTrue("the resolved commit should carry its own segments file", atCommit.containsKey("segments_2"));
+        assertFalse("the resolved commit must not carry the latest commit's segments file", atCommit.containsKey("segments_1"));
+
+        // Same Lucene name, different blob, because a fresh UUID is minted on every upload.
+        String expectedAtCommit = RemoteSegmentStoreDirectory.UploadedSegmentMetadata.fromString(
+            contentByMetadataFile.get(metadataFilename2).get("_0.cfs")
+        ).getUploadedFilename();
+        assertEquals(expectedAtCommit, atCommit.get("_0.cfs").getUploadedFilename());
+        assertNotEquals(latest.get("_0.cfs").getUploadedFilename(), atCommit.get("_0.cfs").getUploadedFilename());
+    }
+
+    public void testReadSegmentsForCommitLeavesCurrentViewAlone() throws IOException {
+        populateMetadata();
+        remoteSegmentStoreDirectory.init(); // initialises to generation 23
+        stubCommitLookup(12, 13, List.of(metadataFilename2));
+
+        Map<String, String> before = uploadedFilenamesSnapshot();
+        remoteSegmentStoreDirectory.readSegmentsForCommit(12, 13);
+        Map<String, String> after = uploadedFilenamesSnapshot();
+
+        // Unlike initializeToSpecificCommit, this must not replace the map that serves reads, uploads and
+        // stale-segment deletion for the live shard.
+        assertEquals(before, after);
+    }
+
+    public void testReadSegmentsForCommitTakesNoLock() throws IOException {
+        populateMetadata();
+        stubCommitLookup(12, 13, List.of(metadataFilename2));
+
+        remoteSegmentStoreDirectory.readSegmentsForCommit(12, 13);
+
+        // The whole reason this exists rather than initializeToSpecificCommit, which reads a *locked* metadata file.
+        verifyNoInteractions(mdLockManager);
+    }
+
+    public void testReadSegmentsForCommitThrowsWhenCommitIsAbsent() throws IOException {
+        populateMetadata();
+        stubCommitLookup(12, 99, List.of());
+
+        // Expected once a commit has aged out of the retention window; the caller falls back to streaming.
+        assertThrows(NoSuchFileException.class, () -> remoteSegmentStoreDirectory.readSegmentsForCommit(12, 99));
+    }
+
+    public void testReadSegmentsForCommitThrowsWhenCommitIsAmbiguous() throws IOException {
+        populateMetadata();
+        stubCommitLookup(12, 13, List.of(metadataFilename2, metadataFilename3));
+
+        assertThrows(IllegalStateException.class, () -> remoteSegmentStoreDirectory.readSegmentsForCommit(12, 13));
+    }
+
+    public void testReadSegmentsForCommitReturnsUnmodifiableMap() throws IOException {
+        populateMetadata();
+        stubCommitLookup(12, 13, List.of(metadataFilename2));
+
+        Map<String, RemoteSegmentStoreDirectory.UploadedSegmentMetadata> resolved = remoteSegmentStoreDirectory.readSegmentsForCommit(
+            12,
+            13
+        );
+
+        assertThrows(UnsupportedOperationException.class, () -> resolved.remove("_0.cfs"));
     }
 
     public void testCopyFrom() throws IOException {

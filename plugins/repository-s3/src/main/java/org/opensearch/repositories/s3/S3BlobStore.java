@@ -66,6 +66,7 @@ import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION
 import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_KMS_KEY_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.SERVER_SIDE_ENCRYPTION_TYPE_SETTING;
+import static org.opensearch.repositories.s3.S3Repository.SOURCE_ACCESS_POINT_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.STORAGE_CLASS_SETTING;
 import static org.opensearch.repositories.s3.S3Repository.UPLOAD_RETRY_ENABLED;
 
@@ -92,6 +93,8 @@ public class S3BlobStore implements BlobStore {
     private volatile boolean serverSideEncryptionBucketKey;
     private volatile String serverSideEncryptionEncryptionContext;
     private volatile String expectedBucketOwner;
+
+    private volatile String sourceAccessPoint;
 
     private volatile ObjectCannedACL cannedACL;
 
@@ -160,6 +163,7 @@ public class S3BlobStore implements BlobStore {
         this.serverSideEncryptionBucketKey = serverSideEncryptionBucketKey;
         this.serverSideEncryptionEncryptionContext = serverSideEncryptionEncryptionContext;
         this.expectedBucketOwner = expectedBucketOwner;
+        this.sourceAccessPoint = SOURCE_ACCESS_POINT_SETTING.get(repositoryMetadata.settings());
     }
 
     @Override
@@ -178,11 +182,29 @@ public class S3BlobStore implements BlobStore {
         this.serverSideEncryptionBucketKey = SERVER_SIDE_ENCRYPTION_BUCKET_KEY_SETTING.get(repositoryMetadata.settings());
         this.serverSideEncryptionEncryptionContext = SERVER_SIDE_ENCRYPTION_ENCRYPTION_CONTEXT_SETTING.get(repositoryMetadata.settings());
         this.expectedBucketOwner = EXPECTED_BUCKET_OWNER_SETTING.get(repositoryMetadata.settings());
+        // Re-read on reload so a repository update can point copies at a different access point without a restart.
+        this.sourceAccessPoint = SOURCE_ACCESS_POINT_SETTING.get(repositoryMetadata.settings());
     }
 
     @Override
     public String toString() {
         return bucket;
+    }
+
+    /**
+     * Access point this repository reads through when pulling a server-side copy, or an empty string when none is
+     * configured. Describes how this repository reaches a <em>foreign</em> source, not how its own bucket is reached.
+     */
+    public String sourceAccessPoint() {
+        return sourceAccessPoint;
+    }
+
+    /**
+     * Metadata of the repository backing this blob store. Exposed so that errors can name the repository an operator
+     * needs to correct, rather than only the bucket.
+     */
+    public RepositoryMetadata repositoryMetadata() {
+        return repositoryMetadata;
     }
 
     public AmazonS3Reference clientReference() {
