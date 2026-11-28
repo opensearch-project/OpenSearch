@@ -880,3 +880,132 @@ teardown:
 
   - length: { hits.hits: 1 }
   - match: { hits.hits.0.fields: { "issue.labels.name": [ "abc0" ] } }
+
+---
+"Fielddata consumers":
+  - skip:
+      version: " - 3.10.99"
+      reason: "introduced in 3.11.0"
+
+  - do:
+      search:
+        index: flat_object_doc_values_test
+        body:
+          track_total_hits: true
+          sort:
+            - issue.labels.number:
+                order: asc
+
+  - match: { hits.total.value: 10 }
+  - match: { hits.hits.0._id: "0" }
+
+  - do:
+      search:
+        index: flat_object_doc_values_test
+        body:
+          size: 1
+          track_total_hits: true
+          query:
+            term:
+              order: order0
+          script_fields:
+            scripted_name:
+              script:
+                source: "doc['issue.labels.name'].value"
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0.fields.scripted_name: [ "abc0" ] }
+
+---
+"Flat object terms aggregation":
+  - skip:
+      version: " - 3.10.99"
+      reason: "introduced in 3.11.0"
+
+  - do:
+      search:
+        index: flat_object_doc_values_test
+        body:
+          size: 0
+          track_total_hits: true
+          aggs:
+            topn:
+              terms:
+                field: issue.labels.number
+                size: 10
+
+  - match: { hits.total.value: 10 }
+  - match: { aggregations.topn.buckets.0.key: "2" }
+  - match: { aggregations.topn.buckets.0.doc_count: 2 }
+
+---
+"Flat object cardinality aggregation":
+  - skip:
+      version: " - 3.10.99"
+      reason: "introduced in 3.11.0"
+
+  - do:
+      search:
+        index: flat_object_doc_values_test
+        body:
+          size: 0
+          track_total_hits: true
+          aggs:
+            uv:
+              cardinality:
+                field: issue.labels.name
+                precision_threshold: 40000
+
+  - match: { hits.total.value: 10 }
+  - match: { aggregations.uv.value: 10 }
+
+---
+"Flat object composite pagination":
+  - skip:
+      version: " - 3.10.99"
+      reason: "introduced in 3.11.0 "
+
+  - do:
+      search:
+        index: flat_object_doc_values_test
+        body:
+          size: 0
+          track_total_hits: true
+          aggs:
+            groups:
+              composite:
+                size: 2
+                sources:
+                  - number:
+                      terms:
+                        field: issue.labels.number
+                        order: asc
+
+  - match: { hits.total.value: 10 }
+  - length: { aggregations.groups.buckets: 2 }
+  - match: { aggregations.groups.buckets.0.key.number: "1" }
+  - match: { aggregations.groups.buckets.1.key.number: "2" }
+  - match: { aggregations.groups.after_key.number: "2" }
+
+  - do:
+      search:
+        index: flat_object_doc_values_test
+        body:
+          size: 0
+          track_total_hits: true
+          aggs:
+            groups:
+              composite:
+                size: 2
+                after:
+                  number: "2"
+                sources:
+                  - number:
+                      terms:
+                        field: issue.labels.number
+                        order: asc
+
+  - match: { hits.total.value: 10 }
+  - length: { aggregations.groups.buckets: 2 }
+  - match: { aggregations.groups.buckets.0.key.number: "3" }
+  - match: { aggregations.groups.buckets.1.key.number: "4" }

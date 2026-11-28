@@ -43,6 +43,7 @@ import org.opensearch.common.lease.Releasables;
 import org.opensearch.common.util.BigArrays;
 import org.opensearch.common.util.ObjectArray;
 import org.opensearch.index.fielddata.SortedBinaryDocValues;
+import org.opensearch.index.mapper.FlatObjectFieldMapper.FlatObjectFieldType;
 import org.opensearch.index.mapper.MappedFieldType;
 import org.opensearch.index.mapper.StringFieldType;
 import org.opensearch.search.DocValueFormat;
@@ -210,8 +211,10 @@ class BinaryValuesSource extends SingleDimensionValuesSource<BytesRef> {
 
     @Override
     SortedDocsProducer createSortedDocsProducerOrNull(IndexReader reader, Query query) {
+        MappedFieldType unwrappedFieldType = fieldType == null ? null : fieldType.unwrap();
         if (checkIfSortedDocsIsApplicable(reader, fieldType) == false
-            || (fieldType == null || fieldType.unwrap() instanceof StringFieldType == false)
+            || unwrappedFieldType instanceof StringFieldType == false
+            || unwrappedFieldType instanceof FlatObjectFieldType
             || (query != null && query.getClass() != MatchAllDocsQuery.class)) {
             return null;
         }
